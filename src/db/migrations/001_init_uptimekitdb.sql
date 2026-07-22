@@ -4,9 +4,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- Enable TimescaleDB extension
 CREATE EXTENSION IF NOT EXISTS "timescaledb";
 
--- ---------------------------------------------------------------------
 -- 1. Relational Tables (Multi-Tenant Setup)
--- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS teams (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
@@ -25,9 +23,7 @@ CREATE TABLE IF NOT EXISTS monitors (
 
 CREATE INDEX IF NOT EXISTS idx_monitors_team_id ON monitors(team_id);
 
--- ---------------------------------------------------------------------
 -- 2. Time-Series Storage (Hypertable)
--- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS ping_logs (
     time TIMESTAMPTZ NOT NULL,
     monitor_id UUID NOT NULL REFERENCES monitors(id) ON DELETE CASCADE,
@@ -42,9 +38,7 @@ SELECT create_hypertable('ping_logs', 'time', if_not_exists => TRUE);
 
 CREATE INDEX IF NOT EXISTS idx_ping_logs_monitor_time ON ping_logs (monitor_id, time DESC);
 
--- ---------------------------------------------------------------------
 -- 3. Continuous Aggregates & Policies
--- ---------------------------------------------------------------------
 CREATE MATERIALIZED VIEW IF NOT EXISTS hourly_monitor_stats
 WITH (timescaledb.continuous) AS
 SELECT
