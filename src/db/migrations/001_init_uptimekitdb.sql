@@ -5,10 +5,24 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "timescaledb";
 
 -- 1. Relational Tables (Multi-Tenant Setup)
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS teams (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS team_members (
+    team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(50) NOT NULL DEFAULT 'member',
+    PRIMARY KEY (team_id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS monitors (
@@ -16,6 +30,8 @@ CREATE TABLE IF NOT EXISTS monitors (
     team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     url TEXT NOT NULL,
+    type VARCHAR(50) NOT NULL DEFAULT 'HTTP',
+    interval_sec INTEGER NOT NULL DEFAULT 60,
     expected_status_code INTEGER DEFAULT 200,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -23,12 +39,34 @@ CREATE TABLE IF NOT EXISTS monitors (
 
 CREATE INDEX IF NOT EXISTS idx_monitors_team_id ON monitors(team_id);
 
+CREATE TABLE IF NOT EXISTS incidents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    monitor_id UUID NOT NULL REFERENCES monitors(id) ON DELETE CASCADE,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ,
+    cause TEXT,
+    status VARCHAR(50) NOT NULL DEFAULT 'ONGOING'
+);
+
+CREATE INDEX IF NOT EXISTS idx_incidents_monitor_id ON incidents(monitor_id);
+
+CREATE TABLE IF NOT EXISTS alert_channels (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    type VARCHAR(50) NOT NULL,
+    config JSONB NOT NULL,
+    is_enabled BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_alert_channels_team_id ON alert_channels(team_id);
+
 -- 2. Time-Series Storage (Hypertable)
 CREATE TABLE IF NOT EXISTS ping_logs (
     time TIMESTAMPTZ NOT NULL,
     monitor_id UUID NOT NULL REFERENCES monitors(id) ON DELETE CASCADE,
+    response_ms INTEGER,
     status_code INTEGER,
-    response_time_ms INTEGER,
     is_up BOOLEAN NOT NULL,
     error_message TEXT
 );
@@ -44,9 +82,9 @@ WITH (timescaledb.continuous) AS
 SELECT
     time_bucket('1 hour', time) AS bucket,
     monitor_id,
-    AVG(response_time_ms)::INTEGER AS avg_response_time,
-    MIN(response_time_ms) AS min_response_time,
-    MAX(response_time_ms) AS max_response_time,
+    AVG(response_ms)::INTEGER AS avg_response_ms,
+    MIN(response_ms) AS min_response_ms,
+    MAX(response_ms) AS max_response_ms,
     COUNT(CASE WHEN is_up THEN 1 END)::FLOAT / COUNT(*) * 100 AS uptime_percentage
 FROM ping_logs
 GROUP BY bucket, monitor_id;
@@ -60,3 +98,4 @@ SELECT add_continuous_aggregate_policy('hourly_monitor_stats',
 
 -- Auto-delete raw minute ping logs older than 7 days
 SELECT add_retention_policy('ping_logs', INTERVAL '7 days', if_not_exists => TRUE);
+
