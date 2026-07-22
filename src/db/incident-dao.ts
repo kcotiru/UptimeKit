@@ -1,10 +1,18 @@
 import { Pool } from "pg";
 import { Incident } from "../domain/models";
+import { BaseDao } from "./base-dao";
 
-export class IncidentDao {
-  constructor(private db: Pool) { }
+export enum IncidentStatus {
+  ONGOING = 'ONGOING',
+  RESOLVED = 'RESOLVED',
+}
 
-  private mapRowToIncident(row: any): Incident {
+export class IncidentDao extends BaseDao<Incident> {
+  constructor(db: Pool) {
+    super(db);
+  }
+
+  protected mapRow(row: any): Incident {
     return {
       id: row.id,
       monitorId: row.monitor_id,
@@ -18,32 +26,29 @@ export class IncidentDao {
   async createIncident(monitorId: string, cause?: string): Promise<Incident> {
     const query = `
       INSERT INTO incidents (monitor_id, cause, status)
-      VALUES ($1, $2, 'ONGOING')
+      VALUES ($1, $2, $3)
       RETURNING *;
     `;
-    const result = await this.db.query(query, [monitorId, cause ?? null]);
-    return this.mapRowToIncident(result.rows[0]);
+    return (await this.querySingle(query, [monitorId, cause ?? null, IncidentStatus.ONGOING]))!;
   }
 
   async getOngoingIncident(monitorId: string): Promise<Incident | null> {
     const query = `
       SELECT * FROM incidents
-      WHERE monitor_id = $1 AND status = 'ONGOING'
+      WHERE monitor_id = $1 AND status = $2
       ORDER BY started_at DESC
       LIMIT 1;
     `;
-    const result = await this.db.query(query, [monitorId]);
-    if (!result.rows[0]) return null;
-    return this.mapRowToIncident(result.rows[0]);
+    return this.querySingle(query, [monitorId, IncidentStatus.ONGOING]);
   }
 
   async resolveIncident(id: string): Promise<void> {
     const query = `
       UPDATE incidents
-      SET status = 'RESOLVED', resolved_at = NOW()
+      SET status = $2, resolved_at = NOW()
       WHERE id = $1;
     `;
-    await this.db.query(query, [id]);
+    await this.execute(query, [id, IncidentStatus.RESOLVED]);
   }
 
   async getIncidentsByMonitor(monitorId: string, limit: number = 20): Promise<Incident[]> {
@@ -53,7 +58,6 @@ export class IncidentDao {
       ORDER BY started_at DESC
       LIMIT $2;
     `;
-    const result = await this.db.query(query, [monitorId, limit]);
-    return result.rows.map((row) => this.mapRowToIncident(row));
+    return this.queryMany(query, [monitorId, limit]);
   }
 }

@@ -1,10 +1,13 @@
 import { Pool } from "pg";
 import { TeamMember } from "../domain/models";
+import { BaseDao } from "./base-dao";
 
-export class TeamMemberDao {
-  constructor(private db: Pool) { }
+export class TeamMemberDao extends BaseDao<TeamMember> {
+  constructor(db: Pool) {
+    super(db);
+  }
 
-  private mapRowToTeamMember(row: any): TeamMember {
+  protected mapRow(row: any): TeamMember {
     return {
       teamId: row.team_id,
       userId: row.user_id,
@@ -18,8 +21,7 @@ export class TeamMemberDao {
       VALUES ($1, $2, $3)
       RETURNING *;
     `;
-    const result = await this.db.query(query, [teamId, userId, role]);
-    return this.mapRowToTeamMember(result.rows[0]);
+    return (await this.querySingle(query, [teamId, userId, role]))!;
   }
 
   async getMember(teamId: string, userId: string): Promise<TeamMember | null> {
@@ -27,9 +29,7 @@ export class TeamMemberDao {
       SELECT * FROM team_members
       WHERE team_id = $1 AND user_id = $2;
     `;
-    const result = await this.db.query(query, [teamId, userId]);
-    if (!result.rows[0]) return null;
-    return this.mapRowToTeamMember(result.rows[0]);
+    return this.querySingle(query, [teamId, userId]);
   }
 
   async getTeamMembers(teamId: string): Promise<TeamMember[]> {
@@ -37,8 +37,7 @@ export class TeamMemberDao {
       SELECT * FROM team_members
       WHERE team_id = $1;
     `;
-    const result = await this.db.query(query, [teamId]);
-    return result.rows.map((row) => this.mapRowToTeamMember(row));
+    return this.queryMany(query, [teamId]);
   }
 
   async removeMember(teamId: string, userId: string): Promise<void> {
@@ -46,6 +45,6 @@ export class TeamMemberDao {
       DELETE FROM team_members
       WHERE team_id = $1 AND user_id = $2;
     `;
-    await this.db.query(query, [teamId, userId]);
+    await this.execute(query, [teamId, userId]);
   }
 }

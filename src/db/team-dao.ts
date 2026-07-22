@@ -1,10 +1,13 @@
 import { Pool } from "pg";
 import { Team } from "../domain/models";
+import { BaseDao } from "./base-dao";
 
-export class TeamDao {
-  constructor(private db: Pool) { }
+export class TeamDao extends BaseDao<Team> {
+  constructor(db: Pool) {
+    super(db);
+  }
 
-  private mapRowToTeam(row: any): Team {
+  protected mapRow(row: any): Team {
     return {
       id: row.id,
       name: row.name,
@@ -18,8 +21,7 @@ export class TeamDao {
       VALUES ($1)
       RETURNING *;
     `;
-    const result = await this.db.query(query, [name]);
-    return this.mapRowToTeam(result.rows[0]);
+    return (await this.querySingle(query, [name]))!;
   }
 
   async getTeamById(id: string): Promise<Team | null> {
@@ -28,10 +30,6 @@ export class TeamDao {
       FROM teams
       WHERE id = $1;
     `;
-    const result = await this.db.query(query, [id]);
-    if (!result.rows[0]) {
-      return null;
-    }
-    return this.mapRowToTeam(result.rows[0]);
+    return this.querySingle(query, [id]);
   }
 }

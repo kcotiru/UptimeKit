@@ -1,10 +1,13 @@
 import { Pool } from "pg";
 import { Monitor } from "../domain/models";
+import { BaseDao } from "./base-dao";
 
-export class MonitorDao {
-  constructor(private db: Pool) { }
+export class MonitorDao extends BaseDao<Monitor> {
+  constructor(db: Pool) {
+    super(db);
+  }
 
-  private mapRowToMonitor(row: any): Monitor {
+  protected mapRow(row: any): Monitor {
     return {
       id: row.id,
       teamId: row.team_id,
@@ -34,8 +37,7 @@ export class MonitorDao {
       monitor.isActive ?? true
     ];
 
-    const result = await this.db.query(query, values);
-    return this.mapRowToMonitor(result.rows[0]);
+    return (await this.querySingle(query, values))!;
   }
 
   async getMonitorsByTeamId(teamId: string): Promise<Monitor[]> {
@@ -45,8 +47,7 @@ export class MonitorDao {
       WHERE team_id = $1
       ORDER BY created_at DESC;
     `;
-    const result = await this.db.query(query, [teamId]);
-    return result.rows.map((row) => this.mapRowToMonitor(row));
+    return this.queryMany(query, [teamId]);
   }
 
   async getActiveMonitors(): Promise<Monitor[]> {
@@ -55,8 +56,7 @@ export class MonitorDao {
       FROM monitors
       WHERE is_active = TRUE
     `;
-    const result = await this.db.query(query);
-    return result.rows.map((row) => this.mapRowToMonitor(row));
+    return this.queryMany(query);
   }
 
   async updateMonitorStatus(id: string, isActive: boolean): Promise<void> {
@@ -65,6 +65,6 @@ export class MonitorDao {
       SET is_active = $1
       WHERE id = $2
     `;
-    await this.db.query(query, [isActive, id]);
+    await this.execute(query, [isActive, id]);
   }
 }

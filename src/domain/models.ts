@@ -17,7 +17,7 @@ export interface TeamMember {
   role: string;
 }
 
-export type MonitorType = 'HTTP' | 'TCP' | 'KEYWORD' | 'SSL';
+export type MonitorType = 'HTTP' | 'TCP' | 'KEYWORD';
 
 export interface Monitor {
   id: string;
@@ -37,7 +37,6 @@ export interface PingLog {
   statusCode: number | null;
   responseMs: number | null;
   isUp: boolean;
-  errorMessage: string | null;
 }
 
 export interface HourlyMonitorStat {
@@ -46,7 +45,7 @@ export interface HourlyMonitorStat {
   avgResponseMs: number | null;
   minResponseMs: number | null;
   maxResponseMs: number | null;
-  uptimePercentage: number | null;
+  p95ResponseMs: number | null;
 }
 
 export type IncidentStatus = 'ONGOING' | 'RESOLVED';

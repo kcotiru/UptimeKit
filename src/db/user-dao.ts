@@ -1,10 +1,13 @@
 import { Pool } from "pg";
 import { User } from "../domain/models";
+import { BaseDao } from "./base-dao";
 
-export class UserDao {
-  constructor(private db: Pool) { }
+export class UserDao extends BaseDao<User> {
+  constructor(db: Pool) {
+    super(db);
+  }
 
-  private mapRowToUser(row: any): User {
+  protected mapRow(row: any): User {
     return {
       id: row.id,
       email: row.email,
@@ -19,25 +22,20 @@ export class UserDao {
       VALUES ($1, $2)
       RETURNING *;
     `;
-    const result = await this.db.query(query, [email, passwordHash]);
-    return this.mapRowToUser(result.rows[0]);
+    return (await this.querySingle(query, [email, passwordHash]))!;
   }
 
   async getUserByEmail(email: string): Promise<User | null> {
     const query = `
       SELECT * FROM users WHERE email = $1;
     `;
-    const result = await this.db.query(query, [email]);
-    if (!result.rows[0]) return null;
-    return this.mapRowToUser(result.rows[0]);
+    return this.querySingle(query, [email]);
   }
 
   async getUserById(id: string): Promise<User | null> {
     const query = `
       SELECT * FROM users WHERE id = $1;
     `;
-    const result = await this.db.query(query, [id]);
-    if (!result.rows[0]) return null;
-    return this.mapRowToUser(result.rows[0]);
+    return this.querySingle(query, [id]);
   }
 }

@@ -67,8 +67,7 @@ CREATE TABLE IF NOT EXISTS ping_logs (
     monitor_id UUID NOT NULL REFERENCES monitors(id) ON DELETE CASCADE,
     response_ms INTEGER,
     status_code INTEGER,
-    is_up BOOLEAN NOT NULL,
-    error_message TEXT
+    is_up BOOLEAN NOT NULL
 );
 
 -- Convert to TimescaleDB Hypertable
@@ -85,7 +84,7 @@ SELECT
     AVG(response_ms)::INTEGER AS avg_response_ms,
     MIN(response_ms) AS min_response_ms,
     MAX(response_ms) AS max_response_ms,
-    COUNT(CASE WHEN is_up THEN 1 END)::FLOAT / COUNT(*) * 100 AS uptime_percentage
+    percentile_cont(0.95) WITHIN GROUP (ORDER BY response_ms) AS p95_response_ms
 FROM ping_logs
 GROUP BY bucket, monitor_id;
 
