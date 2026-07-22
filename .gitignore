@@ -137,3 +137,5 @@ dist
 
 #specs
 uptimekit_spec.md
+.gemini_diff.txt
+diff.txt
