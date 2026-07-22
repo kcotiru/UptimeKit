@@ -134,3 +134,8 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+#specs
+uptimekit_spec.md
+.gemini_diff.txt
+diff.txt
