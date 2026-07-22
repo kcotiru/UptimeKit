@@ -1,0 +1,30 @@
+{
+  "name": "uptimekit",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev:api": "nodemon --exec ts-node src/api.ts",
+    "dev:worker": "nodemon --exec ts-node src/worker.ts",
+    "build": "tsc",
+    "start:api": "node dist/api.js",
+    "start:worker": "node dist/worker.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "bullmq": "^5.80.10",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.1",
+    "@types/pg": "^8.20.0",
+    "nodemon": "^3.1.14",
+    "ts-node": "^10.9.2",
+    "typescript": "^7.0.2"
+  }
+}
