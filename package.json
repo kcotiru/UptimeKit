@@ -1,32 +1,29 @@
 {
   "name": "uptimekit",
-  "version": "1.0.0",
-  "main": "index.js",
+  "version": "0.1.0",
+  "description": "UptimeKit database schema and migrations",
+  "main": "src/db/scripts/migrate.ts",
   "scripts": {
-    "dev:api": "nodemon --exec ts-node src/api.ts",
-    "dev:worker": "nodemon --exec ts-node src/worker.ts",
     "build": "tsc",
-    "start:api": "node dist/api.js",
-    "start:worker": "node dist/worker.js"
+    "migrate": "ts-node src/db/scripts/migrate.ts",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
-    "bullmq": "^5.80.10",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "pg": "^8.22.0",
-    "pg-format": "^1.0.4"
+    "dotenv": "^16.4.5",
+    "node-pg-migrate": "^7.6.1",
+    "pg": "^8.12.0",
+    "uuidv7": "^1.0.2"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6",
-    "@types/node": "^26.1.1",
-    "@types/pg": "^8.20.0",
-    "@types/pg-format": "^1.0.5",
-    "nodemon": "^3.1.14",
+    "@types/node": "^20.14.9",
+    "@types/pg": "^8.11.6",
+    "@typescript-eslint/eslint-plugin": "^7.15.0",
+    "@typescript-eslint/parser": "^7.15.0",
+    "eslint": "^8.57.0",
     "ts-node": "^10.9.2",
-    "typescript": "^7.0.2"
+    "typescript": "^5.5.2",
+    "vitest": "^1.6.0"
   }
 }
