@@ -139,3 +139,7 @@ dist
 uptimekit_spec.md
 .gemini_diff.txt
 diff.txt
+
+.agents
+.specify
+specs
