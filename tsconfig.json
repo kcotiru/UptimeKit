@@ -11,10 +11,10 @@
     "rootDir": "./",
     "baseUrl": "./",
     "paths": {
-      "db/*": ["db/*"],
+      "db/*": ["src/db/*"],
       "tests/*": ["tests/*"]
     }
   },
-  "include": ["db/**/*", "tests/**/*"],
+  "include": ["src/**/*", "tests/**/*"],
   "exclude": ["node_modules", "dist"]
 }

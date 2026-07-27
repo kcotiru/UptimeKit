@@ -20,7 +20,7 @@ export async function getTestClient(): Promise<Client> {
  * Executes a migration SQL file by relative migration path.
  */
 export async function runSqlFile(client: Client, relativePath: string): Promise<void> {
-  const fullPath = path.join(__dirname, '../../../db/migrations', relativePath);
+  const fullPath = path.join(__dirname, '../../../src/db/migrations', relativePath);
   const sql = fs.readFileSync(fullPath, 'utf8');
   await client.query(sql);
 }
@@ -29,7 +29,7 @@ export async function runSqlFile(client: Client, relativePath: string): Promise<
  * Runs all forward migrations in numbered order.
  */
 export async function runAllMigrationsUp(client: Client): Promise<void> {
-  const migrationsDir = path.join(__dirname, '../../../db/migrations');
+  const migrationsDir = path.join(__dirname, '../../../src/db/migrations');
   const files = fs.readdirSync(migrationsDir)
     .filter(f => f.endsWith('.sql') && !f.startsWith('down'))
     .sort();
@@ -44,7 +44,7 @@ export async function runAllMigrationsUp(client: Client): Promise<void> {
  * Runs all reverse migrations in reverse numbered order.
  */
 export async function runAllMigrationsDown(client: Client): Promise<void> {
-  const downDir = path.join(__dirname, '../../../db/migrations/down');
+  const downDir = path.join(__dirname, '../../../src/db/migrations/down');
   if (!fs.existsSync(downDir)) return;
 
   const files = fs.readdirSync(downDir)

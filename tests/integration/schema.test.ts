@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { getTestClient, runSqlFile, runAllMigrationsUp, runAllMigrationsDown } from './helpers/db-setup';
+import { getTestClient, runAllMigrationsUp, runAllMigrationsDown } from './helpers/db-setup';
 import { Client } from 'pg';
 
 describe('Foundational Schema Integration Tests (Teams & Users)', () => {
@@ -25,10 +25,10 @@ describe('Foundational Schema Integration Tests (Teams & Users)', () => {
     const fs = await import('fs');
     const path = await import('path');
 
-    const up001 = fs.readFileSync(path.join(__dirname, '../../db/migrations/001_create_teams.sql'), 'utf8');
-    const down001 = fs.readFileSync(path.join(__dirname, '../../db/migrations/down/001_drop_teams.sql'), 'utf8');
-    const up002 = fs.readFileSync(path.join(__dirname, '../../db/migrations/002_create_users.sql'), 'utf8');
-    const down002 = fs.readFileSync(path.join(__dirname, '../../db/migrations/down/002_drop_users.sql'), 'utf8');
+    const up001 = fs.readFileSync(path.join(__dirname, '../../src/db/migrations/001_create_teams.sql'), 'utf8');
+    const down001 = fs.readFileSync(path.join(__dirname, '../../src/db/migrations/down/001_drop_teams.sql'), 'utf8');
+    const up002 = fs.readFileSync(path.join(__dirname, '../../src/db/migrations/002_create_users.sql'), 'utf8');
+    const down002 = fs.readFileSync(path.join(__dirname, '../../src/db/migrations/down/002_drop_users.sql'), 'utf8');
 
     expect(up001).toContain('CREATE TABLE IF NOT EXISTS teams');
     expect(down001).toContain('DROP TABLE IF EXISTS teams');

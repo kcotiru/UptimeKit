@@ -4,8 +4,8 @@ import path from 'path';
 
 describe('Migration Reversibility Verification', () => {
   it('ensures every up migration script has a corresponding down migration script', () => {
-    const upDir = path.join(__dirname, '../../db/migrations');
-    const downDir = path.join(__dirname, '../../db/migrations/down');
+    const upDir = path.join(__dirname, '../../src/db/migrations');
+    const downDir = path.join(__dirname, '../../src/db/migrations/down');
 
     const upFiles = fs.readdirSync(upDir)
       .filter(f => f.endsWith('.sql') && !f.startsWith('down'));

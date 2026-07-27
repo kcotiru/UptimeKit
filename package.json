@@ -2,10 +2,10 @@
   "name": "uptimekit",
   "version": "0.1.0",
   "description": "UptimeKit database schema and migrations",
-  "main": "db/scripts/migrate.ts",
+  "main": "src/db/scripts/migrate.ts",
   "scripts": {
     "build": "tsc",
-    "migrate": "ts-node db/scripts/migrate.ts",
+    "migrate": "ts-node src/db/scripts/migrate.ts",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration"
