@@ -39,11 +39,3 @@ export interface PingExecutionResult {
   status: 'up' | 'down' | 'degraded';
 }
 
-/**
- * Result of SSRF validation.
- */
-export interface SSRFValidationResult {
-  isAllowed: boolean;
-  resolvedIp?: string;
-  reason?: string;
-}

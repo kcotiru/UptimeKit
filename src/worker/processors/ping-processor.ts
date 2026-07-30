@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { ISSRFValidator } from '../security/ssrf-validator';
+import { ISSRFValidator } from '../../shared/security/ssrf-validator';
 import { IPingClient } from '../http/ping-client';
 import { PingJobPayload, PingExecutionResult } from '../queues/types';
 import { workerConfig } from '../config/worker-config';

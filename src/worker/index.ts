@@ -4,7 +4,7 @@ import { workerConfig } from './config/worker-config';
 import { pingQueue, PING_QUEUE_NAME } from './queues/ping-queue';
 import { ROLLUP_QUEUE_NAME, setupRollupSchedulers } from './queues/rollup-queue';
 import { PURGE_QUEUE_NAME } from './queues/purge-queue';
-import { SSRFValidator } from './security/ssrf-validator';
+import { SSRFValidator } from '../shared/security/ssrf-validator';
 import { PingClient } from './http/ping-client';
 import { PingProcessor } from './processors/ping-processor';
 import { RollupProcessor } from './processors/rollup-processor';

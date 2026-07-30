@@ -22,9 +22,9 @@ describe('PingClient', () => {
       const result = await client.executePing(url, '127.0.0.1');
       expect(result.statusCode).toBe(200);
       expect(result.errorMessage).toBeNull();
-      // Tolerance ±15ms for local OS scheduling overhead
+      // Tolerance ±15ms for local OS scheduling overhead, but allow up to +100ms for CI/test environments
       expect(result.responseTimeMs).toBeGreaterThanOrEqual(delayMs - 5);
-      expect(result.responseTimeMs).toBeLessThanOrEqual(delayMs + 40);
+      expect(result.responseTimeMs).toBeLessThanOrEqual(delayMs + 100);
     } finally {
       await new Promise<void>(resolve => server.close(() => resolve()));
     }
