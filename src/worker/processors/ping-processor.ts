@@ -111,7 +111,7 @@ export class PingProcessor {
       if (updateRes.rows.length > 0) {
         const consecutiveFailures = updateRes.rows[0].consecutive_failures;
         // ponytail: hardcoded threshold = 3 (YAGNI on configurable rules for now)
-        const threshold = 3; 
+        const threshold = workerConfig.defaultFailureThreshold;
         
         if (consecutiveFailures === threshold && executionResult.status === 'down') {
           // Open incident
@@ -121,13 +121,17 @@ export class PingProcessor {
             [incidentId, executionResult.teamId, executionResult.monitorId, executionResult.errorMessage || 'Unknown Error']
           );
           
-          await this.notificationQueue.add('notify-down', {
-            teamId: executionResult.teamId,
-            monitorId: executionResult.monitorId,
-            incidentId,
-            status: 'down',
-            cause: executionResult.errorMessage || 'Unknown Error'
-          });
+          try {
+            await this.notificationQueue.add('notify-down', {
+              teamId: executionResult.teamId,
+              monitorId: executionResult.monitorId,
+              incidentId,
+              status: 'down',
+              cause: executionResult.errorMessage || 'Unknown Error'
+            });
+          } catch (queueErr) {
+            console.error('[PingProcessor] Failed to enqueue notify-down job to Redis queue:', queueErr);
+          }
         } else if (consecutiveFailures === 0 && executionResult.status === 'up') {
           // Check for open incidents to resolve
           const openIncidents = await client.query(
@@ -141,13 +145,17 @@ export class PingProcessor {
               [executionResult.monitorId]
             );
             
-            await this.notificationQueue.add('notify-up', {
-              teamId: executionResult.teamId,
-              monitorId: executionResult.monitorId,
-              incidentId: openIncidents.rows[0].id,
-              status: 'up',
-              cause: 'Monitor recovered'
-            });
+            try {
+              await this.notificationQueue.add('notify-up', {
+                teamId: executionResult.teamId,
+                monitorId: executionResult.monitorId,
+                incidentId: openIncidents.rows[0].id,
+                status: 'up',
+                cause: 'Monitor recovered'
+              });
+            } catch (queueErr) {
+              console.error('[PingProcessor] Failed to enqueue notify-up job to Redis queue:', queueErr);
+            }
           }
         }
       }

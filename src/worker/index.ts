@@ -82,6 +82,15 @@ export async function startWorkerService(): Promise<WorkerService> {
     }
   );
 
+  notificationWorker.on('failed', (job, err) => {
+    if (job && job.attemptsMade >= (job.opts.attempts || 5)) {
+      console.error(`[DEAD-LETTER] Notification job ${job.id} failed terminally after ${job.attemptsMade} attempts:`, {
+        payload: job.data,
+        error: err?.message,
+      });
+    }
+  });
+
   // 2. Setup Repeatable Schedulers
   await setupRollupSchedulers();
   await monitorScheduler.syncMonitors();
