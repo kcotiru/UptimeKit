@@ -9,7 +9,7 @@ describe('E2E Worker Execution Flow', () => {
       query: vi.fn().mockImplementation((sql: string) => {
         if (sql.includes('BEGIN') || sql.includes('COMMIT')) return Promise.resolve();
         if (sql.includes('INSERT INTO ping_logs_raw')) return Promise.resolve({ rowCount: 1 });
-        if (sql.includes('UPDATE monitors')) return Promise.resolve({ rowCount: 1 });
+        if (sql.includes('UPDATE monitors')) return Promise.resolve({ rowCount: 1, rows: [{ consecutive_failures: 0 }] });
         if (sql.includes('SELECT status FROM rollup_logs')) return Promise.resolve({ rows: [] });
         if (sql.includes('pg_try_advisory_xact_lock')) return Promise.resolve({ rows: [{ acquired: true }] });
         if (sql.includes('INSERT INTO ping_logs_hourly')) return Promise.resolve({ rowCount: 1 });
@@ -41,7 +41,7 @@ describe('E2E Worker Execution Flow', () => {
       }),
     };
 
-    const pingProc = new PingProcessor(mockSsrfValidator, mockPingClient, mockDbPool);
+    const pingProc = new PingProcessor(mockSsrfValidator, mockPingClient, mockDbPool, { add: vi.fn() } as any);
     const rollupProc = new RollupProcessor(mockDbPool);
     const purgeProc = new PurgeProcessor(mockDbPool);
 

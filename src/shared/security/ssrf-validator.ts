@@ -4,11 +4,7 @@ import net from 'net';
 import { URL } from 'url';
 import { SSRFValidationResult } from './types';
 
-export interface ISSRFValidator {
-  validateUrl(url: string, allowlist?: string[]): Promise<SSRFValidationResult>;
-}
-
-export class SSRFValidator implements ISSRFValidator {
+export class SSRFValidator {
   private defaultAllowlist: string[];
 
   constructor(allowlist: string[] = []) {

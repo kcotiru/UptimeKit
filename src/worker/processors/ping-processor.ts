@@ -1,22 +1,22 @@
 import { Pool } from 'pg';
-import { ISSRFValidator } from '../../shared/security/ssrf-validator';
-import { IPingClient } from '../http/ping-client';
-import { PingJobPayload, PingExecutionResult } from '../queues/types';
+import { SSRFValidator } from '../../shared/security/ssrf-validator';
+import { PingClient } from '../http/ping-client';
+import { PingJobPayload, PingExecutionResult, NotificationJobPayload } from '../queues/types';
+import { Queue } from 'bullmq';
+import { randomUUID } from 'crypto';
 import { workerConfig } from '../config/worker-config';
 
-export interface IPingProcessor {
-  processPing(jobData: PingJobPayload): Promise<PingExecutionResult>;
-}
-
-export class PingProcessor implements IPingProcessor {
-  private ssrfValidator: ISSRFValidator;
-  private pingClient: IPingClient;
+export class PingProcessor {
+  private ssrfValidator: SSRFValidator;
+  private pingClient: PingClient;
   private dbPool: Pool;
+  private notificationQueue: Queue<NotificationJobPayload>;
 
-  constructor(ssrfValidator: ISSRFValidator, pingClient: IPingClient, dbPool: Pool) {
+  constructor(ssrfValidator: SSRFValidator, pingClient: PingClient, dbPool: Pool, notificationQueue: Queue<NotificationJobPayload>) {
     this.ssrfValidator = ssrfValidator;
     this.pingClient = pingClient;
     this.dbPool = dbPool;
+    this.notificationQueue = notificationQueue;
   }
 
   /**
@@ -97,14 +97,60 @@ export class PingProcessor implements IPingProcessor {
 
       const updateQuery = `
         UPDATE monitors
-        SET status = $1, updated_at = NOW()
+        SET status = $1, updated_at = NOW(),
+            consecutive_failures = CASE WHEN $1 = 'down' THEN consecutive_failures + 1 ELSE 0 END
         WHERE id = $2 AND team_id = $3 AND deleted_at IS NULL
+        RETURNING consecutive_failures
       `;
-      await client.query(updateQuery, [
+      const updateRes = await client.query(updateQuery, [
         executionResult.status,
         executionResult.monitorId,
         executionResult.teamId,
       ]);
+
+      if (updateRes.rows.length > 0) {
+        const consecutiveFailures = updateRes.rows[0].consecutive_failures;
+        // ponytail: hardcoded threshold = 3 (YAGNI on configurable rules for now)
+        const threshold = 3; 
+        
+        if (consecutiveFailures === threshold && executionResult.status === 'down') {
+          // Open incident
+          const incidentId = randomUUID();
+          await client.query(
+            'INSERT INTO incidents (id, team_id, monitor_id, cause) VALUES ($1, $2, $3, $4)',
+            [incidentId, executionResult.teamId, executionResult.monitorId, executionResult.errorMessage || 'Unknown Error']
+          );
+          
+          await this.notificationQueue.add('notify-down', {
+            teamId: executionResult.teamId,
+            monitorId: executionResult.monitorId,
+            incidentId,
+            status: 'down',
+            cause: executionResult.errorMessage || 'Unknown Error'
+          });
+        } else if (consecutiveFailures === 0 && executionResult.status === 'up') {
+          // Check for open incidents to resolve
+          const openIncidents = await client.query(
+            'SELECT id FROM incidents WHERE monitor_id = $1 AND resolved_at IS NULL AND is_deleted = false FOR UPDATE',
+            [executionResult.monitorId]
+          );
+          
+          if (openIncidents.rows.length > 0) {
+            await client.query(
+              'UPDATE incidents SET resolved_at = NOW(), updated_at = NOW() WHERE monitor_id = $1 AND resolved_at IS NULL',
+              [executionResult.monitorId]
+            );
+            
+            await this.notificationQueue.add('notify-up', {
+              teamId: executionResult.teamId,
+              monitorId: executionResult.monitorId,
+              incidentId: openIncidents.rows[0].id,
+              status: 'up',
+              cause: 'Monitor recovered'
+            });
+          }
+        }
+      }
 
       await client.query('COMMIT');
     } catch (err) {

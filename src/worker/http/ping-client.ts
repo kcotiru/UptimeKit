@@ -7,11 +7,7 @@ export interface PingResponse {
   errorMessage: string | null;
 }
 
-export interface IPingClient {
-  executePing(url: string, resolvedIp?: string, timeoutMs?: number): Promise<PingResponse>;
-}
-
-export class PingClient implements IPingClient {
+export class PingClient {
   /**
    * Executes HTTP check against target URL with high-precision latency measurement
    * and custom DNS IP pinning to prevent DNS rebinding.

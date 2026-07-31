@@ -39,3 +39,10 @@ export interface PingExecutionResult {
   status: 'up' | 'down' | 'degraded';
 }
 
+export interface NotificationJobPayload {
+  teamId: string;
+  monitorId: string;
+  incidentId: string;
+  status: 'down' | 'up';
+  cause: string;
+}
