@@ -27,7 +27,7 @@ export function createServer() {
   // Logging
   app.use(
     pinoHttp({
-      genReqId: (req) => req.headers['x-request-id'],
+      genReqId: (req) => (req.headers['x-request-id'] as string) || 'unknown',
       level: process.env.NODE_ENV === 'test' ? 'silent' : 'info',
     })
   );
