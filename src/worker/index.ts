@@ -3,7 +3,7 @@ import { dbPool, redisConnection } from './config/redis';
 import { workerConfig } from './config/worker-config';
 import { pingQueue, PING_QUEUE_NAME } from './queues/ping-queue';
 import { ROLLUP_QUEUE_NAME, setupRollupSchedulers } from './queues/rollup-queue';
-import { PURGE_QUEUE_NAME } from './queues/purge-queue';
+import { purgeQueue, PURGE_QUEUE_NAME } from './queues/purge-queue';
 import { notificationQueue, NOTIFICATION_QUEUE_NAME } from './queues/notification-queue';
 import { SSRFValidator } from '../shared/security/ssrf-validator';
 import { PingClient } from './http/ping-client';
@@ -11,7 +11,7 @@ import { PingProcessor } from './processors/ping-processor';
 import { RollupProcessor } from './processors/rollup-processor';
 import { PurgeProcessor } from './processors/purge-processor';
 import { NotificationProcessor } from './processors/notification-processor';
-import { MonitorScheduler } from './schedulers/monitor-scheduler';
+import { MonitorScheduler, enqueuePendingPurges } from './schedulers/monitor-scheduler';
 
 export interface WorkerService {
   pingWorker: Worker;
@@ -33,7 +33,7 @@ export async function startWorkerService(): Promise<WorkerService> {
   const pingProcessor = new PingProcessor(ssrfValidator, pingClient, dbPool, notificationQueue);
   const rollupProcessor = new RollupProcessor(dbPool);
   const purgeProcessor = new PurgeProcessor(dbPool);
-  const notificationProcessor = new NotificationProcessor(dbPool);
+  const notificationProcessor = new NotificationProcessor(dbPool, ssrfValidator);
 
   const monitorScheduler = new MonitorScheduler(dbPool, pingQueue);
 
@@ -94,10 +94,15 @@ export async function startWorkerService(): Promise<WorkerService> {
   // 2. Setup Repeatable Schedulers
   await setupRollupSchedulers();
   await monitorScheduler.syncMonitors();
+  await enqueuePendingPurges(dbPool, purgeQueue);
 
   const syncInterval = setInterval(() => {
     monitorScheduler.syncMonitors().catch((err: unknown) => {
       console.error('[Scheduler] Monitor sync failed:', err);
+    });
+    // Same tick drains what the soft-delete trigger queued.
+    enqueuePendingPurges(dbPool, purgeQueue).catch((err: unknown) => {
+      console.error('[Purge] Pending purge drain failed:', err);
     });
   }, workerConfig.schedulerSyncIntervalMs);
 

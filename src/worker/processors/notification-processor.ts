@@ -1,12 +1,16 @@
 import { Pool } from 'pg';
 import { request } from 'undici';
 import { NotificationJobPayload } from '../queues/types';
+import { SSRFValidator } from '../../shared/security/ssrf-validator';
+import { buildWebhookPayload } from '../../shared/notifications/webhook-payload';
 
 export class NotificationProcessor {
   private dbPool: Pool;
+  private ssrfValidator: SSRFValidator;
 
-  constructor(dbPool: Pool) {
+  constructor(dbPool: Pool, ssrfValidator: SSRFValidator) {
     this.dbPool = dbPool;
+    this.ssrfValidator = ssrfValidator;
   }
 
   async processNotification(jobData: NotificationJobPayload): Promise<void> {
@@ -37,24 +41,23 @@ export class NotificationProcessor {
 
     // 2. Dispatch notifications
     const promises = webhooks.map(async (wh) => {
-      let payload = {};
-      const message = status === 'down' 
-        ? `🚨 Monitor Down: ${monitorUrl}\nCause: ${cause}`
-        : `✅ Monitor Recovered: ${monitorUrl}`;
-
-      if (wh.provider === 'slack') {
-        payload = { text: message };
-      } else if (wh.provider === 'discord') {
-        payload = { content: message };
-      } else {
-        payload = {
-          event: status === 'down' ? 'monitor.down' : 'monitor.up',
-          monitorId,
-          incidentId,
-          url: monitorUrl,
-          cause
-        };
+      // The URL is user supplied, so it is re-checked here and not only where it
+      // was saved: DNS can be re-pointed at an internal address after the fact.
+      const ssrfResult = await this.ssrfValidator.validateUrl(wh.url);
+      if (!ssrfResult.isAllowed) {
+        // Skipped, not thrown: a permanently bad URL would otherwise burn all
+        // five retries and block delivery to this team's healthy webhooks.
+        console.error(`[Notification] Blocked ${wh.provider} webhook: ${ssrfResult.reason}`);
+        return;
       }
+
+      const payload = buildWebhookPayload(wh.provider, {
+        status,
+        monitorUrl,
+        cause,
+        monitorId,
+        incidentId,
+      });
 
       try {
         await request(wh.url, {

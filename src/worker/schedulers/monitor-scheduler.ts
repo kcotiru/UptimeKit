@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import { Queue } from 'bullmq';
-import { PingJobPayload } from '../queues/types';
+import { PingJobPayload, PurgeJobPayload } from '../queues/types';
 
 export interface IMonitorScheduler {
   syncMonitors(): Promise<{ added: number; updated: number; removed: number }>;
@@ -106,4 +106,33 @@ export class MonitorScheduler implements IMonitorScheduler {
 
     return { added, updated, removed };
   }
+}
+
+/**
+ * Hands rows the soft-delete trigger queued to the purge worker. The
+ * UPDATE ... RETURNING is the claim, so overlapping ticks can't enqueue a row
+ * twice; a failed enqueue puts it back to pending for the next tick.
+ */
+export async function enqueuePendingPurges(
+  dbPool: Pool,
+  queue: Queue<PurgeJobPayload>
+): Promise<number> {
+  const { rows } = await dbPool.query(
+    `UPDATE deletion_queue SET status = 'processing', updated_at = NOW()
+     WHERE status = 'pending'
+     RETURNING id, monitor_id`
+  );
+
+  let enqueued = 0;
+  for (const row of rows) {
+    try {
+      await queue.add('purge-monitor', { deletionQueueId: row.id, monitorId: row.monitor_id });
+      enqueued++;
+    } catch (err: unknown) {
+      await dbPool.query(`UPDATE deletion_queue SET status = 'pending' WHERE id = $1`, [row.id]);
+      console.error(`[Purge] Failed to enqueue purge for monitor ${row.monitor_id}:`, err);
+    }
+  }
+
+  return enqueued;
 }

@@ -90,15 +90,19 @@ export class PurgeProcessor implements IPurgeProcessor {
       const error = err as Error;
       await client.query('ROLLBACK');
 
+      // Back to 'pending' so the next drain tick retries: deletion_queue has no
+      // 'failed' status and no error_message column, and logs that never purge
+      // are worse than a repeated attempt (the deletes are idempotent).
       try {
         await this.dbPool.query(
-          `UPDATE deletion_queue SET status = 'failed', error_message = $1 WHERE id = $2`,
-          [error.message, deletionQueueId]
+          `UPDATE deletion_queue SET status = 'pending', updated_at = NOW() WHERE id = $1`,
+          [deletionQueueId]
         );
       } catch (_ignoredError: unknown) {
-        /* ignore rollback logging failure */
+        /* ignore requeue failure */
       }
 
+      console.error(`[Purge] Purge of monitor ${monitorId} failed, requeued:`, error.message);
       throw error;
     } finally {
       client.release();

@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server';
-import { setAuthCookie } from '@/lib/auth-cookie';
-
-const API_BASE_URL = process.env.EXPRESS_INTERNAL_API_URL || 'http://localhost:3000';
+import { supabaseServer } from '@/lib/supabase';
 
 /**
- * Route handler proxy for user authentication login.
- * Proxies credentials to Express API and sets HttpOnly JWT cookie on success.
- * @param request - Next.js Request object with JSON body containing email and password
+ * Signs a user in through Supabase Auth. The session cookies are written by the
+ * Supabase server client as a side effect of a successful sign-in.
+ * @param request - JSON body containing email and password
  */
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { email, password } = body;
+    const { email, password } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json(
@@ -20,42 +17,28 @@ export async function POST(request: Request) {
       );
     }
 
-    const expressRes = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+    const supabase = supabaseServer();
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-    const data = await expressRes.json();
-
-    if (!expressRes.ok || !data.success) {
+    if (error || !data.user) {
       return NextResponse.json(
-        { success: false, error: data.error || data.message || 'Invalid credentials' },
-        { status: expressRes.status || 401 }
+        { success: false, error: error?.message || 'Invalid credentials' },
+        { status: 401 }
       );
     }
 
-    const token = data.token || (data.data && data.data.token);
+    const { data: profile } = await supabase
+      .from('users')
+      .select('team_id')
+      .eq('id', data.user.id)
+      .single();
 
-    if (!token) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication token missing from response' },
-        { status: 500 }
-      );
-    }
-
-    const response = NextResponse.json({
+    return NextResponse.json({
       success: true,
-      user: data.user || (data.data && data.data.user),
+      user: { id: data.user.id, email: data.user.email, teamId: profile?.team_id ?? null },
     });
-
-    setAuthCookie(response, token);
-    return response;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal server error';
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

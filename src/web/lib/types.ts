@@ -86,3 +86,22 @@ export interface CreateMonitorInput {
   /** Optional timeout limit in milliseconds */
   timeoutMs?: number;
 }
+
+/** Notification target providers, matching the team_webhooks CHECK constraint. */
+export type WebhookProvider = 'slack' | 'discord' | 'generic';
+
+/**
+ * Team-scoped webhook the worker posts incident notifications to.
+ */
+export interface TeamWebhook {
+  /** Unique webhook identifier (UUID v4) */
+  id: string;
+  /** Owning team identifier */
+  teamId: string;
+  /** Payload format used when posting */
+  provider: WebhookProvider;
+  /** Destination URL */
+  url: string;
+  /** ISO 8601 timestamp of creation */
+  createdAt: string;
+}

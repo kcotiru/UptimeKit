@@ -1,38 +1,10 @@
-import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { fetchApi } from '@/lib/api-client';
-import { Monitor, PingMetric } from '@/lib/types';
+import { getMetrics, getMonitor } from '@/lib/monitors';
+import { PingMetric } from '@/lib/types';
 import { MonitorDetailView } from '@/components/monitors/monitor-detail-view';
 
-async function getMonitorDetail(id: string, token: string): Promise<Monitor | null> {
-  try {
-    const res = await fetchApi<{ success: boolean; data: Monitor }>(`/api/v1/monitors/${id}`, {
-      token,
-    });
-    return res.data || null;
-  } catch (error: unknown) {
-    console.error(`Failed to fetch monitor ${id}:`, error instanceof Error ? error.message : error);
-    return null;
-  }
-}
-
-async function getInitialMetrics(
-  id: string,
-  token: string,
-  fromISO: string,
-  toISO: string
-): Promise<PingMetric[]> {
-  try {
-    const res = await fetchApi<{ success: boolean; data: { metrics: PingMetric[] } }>(
-      `/api/v1/monitors/${id}/metrics?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`,
-      { token }
-    );
-    return res.data?.metrics || [];
-  } catch (error: unknown) {
-    console.error(`Failed to fetch metrics for monitor ${id}:`, error instanceof Error ? error.message : error);
-    return [];
-  }
-}
+// Per-user data behind a session cookie — never prerender.
+export const dynamic = 'force-dynamic';
 
 /**
  * React Server Component for the monitor detail & time-series graph page.
@@ -45,22 +17,25 @@ export default async function MonitorDetailPage({
   params: { id: string };
   searchParams: { from?: string; to?: string };
 }) {
-  const cookieStore = cookies();
-  const token = cookieStore.get('uptimekit_token')?.value || '';
-
-  const monitor = await getMonitorDetail(params.id, token);
+  const monitor = await getMonitor(params.id).catch((error: unknown) => {
+    console.error(`Failed to fetch monitor ${params.id}:`, error instanceof Error ? error.message : error);
+    return null;
+  });
 
   if (!monitor) {
     notFound();
   }
 
   const now = new Date();
-  const defaultFrom = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-  
-  const from = searchParams.from || defaultFrom;
+  const from = searchParams.from || new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
   const to = searchParams.to || now.toISOString();
 
-  const initialMetrics = await getInitialMetrics(params.id, token, from, to);
+  let initialMetrics: PingMetric[] = [];
+  try {
+    initialMetrics = await getMetrics(params.id, from, to);
+  } catch (error: unknown) {
+    console.error(`Failed to fetch metrics for monitor ${params.id}:`, error instanceof Error ? error.message : error);
+  }
 
   return <MonitorDetailView monitor={monitor} initialMetrics={initialMetrics} />;
 }

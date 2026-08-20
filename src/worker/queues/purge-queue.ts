@@ -2,7 +2,7 @@ import { Queue } from 'bullmq';
 import { redisConnection } from '../config/redis';
 import { PurgeJobPayload } from './types';
 
-export const PURGE_QUEUE_NAME = 'uptimekit:purge-queue';
+export const PURGE_QUEUE_NAME = 'uptimekit-purge-queue';
 
 /**
  * BullMQ Queue for soft-deleted monitor log purge jobs.

@@ -1,4 +1,3 @@
-import { Activity } from 'lucide-react';
 
 /**
  * Props for the Header component.

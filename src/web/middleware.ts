@@ -1,65 +1,63 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
 
 /**
- * Parses unverified JWT token payload to inspect expiration claim.
- * @param token - Raw JWT token string
- * @returns Decoded payload object or null
- */
-function decodeJwtPayload(token: string): { exp?: number } | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const base64Url = parts[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = Buffer.from(base64, 'base64').toString('utf8');
-    return JSON.parse(jsonPayload);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Next.js Edge Middleware protecting /dashboard/* routes by validating session cookie presence and expiration.
+ * Refreshes the Supabase session on every matched request and guards
+ * /dashboard/* behind a valid session.
  * @param request - Incoming NextRequest object
  */
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
+  let response = NextResponse.next({ request });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll: () => request.cookies.getAll(),
+        setAll: (list) => {
+          list.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          list.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        },
+      },
+    }
+  );
+
+  // getUser() validates the token with Supabase and rotates it when expired.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { pathname } = request.nextUrl;
-  const token = request.cookies.get('uptimekit_token')?.value;
 
-  let isValidToken = false;
+  // Carry any refreshed session cookies onto the redirect, or they're lost.
+  const redirectTo = (path: string, search?: Record<string, string>) => {
+    const url = new URL(path, request.url);
+    Object.entries(search ?? {}).forEach(([k, v]) => url.searchParams.set(k, v));
+    const redirect = NextResponse.redirect(url);
+    response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+    return redirect;
+  };
 
-  if (token) {
-    const payload = decodeJwtPayload(token);
-    if (payload && payload.exp) {
-      const nowSeconds = Math.floor(Date.now() / 1000);
-      isValidToken = payload.exp > nowSeconds;
-    } else {
-      isValidToken = true; // Fallback if no exp claim in token payload
-    }
+  // API callers get JSON, not a redirect to an HTML login page. Row level
+  // security already returns nothing to an anonymous caller, so this is about
+  // answering with the right status rather than plugging a leak.
+  if (!user && pathname.startsWith('/api/')) {
+    return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
   }
 
-  // Protect /dashboard/* routes
-  if (pathname.startsWith('/dashboard')) {
-    if (!isValidToken) {
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('redirect', pathname);
-      const response = NextResponse.redirect(loginUrl);
-      if (token && !isValidToken) {
-        response.cookies.set('uptimekit_token', '', { maxAge: 0, path: '/' });
-      }
-      return response;
-    }
+  if (!user && pathname.startsWith('/dashboard')) {
+    return redirectTo('/login', { redirect: pathname });
   }
 
-  // Redirect authenticated users away from auth pages (/login, /register)
-  if (isValidToken && (pathname === '/login' || pathname === '/register')) {
-    return NextResponse.redirect(new URL('/dashboard/monitors', request.url));
+  if (user && (pathname === '/login' || pathname === '/register')) {
+    return redirectTo('/dashboard/monitors');
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/login', '/register'],
+  matcher: ['/dashboard/:path*', '/api/v1/:path*', '/login', '/register'],
 };

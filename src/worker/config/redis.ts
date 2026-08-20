@@ -22,13 +22,21 @@ export const defaultBullMQConnection = {
   connection: redisConnection,
 };
 
-const dbUrl = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/uptimekit_dev';
+const dbUrl = process.env.DATABASE_URL || '';
+
+if (!dbUrl) {
+  throw new Error('DATABASE_URL is required (Supabase → Project Settings → Database → Connection string)');
+}
 
 /**
  * PostgreSQL connection pool configured to match or exceed worker concurrency limit.
+ * Connects straight to Supabase's Postgres — the worker is a trusted backend
+ * process, so it bypasses row level security by design.
  */
 export const dbPool = new Pool({
   connectionString: dbUrl,
+  // Supabase requires TLS; its cert chain isn't in the local trust store.
+  ssl: dbUrl.includes('supabase') ? { rejectUnauthorized: false } : undefined,
   max: Math.max(workerConfig.workerConcurrency, 50),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,

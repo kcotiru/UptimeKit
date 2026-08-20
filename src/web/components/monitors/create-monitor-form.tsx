@@ -138,7 +138,7 @@ export function CreateMonitorForm() {
                   type="number"
                   value={formData.intervalSeconds}
                   onChange={(e) => setFormData({ ...formData, intervalSeconds: Number(e.target.value) })}
-                  min={10}
+                  min={30}
                   max={86400}
                   className="w-full pl-10 pr-4 py-2.5 bg-background/80 border border-surface-border rounded-lg text-sm text-slate-100 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 font-mono transition-all"
                 />

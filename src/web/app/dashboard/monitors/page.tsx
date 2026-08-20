@@ -1,29 +1,21 @@
-import { cookies } from 'next/headers';
-import { fetchApi } from '@/lib/api-client';
-import { Monitor } from '@/lib/types';
+import { listMonitors } from '@/lib/monitors';
 import { Header } from '@/components/layout/header';
 import { MonitorList } from '@/components/monitors/monitor-list';
 
-async function getMonitors(token: string): Promise<Monitor[]> {
-  try {
-    const res = await fetchApi<{ success: boolean; data: Monitor[] }>('/api/v1/monitors', {
-      token,
-      next: { revalidate: 10 },
-    });
-    return res.data || [];
-  } catch (error: unknown) {
-    console.error('Failed to fetch monitors list on server:', error instanceof Error ? error.message : error);
-    return [];
-  }
-}
+// Per-user data behind a session cookie — never prerender.
+export const dynamic = 'force-dynamic';
 
 /**
  * React Server Component for the primary dashboard monitors list page.
  */
 export default async function MonitorsPage() {
-  const cookieStore = cookies();
-  const token = cookieStore.get('uptimekit_token')?.value || '';
-  const monitors = await getMonitors(token);
+  let monitors: Awaited<ReturnType<typeof listMonitors>> = [];
+
+  try {
+    monitors = await listMonitors();
+  } catch (error: unknown) {
+    console.error('Failed to fetch monitors list:', error instanceof Error ? error.message : error);
+  }
 
   return (
     <div className="space-y-6">
