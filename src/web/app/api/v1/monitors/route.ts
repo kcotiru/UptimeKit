@@ -1,25 +1,10 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { createMonitor, listMonitors } from '@/lib/monitors';
 
-const API_BASE_URL = process.env.EXPRESS_INTERNAL_API_URL || 'http://localhost:3000';
-
-/**
- * API route handler proxy for retrieving team monitors list.
- */
+/** Lists the signed-in team's monitors. */
 export async function GET() {
   try {
-    const cookieStore = cookies();
-    const token = cookieStore.get('uptimekit_token')?.value;
-
-    const res = await fetch(`${API_BASE_URL}/api/v1/monitors`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    });
-
-    const data = await res.json().catch(() => ({}));
-    return NextResponse.json(data, { status: res.status });
+    return NextResponse.json({ success: true, data: await listMonitors() });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
@@ -27,28 +12,15 @@ export async function GET() {
 }
 
 /**
- * API route handler proxy for creating a new HTTP health monitor.
- * @param request - JSON request body containing monitor configuration
+ * Creates a monitor for the signed-in team.
+ * @param request - JSON body with name, url, and intervalSeconds
  */
 export async function POST(request: Request) {
   try {
-    const cookieStore = cookies();
-    const token = cookieStore.get('uptimekit_token')?.value;
-    const body = await request.json();
-
-    const res = await fetch(`${API_BASE_URL}/api/v1/monitors`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(body),
-    });
-
-    const data = await res.json().catch(() => ({}));
-    return NextResponse.json(data, { status: res.status });
+    const monitor = await createMonitor(await request.json());
+    return NextResponse.json({ success: true, data: monitor }, { status: 201 });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal server error';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: message }, { status: 400 });
   }
 }

@@ -45,7 +45,7 @@ export function formatMs(ms: number | null): string {
  */
 export function calculateTimestamps(preset: TimeRangePreset): { from: string; to: string } {
   const now = new Date();
-  let from = new Date();
+  const from = new Date();
   if (preset === '1h') from.setHours(now.getHours() - 1);
   else if (preset === '24h') from.setHours(now.getHours() - 24);
   else if (preset === '7d') from.setDate(now.getDate() - 7);

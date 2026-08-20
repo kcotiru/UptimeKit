@@ -1,6 +1,25 @@
 import { Pool } from 'pg';
 import { RollupJobPayload } from '../queues/types';
 
+/**
+ * The bucket a cron firing should roll up: the hour (or day) that just closed.
+ * Always UTC, matching the `SET LOCAL TIME ZONE 'UTC'` the rollup runs under.
+ */
+export function closedBucket(
+  rollupType: RollupJobPayload['rollupType'],
+  now: Date = new Date()
+): string {
+  const d = new Date(now);
+  if (rollupType === 'raw_to_hourly') {
+    d.setUTCMinutes(0, 0, 0);
+    d.setUTCHours(d.getUTCHours() - 1);
+  } else {
+    d.setUTCHours(0, 0, 0, 0);
+    d.setUTCDate(d.getUTCDate() - 1);
+  }
+  return d.toISOString();
+}
+
 export interface IRollupProcessor {
   processRollup(jobData: RollupJobPayload): Promise<{
     status: 'completed' | 'skipped' | 'failed';
@@ -25,11 +44,16 @@ export class RollupProcessor implements IRollupProcessor {
     inputCount: number;
     outputCount: number;
   }> {
-    const { rollupType, timeWindow } = jobData;
+    const { rollupType } = jobData;
+    // Cron jobs carry no window (their data is static); callers and tests may pass one.
+    const timeWindow = jobData.timeWindow ?? closedBucket(rollupType);
     const client = await this.dbPool.connect();
 
     try {
       await client.query('BEGIN');
+      // Bucket boundaries below are UTC; date_trunc and timestamptz casts both
+      // follow the session zone, so pin it rather than trust the server default.
+      await client.query("SET LOCAL TIME ZONE 'UTC'");
 
       // 1. Idempotency Check
       const checkRes = await client.query(
@@ -75,7 +99,7 @@ export class RollupProcessor implements IRollupProcessor {
             PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms)::int AS p95_response_time_ms,
             PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms)::int AS p99_response_time_ms
           FROM ping_logs_raw
-          WHERE timestamp >= $1::timestamp AND timestamp < ($1::timestamp + INTERVAL '1 hour')
+          WHERE timestamp >= $1::timestamptz AND timestamp < ($1::timestamptz + INTERVAL '1 hour')
           GROUP BY team_id, monitor_id, date_trunc('hour', timestamp)
           ON CONFLICT (team_id, monitor_id, bucket_start) DO UPDATE SET
             total_pings = EXCLUDED.total_pings,
@@ -112,7 +136,7 @@ export class RollupProcessor implements IRollupProcessor {
             PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY p95_response_time_ms)::int AS p95_response_time_ms,
             PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY p99_response_time_ms)::int AS p99_response_time_ms
           FROM ping_logs_hourly
-          WHERE bucket_start >= $1::timestamp AND bucket_start < ($1::timestamp + INTERVAL '1 day')
+          WHERE bucket_start >= $1::timestamptz AND bucket_start < ($1::timestamptz + INTERVAL '1 day')
           GROUP BY team_id, monitor_id, date_trunc('day', bucket_start)
           ON CONFLICT (team_id, monitor_id, bucket_start) DO UPDATE SET
             total_pings = EXCLUDED.total_pings,

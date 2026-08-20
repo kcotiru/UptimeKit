@@ -14,7 +14,10 @@ export interface PingJobPayload {
  */
 export interface RollupJobPayload {
   rollupType: 'raw_to_hourly' | 'hourly_to_daily';
-  timeWindow: string;
+  /** Omitted by the cron schedulers — the processor derives the bucket that just
+   *  closed at fire time. A repeatable job's data is static, so a baked-in
+   *  timestamp would replay the same window forever. */
+  timeWindow?: string;
 }
 
 /**

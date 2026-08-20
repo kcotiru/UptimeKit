@@ -1,41 +1,21 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getMetrics } from '@/lib/monitors';
 
-const API_BASE_URL = process.env.EXPRESS_INTERNAL_API_URL || 'http://localhost:3000';
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * API route handler proxy for retrieving time-series metrics.
- * @param request - Incoming request object with from and to query params
+ * Returns time-series ping metrics for a monitor, defaulting to the last 24 hours.
+ * @param request - Incoming request with optional from and to ISO query params
  * @param params - URL parameters object containing target monitor ID
  */
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
-    const cookieStore = cookies();
-    const token = cookieStore.get('uptimekit_token')?.value;
-
     const { searchParams } = new URL(request.url);
-    const from = searchParams.get('from') || '';
-    const to = searchParams.get('to') || '';
+    const to = searchParams.get('to') || new Date().toISOString();
+    const from = searchParams.get('from') || new Date(Date.parse(to) - DAY_MS).toISOString();
 
-    const query = new URLSearchParams();
-    if (from) query.set('from', from);
-    if (to) query.set('to', to);
-
-    const res = await fetch(
-      `${API_BASE_URL}/api/v1/monitors/${params.id}/metrics?${query.toString()}`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      }
-    );
-
-    const data = await res.json().catch(() => ({}));
-    return NextResponse.json(data, { status: res.status });
+    const metrics = await getMetrics(params.id, from, to);
+    return NextResponse.json({ success: true, data: { monitorId: params.id, metrics } });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json({ success: false, error: message }, { status: 500 });

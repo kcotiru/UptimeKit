@@ -27,11 +27,11 @@ describe('Monitor Validation Schemas (SC-002)', () => {
     }
   });
 
-  it('fails on intervals below 10 seconds', () => {
+  it('fails on intervals below the 30s database floor', () => {
     const invalidData = {
       name: 'Too Fast',
       url: 'https://api.example.com',
-      intervalSeconds: 5,
+      intervalSeconds: 15,
       timeoutMs: 5000,
     };
     const result = createMonitorSchema.safeParse(invalidData);

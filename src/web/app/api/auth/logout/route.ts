@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server';
+import { supabaseServer } from '@/lib/supabase';
 
 export async function POST() {
-  const response = NextResponse.json({ success: true });
-  response.cookies.set('uptimekit_token', '', {
-    httpOnly: true,
-    path: '/',
-    maxAge: 0,
-  });
-  return response;
+  await supabaseServer().auth.signOut();
+  return NextResponse.json({ success: true });
 }

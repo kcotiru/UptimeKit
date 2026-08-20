@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server';
-import { setAuthCookie } from '@/lib/auth-cookie';
-
-const API_BASE_URL = process.env.EXPRESS_INTERNAL_API_URL || 'http://localhost:3000';
+import { supabaseAdmin, supabaseServer } from '@/lib/supabase';
 
 /**
- * Route handler proxy for team user registration.
- * Proxies account credentials to Express API and sets HttpOnly JWT cookie on success.
- * @param request - Next.js Request object with JSON body containing email, password, and teamName
+ * Registers a team owner: creates the Supabase Auth user, their team, and the
+ * profile row that maps the two, then signs them in so the session cookie is set.
+ * @param request - JSON body containing email, password, and optional teamName
  */
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { email, password, teamName } = body;
+    const { email, password, teamName } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json(
@@ -20,38 +17,57 @@ export async function POST(request: Request) {
       );
     }
 
-    const expressRes = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, teamName }),
+    const admin = supabaseAdmin();
+
+    // email_confirm skips the verification mail so local signups can log in at once.
+    const { data: created, error: signUpError } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
     });
 
-    const data = await expressRes.json();
-
-    if (!expressRes.ok || !data.success) {
+    if (signUpError || !created.user) {
       return NextResponse.json(
-        { success: false, error: data.error || data.message || 'Registration failed' },
-        { status: expressRes.status || 400 }
+        { success: false, error: signUpError?.message || 'Registration failed' },
+        { status: 400 }
       );
     }
 
-    const token = data.token || (data.data && data.data.token);
+    const { data: team, error: teamError } = await admin
+      .from('teams')
+      .insert({ name: teamName || `${email}'s team` })
+      .select('id')
+      .single();
 
-    const response = NextResponse.json({
-      success: true,
-      user: data.user || (data.data && data.data.user),
-    });
+    const { error: profileError } = team
+      ? await admin.from('users').insert({ id: created.user.id, team_id: team.id, email })
+      : { error: null };
 
-    if (token) {
-      setAuthCookie(response, token);
+    if (teamError || profileError) {
+      // Don't strand an auth user with no team — they could never sign in usefully.
+      await admin.auth.admin.deleteUser(created.user.id);
+      if (team) await admin.from('teams').delete().eq('id', team.id);
+      return NextResponse.json(
+        { success: false, error: (teamError || profileError)!.message },
+        { status: 500 }
+      );
     }
 
-    return response;
+    const { error: signInError } = await supabaseServer().auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (signInError) {
+      return NextResponse.json({ success: false, error: signInError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      user: { id: created.user.id, email, teamId: team!.id },
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal server error';
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

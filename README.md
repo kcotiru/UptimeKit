@@ -1,101 +1,110 @@
 # UptimeKit
 
-UptimeKit is an enterprise HTTP monitor management and time-series performance analytics SaaS dashboard. It allows teams to configure endpoint targets for background health checks, ping latency profiling, and track uptime/downtime incidents.
+UptimeKit is an HTTP monitor management and time-series performance analytics dashboard. Teams configure endpoint targets for background health checks, ping latency profiling, and uptime/downtime incident tracking.
 
 ## Architecture
 
-UptimeKit is composed of three main layers:
+Two runnable pieces, plus Supabase:
 
-1. **API Backend (`src/api`)**: An Express.js REST API that handles authentication, team management, and monitor configuration. It connects to a PostgreSQL database for persistent storage.
-2. **Worker Engine (`src/worker`)**: A background service built with BullMQ and Redis. It schedules and executes high-concurrency HTTP/HTTPS health checks (pings) against user-configured endpoints and stores time-series metric results.
-3. **Web Dashboard (`src/web`)**: A Next.js 14+ App Router frontend built with React, Tailwind CSS, and Recharts. It proxies authentication to the Express API, enforcing HttpOnly cookie session management and visualizing monitor performance via responsive time-series graphs.
+1. **Web Dashboard (`src/web`)** — Next.js 14 App Router (React, Tailwind, Recharts). Its Route Handlers and Server Components talk to **Supabase** directly: Supabase Auth for signup/login/sessions, Postgres with row level security for team isolation. There is no separate API server.
+2. **Worker Engine (`src/worker`)** — BullMQ + Redis background service that schedules and executes health checks, then writes time-series results straight into Supabase's Postgres over the direct connection string.
+
+Row level security scopes every table by `team_id`. The web app queries as the signed-in user, so isolation is enforced by the database. The worker connects as `postgres` and bypasses RLS by design — it is a trusted backend process.
 
 ---
 
 ## Prerequisites
 
-To run UptimeKit locally, ensure you have the following installed and running:
 - **Node.js** v20+
-- **PostgreSQL** (running on default port 5432)
-- **Redis** (running on default port 6379)
+- A **Supabase** project (free tier is fine)
+- **Redis** on port 6379 — only needed to run the worker (see below; Docker is enough)
 
 ---
 
-## Local Development Setup
+## Setup
 
-Follow these steps to run the UptimeKit stack locally.
+### 1. Create the schema
 
-### 1. Environment Configuration
+In the Supabase dashboard, open **SQL Editor**, paste the entire contents of [`supabase/schema.sql`](supabase/schema.sql), and run it. It is idempotent, so re-running is safe.
 
-At the root directory, create a `.env` file for the backend components by copying the example:
+### 2. Configure the web app
+
+```bash
+cd src/web
+cp .env.local.example .env.local
+```
+
+Fill in the three values from **Supabase → Project Settings → API**:
+
+| Variable | Where to find it |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon` `public` key |
+| `SUPABASE_SERVICE_ROLE_KEY` | `service_role` key — server-only, never expose to the browser |
+
+### 3. Configure the worker (optional)
 
 ```bash
 cp .env.example .env
 ```
-Ensure the `DATABASE_URL` and `REDIS_URL` in `.env` match your local setup. The defaults are:
-```env
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/uptimekit_dev
-REDIS_URL=redis://localhost:6379
-```
 
-Next, configure the frontend. Navigate to the `src/web` directory and create `.env.local`:
+Set `DATABASE_URL` to the **Session pooler** URI from **Supabase → Project Settings → Database → Connection string**, and `REDIS_URL` to your local Redis. Use the pooler, not *Direct connection*: `db.<ref>.supabase.co` resolves to IPv6 only, so on an IPv4-only network the worker hangs and then fails with `ENOTFOUND`.
+
+### 4. Install
+
 ```bash
-cd src/web
-echo "NEXT_PUBLIC_API_BASE_URL=http://localhost:3000" > .env.local
-echo "EXPRESS_INTERNAL_API_URL=http://localhost:3000" >> .env.local
-```
-
-### 2. Install Dependencies
-
-Install dependencies for the backend (root) and the frontend (`src/web`):
-```bash
-# Root dependencies
-npm install
-
-# Web frontend dependencies
-cd src/web
-npm install
-cd ../
-```
-
-### 3. Run Database Migrations
-
-Set up your PostgreSQL database schema by running the migration script from the root directory:
-```bash
-npm run migrate
+npm install            # worker
+cd src/web && npm install
 ```
 
 ---
 
-## Running the Services
+## Running
 
-To test the SaaS locally, you need to start the three primary services in separate terminal windows/tabs:
+### Web dashboard
 
-### Terminal 1: Start the API Server
-Starts the Express REST API on `http://localhost:3000`.
-```bash
-npx ts-node src/api/server.ts
-```
-
-### Terminal 2: Start the Worker Engine
-Starts the BullMQ job processor to actively ping health check endpoints.
-```bash
-npx ts-node src/worker/index.ts
-```
-
-### Terminal 3: Start the Web Dashboard
-Starts the Next.js development server on `http://localhost:3001`.
 ```bash
 cd src/web
-npm run dev
+npm run dev            # http://localhost:3001
 ```
+
+That is the whole app. Register, log in, and create monitors without the worker running — they just sit at `paused` until something pings them.
+
+### Worker engine
+
+The worker needs Redis for its job queues. Supabase does not provide one. If you don't have Redis installed, Docker is the shortest path:
+
+```bash
+docker run -d --name uptimekit-redis -p 6379:6379 redis:7-alpine
+```
+
+That container persists across restarts — `docker start uptimekit-redis` brings it back later.
+
+Then, in a second terminal from the repo root:
+
+```bash
+npm run worker
+```
+
+It syncs monitors every 30 seconds, pings each on its own interval, flips monitor status, and fills the time-series charts. A monitor shows `unknown` in the dashboard until the worker's first ping lands.
+
+To pause a monitor without deleting it, set `is_paused = true` on its row — the scheduler skips those.
 
 ---
 
 ## Usage
 
-1. Open a browser and navigate to **[http://localhost:3001](http://localhost:3001)**.
-2. Register a new team account at `/register`.
-3. Once logged in, you will be redirected to the Dashboard.
-4. Click **Add Monitor** to register an endpoint (e.g., `https://google.com` or your own API) to begin health tracking.
-5. The Worker Engine will automatically begin pinging the target based on the configured interval. You can click into the monitor to view its real-time time-series performance graph.
+1. Open **[http://localhost:3001](http://localhost:3001)**.
+2. Register at `/register` — this creates a Supabase Auth user, a team, and the profile row linking them.
+3. Click **Add Monitor** and enter a public endpoint (e.g. `https://google.com`). Minimum check interval is 30 seconds.
+4. Start the worker to begin collecting pings, then open a monitor to see its time-series graph.
+5. Open **Notifications** in the sidebar to add a Slack, Discord, or generic JSON webhook. Use **Test** to confirm the destination works without waiting for an outage. Without a webhook the worker still records incidents, but has nowhere to send them.
+
+---
+
+## Tests
+
+```bash
+npm test               # worker + schema assertions
+cd src/web && npm test # validation and row-mapping
+```

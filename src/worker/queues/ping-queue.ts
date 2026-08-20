@@ -2,7 +2,7 @@ import { Queue } from 'bullmq';
 import { redisConnection } from '../config/redis';
 import { PingJobPayload } from './types';
 
-export const PING_QUEUE_NAME = 'uptimekit:ping-queue';
+export const PING_QUEUE_NAME = 'uptimekit-ping-queue';
 
 /**
  * BullMQ Queue for HTTP ping jobs with default retries and exponential backoff.

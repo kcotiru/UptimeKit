@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Calendar, CustomIcon } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 
 export type TimeRangePreset = '1h' | '24h' | '7d' | '30d' | 'custom';
 

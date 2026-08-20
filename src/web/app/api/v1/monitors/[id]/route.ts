@@ -1,31 +1,36 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-
-const API_BASE_URL = process.env.EXPRESS_INTERNAL_API_URL || 'http://localhost:3000';
+import { deleteMonitor, getMonitor } from '@/lib/monitors';
 
 /**
- * API route handler proxy for deleting a monitor.
+ * Fetches a single monitor.
  * @param _request - Incoming request object
  * @param params - URL parameters object containing target monitor ID
  */
-export async function DELETE(
-  _request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_request: Request, { params }: { params: { id: string } }) {
   try {
-    const cookieStore = cookies();
-    const token = cookieStore.get('uptimekit_token')?.value;
+    const monitor = await getMonitor(params.id);
+    if (!monitor) {
+      return NextResponse.json({ success: false, error: 'Monitor not found' }, { status: 404 });
+    }
+    return NextResponse.json({ success: true, data: monitor });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  }
+}
 
-    const res = await fetch(`${API_BASE_URL}/api/v1/monitors/${params.id}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    });
-
-    const data = await res.json().catch(() => ({ success: res.ok }));
-    return NextResponse.json(data, { status: res.status });
+/**
+ * Soft deletes a monitor.
+ * @param _request - Incoming request object
+ * @param params - URL parameters object containing target monitor ID
+ */
+export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+  try {
+    const deleted = await deleteMonitor(params.id);
+    if (!deleted) {
+      return NextResponse.json({ success: false, error: 'Monitor not found' }, { status: 404 });
+    }
+    return NextResponse.json({ success: true });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json({ success: false, error: message }, { status: 500 });

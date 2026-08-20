@@ -97,8 +97,10 @@ export class PingProcessor {
 
       const updateQuery = `
         UPDATE monitors
-        SET status = $1, updated_at = NOW(),
-            consecutive_failures = CASE WHEN $1 = 'down' THEN consecutive_failures + 1 ELSE 0 END
+        -- $1 is cast on both uses: without it Postgres deduces varchar from the
+        -- assignment and text from the comparison, and rejects the statement.
+        SET status = $1::text, updated_at = NOW(),
+            consecutive_failures = CASE WHEN $1::text = 'down' THEN consecutive_failures + 1 ELSE 0 END
         WHERE id = $2 AND team_id = $3 AND deleted_at IS NULL
         RETURNING consecutive_failures
       `;

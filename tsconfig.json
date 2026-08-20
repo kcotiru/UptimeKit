@@ -11,10 +11,9 @@
     "rootDir": "./",
     "baseUrl": "./",
     "paths": {
-      "db/*": ["src/db/*"],
       "tests/*": ["tests/*"]
     }
   },
   "include": ["src/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "src/web"]
 }

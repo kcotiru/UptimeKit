@@ -2,7 +2,7 @@ import { Queue } from 'bullmq';
 import { redisConnection } from '../config/redis';
 import { RollupJobPayload } from './types';
 
-export const ROLLUP_QUEUE_NAME = 'uptimekit:rollup-queue';
+export const ROLLUP_QUEUE_NAME = 'uptimekit-rollup-queue';
 
 /**
  * BullMQ Queue for scheduled statistical rollup jobs.
@@ -30,10 +30,9 @@ export async function setupRollupSchedulers(): Promise<void> {
     { pattern: '0 * * * *' },
     {
       name: 'rollup-hourly',
-      data: {
-        rollupType: 'raw_to_hourly',
-        timeWindow: new Date().toISOString(),
-      },
+      // No timeWindow: repeatable job data is static, so the processor derives
+      // the closed hour at fire time instead of replaying one baked-in window.
+      data: { rollupType: 'raw_to_hourly' },
     }
   );
 
@@ -43,10 +42,7 @@ export async function setupRollupSchedulers(): Promise<void> {
     { pattern: '0 1 * * *' },
     {
       name: 'rollup-daily',
-      data: {
-        rollupType: 'hourly_to_daily',
-        timeWindow: new Date().toISOString(),
-      },
+      data: { rollupType: 'hourly_to_daily' },
     }
   );
 }

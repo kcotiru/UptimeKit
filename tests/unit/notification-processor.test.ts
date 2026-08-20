@@ -6,6 +6,8 @@ vi.mock('undici', () => ({
   request: vi.fn().mockResolvedValue({ statusCode: 200 }),
 }));
 
+const allowAll: any = { validateUrl: vi.fn().mockResolvedValue({ isAllowed: true }) };
+
 describe('NotificationProcessor (Unit)', () => {
   let dbPoolMock: any;
   let clientMock: any;
@@ -28,7 +30,7 @@ describe('NotificationProcessor (Unit)', () => {
       .mockResolvedValueOnce({ rows: [{ provider: 'slack', url: 'https://hooks.slack.com/services/test' }] })
       .mockResolvedValueOnce({ rows: [{ url: 'https://example.com' }] });
 
-    const processor = new NotificationProcessor(dbPoolMock);
+    const processor = new NotificationProcessor(dbPoolMock, allowAll);
     await processor.processNotification({
       teamId: 't-1',
       monitorId: 'm-1',
@@ -51,7 +53,7 @@ describe('NotificationProcessor (Unit)', () => {
       .mockResolvedValueOnce({ rows: [{ provider: 'discord', url: 'https://discord.com/api/webhooks/test' }] })
       .mockResolvedValueOnce({ rows: [{ url: 'https://example.com' }] });
 
-    const processor = new NotificationProcessor(dbPoolMock);
+    const processor = new NotificationProcessor(dbPoolMock, allowAll);
     await processor.processNotification({
       teamId: 't-1',
       monitorId: 'm-1',
@@ -74,7 +76,7 @@ describe('NotificationProcessor (Unit)', () => {
       .mockResolvedValueOnce({ rows: [{ provider: 'generic', url: 'https://api.mycompany.com/webhook' }] })
       .mockResolvedValueOnce({ rows: [{ url: 'https://example.com' }] });
 
-    const processor = new NotificationProcessor(dbPoolMock);
+    const processor = new NotificationProcessor(dbPoolMock, allowAll);
     await processor.processNotification({
       teamId: 't-1',
       monitorId: 'm-1',
@@ -96,5 +98,63 @@ describe('NotificationProcessor (Unit)', () => {
         }),
       })
     );
+  });
+
+  it('skips an SSRF-blocked webhook but still delivers to the others', async () => {
+    clientMock.query
+      .mockResolvedValueOnce({
+        rows: [
+          { provider: 'generic', url: 'http://169.254.169.254/latest/meta-data' },
+          { provider: 'slack', url: 'https://hooks.slack.com/services/good' },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ url: 'https://example.com' }] });
+
+    const validator: any = {
+      validateUrl: vi.fn(async (url: string) =>
+        url.includes('169.254.169.254')
+          ? { isAllowed: false, reason: 'SSRF Violation: link-local' }
+          : { isAllowed: true }
+      ),
+    };
+
+    const processor = new NotificationProcessor(dbPoolMock, validator);
+    await processor.processNotification({
+      teamId: 't-1',
+      monitorId: 'm-1',
+      incidentId: 'inc-1',
+      status: 'down',
+      cause: 'Connection Timeout',
+    });
+
+    expect(undici.request).toHaveBeenCalledTimes(1);
+    expect(undici.request).toHaveBeenCalledWith(
+      'https://hooks.slack.com/services/good',
+      expect.anything()
+    );
+  });
+
+  it('does not throw on a blocked webhook, so BullMQ will not retry a permanently bad URL', async () => {
+    clientMock.query
+      .mockResolvedValueOnce({ rows: [{ provider: 'generic', url: 'http://127.0.0.1:6379/' }] })
+      .mockResolvedValueOnce({ rows: [{ url: 'https://example.com' }] });
+
+    const validator: any = {
+      validateUrl: vi.fn().mockResolvedValue({ isAllowed: false, reason: 'SSRF Violation: loopback' }),
+    };
+
+    const processor = new NotificationProcessor(dbPoolMock, validator);
+
+    await expect(
+      processor.processNotification({
+        teamId: 't-1',
+        monitorId: 'm-1',
+        incidentId: 'inc-1',
+        status: 'down',
+        cause: 'boom',
+      })
+    ).resolves.toBeUndefined();
+
+    expect(undici.request).not.toHaveBeenCalled();
   });
 });
