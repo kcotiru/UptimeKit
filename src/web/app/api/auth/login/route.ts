@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase';
+import { supabaseServer } from '@/lib/server/supabase';
 
 /**
  * Signs a user in through Supabase Auth. The session cookies are written by the

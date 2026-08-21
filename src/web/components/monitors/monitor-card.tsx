@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { ExternalLink, Clock, Trash2, ChevronRight } from 'lucide-react';
-import { Monitor } from '@/lib/types';
+import { Monitor } from '@/lib/shared/types';
 import { StatusBadge } from './status-badge';
-import { formatDate } from '@/lib/utils';
+import { formatDate } from '@/lib/shared/utils';
 
 /**
  * Props for the MonitorCard component.

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { createWebhookSchema } from '../lib/validations/webhook';
-import { toWebhook } from '../lib/webhooks';
+import { createWebhookSchema } from '../lib/shared/validations/webhook';
+import { toWebhook } from '../lib/server/data/webhooks';
 
 describe('createWebhookSchema', () => {
   it('accepts a public https webhook for a known provider', () => {

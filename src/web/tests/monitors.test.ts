@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createMonitorSchema } from '../lib/validations/monitor';
+import { createMonitorSchema } from '../lib/shared/validations/monitor';
 
 describe('Monitor Validation Schemas (SC-002)', () => {
   it('passes validation for valid HTTP/HTTPS URLs', () => {

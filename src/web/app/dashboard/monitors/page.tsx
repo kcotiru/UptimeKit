@@ -1,6 +1,7 @@
-import { listMonitors } from '@/lib/monitors';
+import { listMonitors } from '@/lib/server/data/monitors';
 import { Header } from '@/components/layout/header';
 import { MonitorList } from '@/components/monitors/monitor-list';
+import { supabaseServer } from '@/lib/server/supabase';
 
 // Per-user data behind a session cookie — never prerender.
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,7 @@ export default async function MonitorsPage() {
   let monitors: Awaited<ReturnType<typeof listMonitors>> = [];
 
   try {
-    monitors = await listMonitors();
+    monitors = await listMonitors(supabaseServer());
   } catch (error: unknown) {
     console.error('Failed to fetch monitors list:', error instanceof Error ? error.message : error);
   }

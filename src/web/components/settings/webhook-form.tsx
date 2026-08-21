@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, Link2, Plus } from 'lucide-react';
-import { createWebhookSchema, CreateWebhookSchema } from '@/lib/validations/webhook';
+import { createWebhookSchema, CreateWebhookSchema } from '@/lib/shared/validations/webhook';
+import { createWebhookAction } from '@/lib/server/actions/webhooks';
 
 const PROVIDERS: { value: CreateWebhookSchema['provider']; label: string; hint: string }[] = [
   { value: 'slack', label: 'Slack', hint: 'Incoming webhook URL from your Slack app' },
@@ -36,15 +37,10 @@ export function WebhookForm({ onCreated }: { onCreated?: () => void }) {
 
     setSubmitting(true);
     try {
-      const res = await fetch('/api/v1/webhooks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(result.data),
-      });
-      const data = await res.json().catch(() => ({}));
+      const outcome = await createWebhookAction(result.data);
 
-      if (!res.ok) {
-        setError(data.error || 'Failed to add webhook');
+      if (!outcome.ok) {
+        setError(outcome.error);
         return;
       }
 

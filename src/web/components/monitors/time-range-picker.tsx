@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { Calendar } from 'lucide-react';
 
-export type TimeRangePreset = '1h' | '24h' | '7d' | '30d' | 'custom';
+export type { TimeRangePreset } from '@/lib/shared/types';
+import type { TimeRangePreset } from '@/lib/shared/types';
 
 /**
  * Props for the TimeRangePicker preset and custom timeframe component.

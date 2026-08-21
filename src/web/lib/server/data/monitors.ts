@@ -1,6 +1,7 @@
-import { supabaseServer } from './supabase';
-import type { Monitor, PingMetric } from './types';
-import { createMonitorSchema } from './validations/monitor';
+import 'server-only';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Monitor, PingMetric } from '../../shared/types';
+import { createMonitorSchema } from '../../shared/validations/monitor';
 
 const MONITOR_COLUMNS = 'id, team_id, name, url, check_interval, status, created_at, updated_at';
 
@@ -35,8 +36,8 @@ export function toMonitor(row: MonitorRow): Monitor {
 }
 
 /** Lists the signed-in team's monitors. Row level security scopes the result. */
-export async function listMonitors(): Promise<Monitor[]> {
-  const { data, error } = await supabaseServer()
+export async function listMonitors(db: SupabaseClient): Promise<Monitor[]> {
+  const { data, error } = await db
     .from('monitors')
     .select(MONITOR_COLUMNS)
     .eq('is_deleted', false)
@@ -46,8 +47,8 @@ export async function listMonitors(): Promise<Monitor[]> {
   return (data ?? []).map(toMonitor);
 }
 
-export async function getMonitor(id: string): Promise<Monitor | null> {
-  const { data, error } = await supabaseServer()
+export async function getMonitor(db: SupabaseClient, id: string): Promise<Monitor | null> {
+  const { data, error } = await db
     .from('monitors')
     .select(MONITOR_COLUMNS)
     .eq('id', id)
@@ -63,13 +64,13 @@ export async function getMonitor(id: string): Promise<Monitor | null> {
  * client-side check in the form is a convenience, not a trust boundary.
  * Monitors start paused; the worker flips status on its first ping.
  */
-export async function createMonitor(input: unknown): Promise<Monitor> {
+export async function createMonitor(db: SupabaseClient, input: unknown): Promise<Monitor> {
   const parsed = createMonitorSchema.safeParse(input);
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? 'Invalid monitor');
   }
 
-  const { data, error } = await supabaseServer()
+  const { data, error } = await db
     .from('monitors')
     .insert({
       name: parsed.data.name,
@@ -84,8 +85,8 @@ export async function createMonitor(input: unknown): Promise<Monitor> {
 }
 
 /** Soft deletes a monitor. Returns false when it does not exist for this team. */
-export async function deleteMonitor(id: string): Promise<boolean> {
-  const { data, error } = await supabaseServer()
+export async function deleteMonitor(db: SupabaseClient, id: string): Promise<boolean> {
+  const { data, error } = await db
     .from('monitors')
     .update({ is_deleted: true, deleted_at: new Date().toISOString() })
     .eq('id', id)
@@ -97,8 +98,8 @@ export async function deleteMonitor(id: string): Promise<boolean> {
 }
 
 /** Time-series points for a monitor, routed across the raw/hourly/daily tiers. */
-export async function getMetrics(id: string, from: string, to: string): Promise<PingMetric[]> {
-  const { data, error } = await supabaseServer().rpc('select_ping_tier', {
+export async function getMetrics(db: SupabaseClient, id: string, from: string, to: string): Promise<PingMetric[]> {
+  const { data, error } = await db.rpc('select_ping_tier', {
     target_monitor_id: id,
     start_time: from,
     end_time: to,

@@ -1,6 +1,7 @@
-import { getSessionUser, supabaseServer } from './supabase';
-import type { TeamWebhook } from './types';
-import { createWebhookSchema } from './validations/webhook';
+import 'server-only';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { TeamWebhook } from '../../shared/types';
+import { createWebhookSchema } from '../../shared/validations/webhook';
 
 const WEBHOOK_COLUMNS = 'id, team_id, provider, url, created_at';
 
@@ -23,8 +24,8 @@ export function toWebhook(row: WebhookRow): TeamWebhook {
 }
 
 /** Lists the signed-in team's webhooks. Row level security scopes the result. */
-export async function listWebhooks(): Promise<TeamWebhook[]> {
-  const { data, error } = await supabaseServer()
+export async function listWebhooks(db: SupabaseClient): Promise<TeamWebhook[]> {
+  const { data, error } = await db
     .from('team_webhooks')
     .select(WEBHOOK_COLUMNS)
     .eq('is_deleted', false)
@@ -34,8 +35,8 @@ export async function listWebhooks(): Promise<TeamWebhook[]> {
   return (data ?? []).map(toWebhook);
 }
 
-export async function getWebhook(id: string): Promise<TeamWebhook | null> {
-  const { data, error } = await supabaseServer()
+export async function getWebhook(db: SupabaseClient, id: string): Promise<TeamWebhook | null> {
+  const { data, error } = await db
     .from('team_webhooks')
     .select(WEBHOOK_COLUMNS)
     .eq('id', id)
@@ -51,18 +52,19 @@ export async function getWebhook(id: string): Promise<TeamWebhook | null> {
  * no database default, so the team comes from the session; the row level
  * security check still rejects any attempt to name a different one.
  */
-export async function createWebhook(input: unknown): Promise<TeamWebhook> {
+export async function createWebhook(
+  db: SupabaseClient,
+  input: unknown,
+  teamId: string
+): Promise<TeamWebhook> {
   const parsed = createWebhookSchema.safeParse(input);
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? 'Invalid webhook');
   }
 
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const { data, error } = await supabaseServer()
+  const { data, error } = await db
     .from('team_webhooks')
-    .insert({ team_id: user.teamId, provider: parsed.data.provider, url: parsed.data.url })
+    .insert({ team_id: teamId, provider: parsed.data.provider, url: parsed.data.url })
     .select(WEBHOOK_COLUMNS)
     .single();
 
@@ -71,8 +73,8 @@ export async function createWebhook(input: unknown): Promise<TeamWebhook> {
 }
 
 /** Soft deletes a webhook. Returns false when it does not exist for this team. */
-export async function deleteWebhook(id: string): Promise<boolean> {
-  const { data, error } = await supabaseServer()
+export async function deleteWebhook(db: SupabaseClient, id: string): Promise<boolean> {
+  const { data, error } = await db
     .from('team_webhooks')
     .update({ is_deleted: true, deleted_at: new Date().toISOString() })
     .eq('id', id)
