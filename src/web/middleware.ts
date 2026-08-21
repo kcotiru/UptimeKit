@@ -24,10 +24,16 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // getUser() validates the token with Supabase and rotates it when expired.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() verifies the JWT locally against the project's JWKS (ES256), so
+  // this costs no network call — getUser() instead validated against Supabase's
+  // auth API on EVERY matched request, ~120ms of latency before anything renders.
+  // It still refreshes an expired token, because it reads the session first.
+  //
+  // Trade-off: a session revoked mid-token-lifetime stays valid here until the
+  // token expires. Row level security still authorizes every query, so that
+  // window grants no data a valid token would not already reach.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const user = claimsData?.claims ?? null;
 
   const { pathname } = request.nextUrl;
 
