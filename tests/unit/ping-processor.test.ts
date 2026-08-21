@@ -65,6 +65,7 @@ describe('PingProcessor (Unit)', () => {
       teamId: 't-1',
       url: 'http://example.com',
       expectedStatus: 200,
+      checkInterval: 60,
     });
 
     expect(result.status).toBe('down');
@@ -100,6 +101,7 @@ describe('PingProcessor (Unit)', () => {
       teamId: 't-1',
       url: 'http://example.com',
       expectedStatus: 200,
+      checkInterval: 60,
     });
 
     expect(result.status).toBe('up');
@@ -141,6 +143,7 @@ describe('PingProcessor (Unit)', () => {
       teamId: 't-1',
       url: 'http://example.com',
       expectedStatus: 200,
+      checkInterval: 60,
     })).resolves.toBeDefined();
 
     expect(clientMock.query).toHaveBeenCalledWith('COMMIT');
