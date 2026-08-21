@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Plus, Activity, Search } from 'lucide-react';
-import { Monitor } from '@/lib/types';
+import { Monitor } from '@/lib/shared/types';
 import { MonitorCard } from './monitor-card';
 import { DeleteMonitorModal } from './delete-monitor-modal';
+import { deleteMonitorAction } from '@/lib/server/actions/monitors';
 
 /**
  * Props for the MonitorList component.
@@ -31,13 +32,10 @@ export function MonitorList({ initialMonitors }: MonitorListProps) {
 
   const handleDelete = async (id: string) => {
     try {
-      // Dispatches DELETE to Next.js API Route Handler proxy
-      const res = await fetch(`/api/v1/monitors/${id}`, {
-        method: 'DELETE',
-      });
+      const outcome = await deleteMonitorAction(id);
 
-      if (!res.ok) {
-        throw new Error('Failed to delete monitor');
+      if (!outcome.ok) {
+        throw new Error(outcome.error);
       }
 
       setMonitors((prev) => prev.filter((m) => m.id !== id));

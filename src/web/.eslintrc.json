@@ -1,3 +1,21 @@
 {
-  "extends": ["next/core-web-vitals"]
+  "extends": ["next/core-web-vitals"],
+  "overrides": [
+    {
+      "files": ["components/**/*.tsx", "components/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@/lib/server/data/*", "@/lib/server/supabase"],
+                "message": "Components must not reach the data layer directly. Call a Server Action from @/lib/server/actions/* instead — importing lib/server/supabase would pull a service-role client toward the browser bundle."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

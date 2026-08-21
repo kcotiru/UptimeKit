@@ -9,7 +9,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from 'recharts';
-import { PingMetric } from '@/lib/types';
+import { PingMetric } from '@/lib/shared/types';
 import { Activity } from 'lucide-react';
 
 /**

@@ -4,11 +4,12 @@ import { useState } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Clock, ExternalLink, RefreshCw } from 'lucide-react';
-import { Monitor, PingMetric } from '@/lib/types';
+import { Monitor, PingMetric } from '@/lib/shared/types';
 import { StatusBadge } from './status-badge';
 import { TimeRangePicker, TimeRangePreset } from './time-range-picker';
 import { TimeSeriesChart } from './time-series-chart';
-import { formatDate, calculateTimestamps } from '@/lib/utils';
+import { formatDate, calculateTimestamps } from '@/lib/shared/utils';
+import { fetchMetricsAction } from '@/lib/server/actions/monitors';
 
 /**
  * Props for the MonitorDetailView component.
@@ -67,14 +68,11 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `/api/v1/monitors/${monitor.id}/metrics?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`
-      );
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.data) {
-        setMetrics(data.data.metrics || []);
+      const outcome = await fetchMetricsAction(monitor.id, fromISO, toISO);
+      if (outcome.ok) {
+        setMetrics(outcome.data);
       } else {
-        setError(data.error || 'Failed to refresh time-series metrics');
+        setError(outcome.error);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Network error while fetching metrics';

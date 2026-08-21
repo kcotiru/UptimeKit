@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { TimeRangePreset } from '@/components/monitors/time-range-picker';
+import type { TimeRangePreset } from './types';
 
 /**
  * Combines Tailwind CSS class names with automatic conflict resolution.

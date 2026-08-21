@@ -1,5 +1,5 @@
-import { MonitorStatus } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import { MonitorStatus } from '@/lib/shared/types';
+import { cn } from '@/lib/shared/utils';
 
 /**
  * Props for the StatusBadge component.

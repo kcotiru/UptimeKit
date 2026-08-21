@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toMonitor, toPingMetric } from '../lib/monitors';
+import { toMonitor, toPingMetric } from '../lib/server/data/monitors';
 
 const row = {
   id: 'm-1',

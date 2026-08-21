@@ -105,3 +105,12 @@ export interface TeamWebhook {
   /** ISO 8601 timestamp of creation */
   createdAt: string;
 }
+
+/** Selectable window for the metrics chart. Lives here, not in the picker
+ *  component, so shared code never imports from components/. */
+export type TimeRangePreset = '1h' | '24h' | '7d' | '30d' | 'custom';
+
+/** Uniform result shape returned by every Server Action. Actions return
+ *  failures rather than throwing, so client components can render the
+ *  message without a try/catch around every call. */
+export type ActionResult<T = void> = { ok: true; data: T } | { ok: false; error: string };

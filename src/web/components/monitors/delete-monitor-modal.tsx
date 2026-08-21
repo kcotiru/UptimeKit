@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
-import { Monitor } from '@/lib/types';
+import { Monitor } from '@/lib/shared/types';
 
 /**
  * Props for the DeleteMonitorModal confirmation dialog.

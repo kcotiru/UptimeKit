@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BellOff, Check, Send, Trash2, X } from 'lucide-react';
-import { TeamWebhook } from '@/lib/types';
-import { formatDate } from '@/lib/utils';
+import { TeamWebhook } from '@/lib/shared/types';
+import { formatDate } from '@/lib/shared/utils';
 import { WebhookForm } from './webhook-form';
+import { deleteWebhookAction, testWebhookAction } from '@/lib/server/actions/webhooks';
 
 const PROVIDER_LABEL: Record<TeamWebhook['provider'], string> = {
   slack: 'Slack',
@@ -25,14 +26,11 @@ export function WebhookList({ initialWebhooks }: { initialWebhooks: TeamWebhook[
     setBusyId(webhook.id);
     setResult(null);
     try {
-      const res = await fetch(`/api/v1/webhooks/${webhook.id}/test`, { method: 'POST' });
-      const data = await res.json().catch(() => ({}));
+      const outcome = await testWebhookAction(webhook.id);
       setResult({
         id: webhook.id,
-        ok: Boolean(data.success),
-        message: data.success
-          ? `Delivered (${data.data?.statusCode})`
-          : data.error || 'Delivery failed',
+        ok: outcome.ok,
+        message: outcome.ok ? `Delivered (${outcome.data.statusCode})` : outcome.error,
       });
     } catch (err: unknown) {
       setResult({
@@ -48,8 +46,8 @@ export function WebhookList({ initialWebhooks }: { initialWebhooks: TeamWebhook[
   const handleDelete = async (webhook: TeamWebhook) => {
     setBusyId(webhook.id);
     try {
-      const res = await fetch(`/api/v1/webhooks/${webhook.id}`, { method: 'DELETE' });
-      if (res.ok) router.refresh();
+      const outcome = await deleteWebhookAction(webhook.id);
+      if (outcome.ok) router.refresh();
     } finally {
       setBusyId(null);
     }

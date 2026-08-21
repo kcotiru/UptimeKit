@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin, supabaseServer } from '@/lib/supabase';
+import { supabaseAdmin, supabaseServer } from '@/lib/server/supabase';
 
 /**
  * Registers a team owner: creates the Supabase Auth user, their team, and the

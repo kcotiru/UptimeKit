@@ -46,13 +46,6 @@ export async function middleware(request: NextRequest) {
     return redirect;
   };
 
-  // API callers get JSON, not a redirect to an HTML login page. Row level
-  // security already returns nothing to an anonymous caller, so this is about
-  // answering with the right status rather than plugging a leak.
-  if (!user && pathname.startsWith('/api/')) {
-    return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
-  }
-
   if (!user && pathname.startsWith('/dashboard')) {
     return redirectTo('/login', { redirect: pathname });
   }
@@ -65,5 +58,10 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/api/v1/:path*', '/login', '/register'],
+  // No /api/* entry: the only routes left under app/api are the auth ones,
+  // which must stay reachable without a session. Client mutations go through
+  // Server Actions, which POST to the page URL and are covered by /dashboard.
+  // Adding an authenticated /api/* route means adding it here AND restoring a
+  // JSON 401 branch above — a redirect to an HTML login page is wrong for JSON.
+  matcher: ['/dashboard/:path*', '/login', '/register'],
 };

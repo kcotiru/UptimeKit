@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
-import { getMetrics, getMonitor } from '@/lib/monitors';
-import { PingMetric } from '@/lib/types';
+import { getMetrics, getMonitor } from '@/lib/server/data/monitors';
+import { PingMetric } from '@/lib/shared/types';
 import { MonitorDetailView } from '@/components/monitors/monitor-detail-view';
+import { supabaseServer } from '@/lib/server/supabase';
 
 // Per-user data behind a session cookie — never prerender.
 export const dynamic = 'force-dynamic';
@@ -17,7 +18,7 @@ export default async function MonitorDetailPage({
   params: { id: string };
   searchParams: { from?: string; to?: string };
 }) {
-  const monitor = await getMonitor(params.id).catch((error: unknown) => {
+  const monitor = await getMonitor(supabaseServer(), params.id).catch((error: unknown) => {
     console.error(`Failed to fetch monitor ${params.id}:`, error instanceof Error ? error.message : error);
     return null;
   });
@@ -32,7 +33,7 @@ export default async function MonitorDetailPage({
 
   let initialMetrics: PingMetric[] = [];
   try {
-    initialMetrics = await getMetrics(params.id, from, to);
+    initialMetrics = await getMetrics(supabaseServer(), params.id, from, to);
   } catch (error: unknown) {
     console.error(`Failed to fetch metrics for monitor ${params.id}:`, error instanceof Error ? error.message : error);
   }

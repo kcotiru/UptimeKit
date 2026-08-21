@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createMonitorSchema, CreateMonitorSchema } from '@/lib/validations/monitor';
+import { createMonitorSchema, CreateMonitorSchema } from '@/lib/shared/validations/monitor';
+import { createMonitorAction } from '@/lib/server/actions/monitors';
 import { Activity, Globe, Clock, ShieldAlert, AlertCircle, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
@@ -44,17 +45,10 @@ export function CreateMonitorForm() {
     setSubmitting(true);
 
     try {
-      // Dispatches request to Next.js API Route Handler proxy
-      const res = await fetch('/api/v1/monitors', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(result.data),
-      });
+      const outcome = await createMonitorAction(result.data);
 
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        setServerError(data.error || data.message || 'Failed to create monitor');
+      if (!outcome.ok) {
+        setServerError(outcome.error);
         setSubmitting(false);
         return;
       }
