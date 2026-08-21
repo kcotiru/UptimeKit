@@ -41,7 +41,7 @@ describe('E2E Worker Execution Flow', () => {
       }),
     };
 
-    const pingProc = new PingProcessor(mockSsrfValidator, mockPingClient, mockDbPool, { add: vi.fn() } as any);
+    const pingProc = new PingProcessor(mockSsrfValidator as any, mockPingClient as any, mockDbPool, { add: vi.fn() } as any);
     const rollupProc = new RollupProcessor(mockDbPool);
     const purgeProc = new PurgeProcessor(mockDbPool);
 

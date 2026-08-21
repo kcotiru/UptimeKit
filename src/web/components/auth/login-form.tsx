@@ -8,7 +8,13 @@ import { Activity, Lock, Mail, AlertCircle, ArrowRight } from 'lucide-react';
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') || '/dashboard/monitors';
+  // Only same-origin paths. `//evil.com` and absolute URLs would make this an
+  // open redirect: sign in on the real site, land on an attacker's page.
+  const requested = searchParams.get('redirect');
+  const redirect =
+    requested && requested.startsWith('/') && !requested.startsWith('//')
+      ? requested
+      : '/dashboard/monitors';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
