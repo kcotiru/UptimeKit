@@ -15,7 +15,7 @@ Row level security scopes every table by `team_id`. The web app queries as the s
 
 ## Prerequisites
 
-- **Node.js** v20+
+- **Node.js** v22+
 - A **Supabase** project (free tier is fine)
 - **Redis** on port 6379 — only needed to run the worker (see below; Docker is enough)
 
