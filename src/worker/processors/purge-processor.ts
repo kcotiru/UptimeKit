@@ -78,6 +78,14 @@ export class PurgeProcessor implements IPurgeProcessor {
         totalDeleted += dailyDeleted;
       } while (dailyDeleted >= batchSize);
 
+      // The logs behind any shared link are gone now. Revoke rather than leave a
+      // live URL rendering an unexplained blank chart.
+      await client.query(
+        `UPDATE saved_views SET revoked_at = NOW(), updated_at = NOW()
+         WHERE monitor_id = $1 AND revoked_at IS NULL`,
+        [monitorId]
+      );
+
       // Mark deletion_queue item as completed
       await client.query(
         `UPDATE deletion_queue SET status = 'completed', processed_at = NOW() WHERE id = $1`,
