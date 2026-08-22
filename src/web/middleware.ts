@@ -63,5 +63,9 @@ export const config = {
   // Server Actions, which POST to the page URL and are covered by /dashboard.
   // Adding an authenticated /api/* route means adding it here AND restoring a
   // JSON 401 branch above — a redirect to an HTML login page is wrong for JSON.
+  //
+  // /share/:token is deliberately absent: it is the public read path and must
+  // work with no session. Its authorization is the token, enforced inside the
+  // get_shared_view SQL function, not here.
   matcher: ['/dashboard/:path*', '/login', '/register'],
 };
