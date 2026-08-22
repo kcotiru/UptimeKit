@@ -27,6 +27,18 @@ Row level security scopes every table by `team_id`. The web app queries as the s
 
 In the Supabase dashboard, open **SQL Editor**, paste the entire contents of [`supabase/schema.sql`](supabase/schema.sql), and run it. It is idempotent, so re-running is safe.
 
+---
+
+## Deploying schema changes
+
+`supabase/schema.sql` is applied by hand — there is no migration runner enforcing order. When a change to this repo touches both the schema and application code, apply `supabase/schema.sql` to Supabase **first**, then deploy the web app and worker. The reverse order (old worker/web code still running against a NEW schema) is fine — new columns and tables that old code doesn't know about are simply ignored. It is new code running against an OLD schema that breaks, in at least three ways:
+
+- `monitor-scheduler.ts`'s `SELECT ... timeout_ms` throws because the column doesn't exist yet, `syncMonitors()` rejects, and **zero monitors get scheduled** — a silent monitoring outage, not a visible error.
+- The saved-views share feature (`get_shared_view` RPC, the `saved_views` table) doesn't exist yet, so creating or viewing a shared graph link fails.
+- The `team_webhooks` table doesn't exist yet, so the Notifications settings page fails to load or save webhooks.
+
+Deploying old worker/web code against a new schema first, then rolling the schema forward, avoids all three.
+
 ### 2. Configure the web app
 
 ```bash

@@ -233,11 +233,15 @@ CREATE TABLE IF NOT EXISTS saved_views (
 -- base64url: Postgres has no built-in encoder for it, so translate the two
 -- URL-unsafe characters out of standard base64 and strip the padding.
 -- 32 random bytes -> 43 characters, 256 bits of entropy.
+-- gen_random_bytes() is pgcrypto's. Supabase installs pgcrypto into the
+-- `extensions` schema, not `public`; a stock/local Postgres install puts it in
+-- `public`. Both are named so this resolves on either. pg_temp is listed too,
+-- same reasoning as current_team_id() above.
 CREATE OR REPLACE FUNCTION gen_share_token()
 RETURNS TEXT
 LANGUAGE sql
 VOLATILE
-SET search_path = public
+SET search_path = public, extensions, pg_temp
 AS $$
   SELECT rtrim(translate(encode(gen_random_bytes(32), 'base64'), '+/', '-_'), '=')
 $$;
@@ -342,28 +346,6 @@ BEGIN
     PERFORM create_daily_partition(d);
   END LOOP;
 END $$;
-
--- Keep a rolling 14-day runway of partitions and drop what retention has passed.
--- Idempotent: create_daily_partition is CREATE TABLE IF NOT EXISTS, and the
--- unschedule/schedule pair means re-running this file does not stack duplicate jobs.
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-
-DO $$
-BEGIN
-  PERFORM cron.unschedule('uptimekit-partitions');
-EXCEPTION WHEN OTHERS THEN
-  -- No such job yet on a first run.
-  NULL;
-END $$;
-
-SELECT cron.schedule(
-  'uptimekit-partitions',
-  '0 3 * * *',
-  $job$
-    SELECT create_daily_partition((CURRENT_DATE + i)::date) FROM generate_series(0, 14) i;
-    SELECT drop_expired_partitions(7);
-  $job$
-);
 
 -- ---------------------------------------------------------------------------
 -- Tier-aware metric read (raw < 7d, hourly < 90d, daily beyond)
@@ -654,3 +636,36 @@ CREATE POLICY tenant_isolation_daily ON ping_logs_daily
 DROP POLICY IF EXISTS tenant_isolation_views ON saved_views;
 CREATE POLICY tenant_isolation_views ON saved_views
   FOR ALL TO authenticated USING (team_id = current_team_id());
+
+-- ---------------------------------------------------------------------------
+-- Partition maintenance schedule (pg_cron)
+--
+-- Deliberately LAST in this file. This block is the one statement in
+-- schema.sql that fails on a project where pg_cron is unavailable, and under
+-- `psql -f` without ON_ERROR_STOP, a failing statement does not stop the
+-- script — everything after it silently never runs. Every ENABLE ROW LEVEL
+-- SECURITY and every tenant-isolation policy above must land before this
+-- block has any chance to throw, so an unavailable extension can never leave
+-- a table with RLS disabled.
+-- Idempotent: create_daily_partition is CREATE TABLE IF NOT EXISTS, and the
+-- unschedule/schedule pair means re-running this file does not stack duplicate jobs.
+-- ---------------------------------------------------------------------------
+
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+DO $$
+BEGIN
+  PERFORM cron.unschedule('uptimekit-partitions');
+EXCEPTION WHEN OTHERS THEN
+  -- No such job yet on a first run.
+  NULL;
+END $$;
+
+SELECT cron.schedule(
+  'uptimekit-partitions',
+  '0 3 * * *',
+  $job$
+    SELECT create_daily_partition((CURRENT_DATE + i)::date) FROM generate_series(0, 14) i;
+    SELECT drop_expired_partitions(7);
+  $job$
+);

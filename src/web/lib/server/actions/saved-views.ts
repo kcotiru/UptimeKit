@@ -20,7 +20,7 @@ export async function createSavedViewAction(input: unknown): Promise<ActionResul
     const user = await getSessionUser();
     if (!user) return { ok: false, error: 'Not authenticated' };
 
-    const view = await createSavedView(supabaseServer(), input, user.teamId);
+    const view = await createSavedView(supabaseServer(), input, user.teamId, user.id);
     revalidatePath('/dashboard/settings');
     return { ok: true, data: view };
   } catch (error: unknown) {

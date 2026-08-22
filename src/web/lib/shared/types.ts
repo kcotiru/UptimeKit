@@ -123,6 +123,8 @@ export interface SavedView {
   teamId: string;
   /** Monitor the window belongs to */
   monitorId: string;
+  /** User who created this share link, or null if they've since left the team */
+  creatorId: string | null;
   /** Display name given by the creator */
   name: string;
   /** ISO 8601 window start — absolute, never relative */

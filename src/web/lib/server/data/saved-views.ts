@@ -4,12 +4,13 @@ import type { MonitorStatus, SavedView, SharedView } from '../../shared/types';
 import { createSavedViewSchema } from '../../shared/validations/saved-view';
 
 const VIEW_COLUMNS =
-  'id, team_id, monitor_id, name, configuration, share_token, revoked_at, created_at';
+  'id, team_id, monitor_id, creator_id, name, configuration, share_token, revoked_at, created_at';
 
 interface SavedViewRow {
   id: string;
   team_id: string;
   monitor_id: string;
+  creator_id: string | null;
   name: string;
   configuration: { from?: string; to?: string };
   share_token: string;
@@ -22,6 +23,7 @@ export function toSavedView(row: SavedViewRow): SavedView {
     id: row.id,
     teamId: row.team_id,
     monitorId: row.monitor_id,
+    creatorId: row.creator_id,
     name: row.name,
     from: row.configuration?.from ?? '',
     to: row.configuration?.to ?? '',
@@ -101,7 +103,8 @@ export async function listSavedViews(db: SupabaseClient): Promise<SavedView[]> {
 export async function createSavedView(
   db: SupabaseClient,
   input: unknown,
-  teamId: string
+  teamId: string,
+  creatorId: string
 ): Promise<SavedView> {
   const parsed = createSavedViewSchema.safeParse(input);
   if (!parsed.success) {
@@ -113,6 +116,7 @@ export async function createSavedView(
     .insert({
       team_id: teamId,
       monitor_id: parsed.data.monitorId,
+      creator_id: creatorId,
       name: parsed.data.name,
       configuration: { from: parsed.data.from, to: parsed.data.to },
     })

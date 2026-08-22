@@ -8,6 +8,14 @@ import { dbPool } from '../src/worker/config/redis';
 import { RollupProcessor } from '../src/worker/processors/rollup-processor';
 
 async function main(): Promise<void> {
+  // Matches the `SET LOCAL TIME ZONE 'UTC'` rollup-processor.ts pins inside its
+  // own transaction. This query runs outside that transaction on the bare
+  // pool, so without pinning the session zone here too, date_trunc('day', ...)
+  // below would snap to day boundaries in whatever zone the connection
+  // defaults to — and this is the one script whose job is fixing wrong data,
+  // with no idempotent retry (it deletes the rollup_logs marker first).
+  await dbPool.query("SET TIME ZONE 'UTC'");
+
   const processor = new RollupProcessor(dbPool);
 
   const { rows } = await dbPool.query<{ bucket: Date }>(

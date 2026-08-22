@@ -35,6 +35,7 @@ describe('toSavedView', () => {
       id: 'v1',
       team_id: 't1',
       monitor_id: 'm1',
+      creator_id: 'u1',
       name: 'Feb outage',
       configuration: { from: '2026-02-14T02:00:00.000Z', to: '2026-02-14T06:00:00.000Z' },
       share_token: 'a'.repeat(43),
@@ -45,6 +46,7 @@ describe('toSavedView', () => {
     expect(view.from).toBe('2026-02-14T02:00:00.000Z');
     expect(view.to).toBe('2026-02-14T06:00:00.000Z');
     expect(view.revokedAt).toBeNull();
+    expect(view.creatorId).toBe('u1');
   });
 });
 

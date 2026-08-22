@@ -143,6 +143,69 @@ suite('Shared view security', () => {
     expect(rows[0].sample_count).toBe(100);
   });
 
+  it('as anon: get_shared_view returns rows but direct table reads return none', async () => {
+    const { token } = await seedView();
+
+    await client.query('SET ROLE anon');
+    try {
+      const { rows } = await client.query('SELECT * FROM get_shared_view($1)', [token]);
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows[0].monitor_name).toBe('Checkout API');
+
+      // definer rights only bypass RLS inside get_shared_view itself — anon's
+      // own SELECTs against the base tables must still be blocked by RLS
+      // (there is no tenant_isolation policy granting anon anything; the
+      // bootstrap-local.sql GRANTs only get anon past the privilege check, not
+      // past RLS).
+      const savedViews = await client.query('SELECT * FROM saved_views');
+      expect(savedViews.rows).toHaveLength(0);
+
+      const monitors = await client.query('SELECT * FROM monitors');
+      expect(monitors.rows).toHaveLength(0);
+
+      const rawPings = await client.query('SELECT * FROM ping_logs_raw');
+      expect(rawPings.rows).toHaveLength(0);
+    } finally {
+      await client.query('RESET ROLE');
+    }
+  });
+
+  it('returns nothing when a saved view points at another team\'s monitor', async () => {
+    const { rows: [teamA] } = await client.query(`INSERT INTO teams (name) VALUES ('teamA') RETURNING id`);
+    const { rows: [teamB] } = await client.query(`INSERT INTO teams (name) VALUES ('teamB') RETURNING id`);
+    const { rows: [monitorB] } = await client.query(
+      `INSERT INTO monitors (team_id, name, url, check_interval)
+       VALUES ($1, 'Team B Secret Monitor', 'https://teamb.internal.test', 60) RETURNING id`,
+      [teamB.id]
+    );
+    const from = new Date(Date.now() - 60 * 60 * 1000);
+    const to = new Date();
+    // A saved_views row under team A whose monitor_id points at team B's
+    // monitor. Nothing on the write path stops this: RLS on saved_views only
+    // constrains team_id, and ping_logs_raw/monitors have no FK tying
+    // monitor_id back to the row's own team_id.
+    const { rows: [view] } = await client.query(
+      `INSERT INTO saved_views (team_id, creator_id, monitor_id, name, configuration)
+       VALUES ($1, NULL, $2, 'Cross-tenant', $3::jsonb) RETURNING share_token`,
+      [teamA.id, monitorB.id, JSON.stringify({ from: from.toISOString(), to: to.toISOString() })]
+    );
+    // Plant a ping row team A could genuinely write itself: RLS on
+    // ping_logs_raw checks only team_id, and the column has no FK, so a team A
+    // member can tag team_id = teamA against ANY monitor_id, including team
+    // B's. This reproduces the actual exploit shape: without the join's team
+    // check, get_shared_view would find team B's monitor by id, then
+    // select_ping_tier_for_team(teamA, monitorB, ...) would happily match this
+    // planted row and leak team B's monitor name/status alongside it.
+    await client.query(
+      `INSERT INTO ping_logs_raw (monitor_id, team_id, timestamp, response_time_ms, status_code)
+       VALUES ($1, $2, $3, 111, 200)`,
+      [monitorB.id, teamA.id, new Date(Date.now() - 30 * 60 * 1000)]
+    );
+
+    const { rows } = await client.query('SELECT * FROM get_shared_view($1)', [view.share_token]);
+    expect(rows).toHaveLength(0);
+  });
+
   it('returns nothing for a saved view with a malformed window instead of leaking an error', async () => {
     const { rows: [team] } = await client.query(`INSERT INTO teams (name) VALUES ('t3') RETURNING id`);
     const { rows: [monitor] } = await client.query(
