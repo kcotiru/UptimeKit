@@ -219,6 +219,28 @@ CREATE TABLE IF NOT EXISTS saved_views (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- base64url: Postgres has no built-in encoder for it, so translate the two
+-- URL-unsafe characters out of standard base64 and strip the padding.
+-- 32 random bytes -> 43 characters, 256 bits of entropy.
+CREATE OR REPLACE FUNCTION gen_share_token()
+RETURNS TEXT
+LANGUAGE sql
+VOLATILE
+SET search_path = public
+AS $$
+  SELECT rtrim(translate(encode(gen_random_bytes(32), 'base64'), '+/', '-_'), '=')
+$$;
+
+-- Added after the table shipped, so ALTER rather than table fields.
+ALTER TABLE saved_views ADD COLUMN IF NOT EXISTS monitor_id UUID REFERENCES monitors(id);
+-- Revoke kills a leaked link without destroying the saved window.
+ALTER TABLE saved_views ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
+ALTER TABLE saved_views ALTER COLUMN share_token SET DEFAULT gen_share_token();
+-- A saved view outliving the person who created it is correct behaviour
+-- (e.g. the creator leaves the team), so creator_id must not block that.
+ALTER TABLE saved_views ALTER COLUMN creator_id DROP NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_saved_views_monitor_id ON saved_views(monitor_id);
 CREATE INDEX IF NOT EXISTS idx_saved_views_team_id ON saved_views(team_id);
 CREATE INDEX IF NOT EXISTS idx_saved_views_share_token ON saved_views(share_token);
 
