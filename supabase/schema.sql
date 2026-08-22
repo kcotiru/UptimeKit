@@ -463,6 +463,95 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SET search_path = public;
 
+-- The public share path. SECURITY DEFINER because an anonymous caller has no
+-- JWT, so auth.uid() and therefore current_team_id() are NULL and every RLS
+-- policy denies. The share token IS the authorization: 256 bits of entropy,
+-- revocable, and scoped to exactly one monitor and one window.
+--
+-- Deliberately narrow: one TEXT parameter, no dynamic SQL, pinned search_path,
+-- and monitors.url is never selected — the redaction is enforced here, in SQL,
+-- not in the React component that renders the result.
+CREATE OR REPLACE FUNCTION get_shared_view(token TEXT)
+RETURNS TABLE (
+  view_name TEXT,
+  monitor_name TEXT,
+  monitor_status TEXT,
+  window_from TIMESTAMPTZ,
+  window_to TIMESTAMPTZ,
+  ts TIMESTAMPTZ,
+  response_time_ms NUMERIC,
+  min_time_ms INTEGER,
+  max_time_ms INTEGER,
+  p95_time_ms INTEGER,
+  sample_count INTEGER,
+  source_tier TEXT
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v RECORD;
+  snap_from TIMESTAMPTZ;
+  snap_to TIMESTAMPTZ;
+BEGIN
+  SELECT sv.name AS v_name,
+         sv.team_id,
+         sv.monitor_id,
+         (sv.configuration->>'from')::TIMESTAMPTZ AS w_from,
+         (sv.configuration->>'to')::TIMESTAMPTZ AS w_to,
+         m.name AS m_name,
+         m.status AS m_status
+    INTO v
+    FROM saved_views sv
+    JOIN monitors m ON m.id = sv.monitor_id
+   WHERE sv.share_token = token
+     AND sv.revoked_at IS NULL
+     AND m.is_deleted = false;
+
+  -- One empty result for unknown, revoked, and deleted alike: the caller learns
+  -- nothing about which case it hit.
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  -- Retention coarsens the data under a fixed window. Without widening, a
+  -- 02:00-06:00 window served by midnight-stamped daily buckets returns
+  -- nothing at all — blank, not blurry.
+  IF v.w_from < NOW() - INTERVAL '90 days' THEN
+    snap_from := date_trunc('day', v.w_from);
+    snap_to   := date_trunc('day', v.w_to) + INTERVAL '1 day';
+  ELSIF v.w_from < NOW() - INTERVAL '7 days' THEN
+    snap_from := date_trunc('hour', v.w_from);
+    snap_to   := date_trunc('hour', v.w_to) + INTERVAL '1 hour';
+  ELSE
+    snap_from := v.w_from;
+    snap_to   := v.w_to;
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    v.v_name::TEXT,
+    v.m_name::TEXT,
+    v.m_status::TEXT,
+    v.w_from,
+    v.w_to,
+    t.ts,
+    t.response_time_ms,
+    t.min_time_ms,
+    t.max_time_ms,
+    t.p95_time_ms,
+    t.sample_count,
+    t.source_tier
+  FROM select_ping_tier_for_team(v.team_id, v.monitor_id, snap_from, snap_to) t;
+END;
+$$;
+
+-- Functions are executable by PUBLIC by default; narrow that deliberately.
+REVOKE ALL ON FUNCTION get_shared_view(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION get_shared_view(TEXT) TO anon, authenticated;
+
 -- ---------------------------------------------------------------------------
 -- Row level security
 --

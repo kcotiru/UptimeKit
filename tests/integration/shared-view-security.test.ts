@@ -28,4 +28,104 @@ suite('Shared view security', () => {
     }
     expect(new Set(rows.map((r) => r.token)).size).toBe(1000);
   });
+
+  /** Builds a team, monitor, one raw ping, and a saved view over it. */
+  async function seedView(overrides: { revoked?: boolean; deletedMonitor?: boolean } = {}) {
+    const { rows: [team] } = await client.query(
+      `INSERT INTO teams (name) VALUES ('t') RETURNING id`
+    );
+    const { rows: [monitor] } = await client.query(
+      `INSERT INTO monitors (team_id, name, url, check_interval)
+       VALUES ($1, 'Checkout API', 'https://internal.example.test/health', 60) RETURNING id`,
+      [team.id]
+    );
+    const from = new Date(Date.now() - 60 * 60 * 1000);
+    const to = new Date();
+    await client.query(
+      `INSERT INTO ping_logs_raw (monitor_id, team_id, timestamp, response_time_ms, status_code)
+       VALUES ($1, $2, $3, 412, 200)`,
+      [monitor.id, team.id, new Date(Date.now() - 30 * 60 * 1000)]
+    );
+    const { rows: [view] } = await client.query(
+      `INSERT INTO saved_views (team_id, creator_id, monitor_id, name, configuration, revoked_at)
+       VALUES ($1, NULL, $2, 'Outage window', $3::jsonb, $4)
+       RETURNING share_token`,
+      [
+        team.id,
+        monitor.id,
+        JSON.stringify({ from: from.toISOString(), to: to.toISOString() }),
+        overrides.revoked ? new Date() : null,
+      ]
+    );
+    if (overrides.deletedMonitor) {
+      await client.query(`UPDATE monitors SET is_deleted = true WHERE id = $1`, [monitor.id]);
+    }
+    return { token: view.share_token as string, monitorId: monitor.id as string };
+  }
+
+  it('returns the series for a valid token', async () => {
+    const { token } = await seedView();
+    const { rows } = await client.query('SELECT * FROM get_shared_view($1)', [token]);
+
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0].monitor_name).toBe('Checkout API');
+    expect(rows[0].view_name).toBe('Outage window');
+  });
+
+  it('never exposes the monitor URL', async () => {
+    const { token } = await seedView();
+    const { rows, fields } = await client.query('SELECT * FROM get_shared_view($1)', [token]);
+
+    expect(fields.map((f) => f.name)).not.toContain('url');
+    expect(JSON.stringify(rows)).not.toContain('internal.example.test');
+  });
+
+  it('returns nothing for a revoked token', async () => {
+    const { token } = await seedView({ revoked: true });
+    const { rows } = await client.query('SELECT * FROM get_shared_view($1)', [token]);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('returns nothing for an unknown token', async () => {
+    const { rows } = await client.query('SELECT * FROM get_shared_view($1)', ['x'.repeat(43)]);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('returns nothing once the monitor is soft-deleted', async () => {
+    const { token } = await seedView({ deletedMonitor: true });
+    const { rows } = await client.query('SELECT * FROM get_shared_view($1)', [token]);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('snaps an old window out to day boundaries so it is not silently empty', async () => {
+    const { rows: [team] } = await client.query(`INSERT INTO teams (name) VALUES ('t2') RETURNING id`);
+    const { rows: [monitor] } = await client.query(
+      `INSERT INTO monitors (team_id, name, url, check_interval)
+       VALUES ($1, 'Old', 'https://old.test', 60) RETURNING id`,
+      [team.id]
+    );
+    // A daily bucket 200 days back, stamped midnight.
+    const day = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
+    day.setUTCHours(0, 0, 0, 0);
+    await client.query(
+      `INSERT INTO ping_logs_daily (team_id, monitor_id, bucket_start, total_pings, successful_pings,
+         avg_response_time_ms, min_response_time_ms, max_response_time_ms,
+         p50_response_time_ms, p95_response_time_ms, p99_response_time_ms)
+       VALUES ($1, $2, $3, 100, 99, 120, 40, 900, 110, 300, 800)`,
+      [team.id, monitor.id, day]
+    );
+    // A 02:00-06:00 window inside that day matches no midnight-stamped bucket
+    // unless the function widens it.
+    const from = new Date(day); from.setUTCHours(2);
+    const to = new Date(day); to.setUTCHours(6);
+    const { rows: [view] } = await client.query(
+      `INSERT INTO saved_views (team_id, creator_id, monitor_id, name, configuration)
+       VALUES ($1, NULL, $2, 'Ancient', $3::jsonb) RETURNING share_token`,
+      [team.id, monitor.id, JSON.stringify({ from: from.toISOString(), to: to.toISOString() })]
+    );
+
+    const { rows } = await client.query('SELECT * FROM get_shared_view($1)', [view.share_token]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].source_tier).toBe('daily');
+  });
 });
