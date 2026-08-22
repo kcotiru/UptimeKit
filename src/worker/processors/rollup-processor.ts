@@ -20,6 +20,17 @@ export function closedBucket(
   return d.toISOString();
 }
 
+/**
+ * The daily average the hourly_to_daily SQL computes, expressed in TypeScript so
+ * the weighting is testable without a database. Keep the two in step: an hour is
+ * weighted by its ping count, because a quiet hour is not worth a busy one.
+ */
+export function weightedAverage(rows: Array<{ avg: number; count: number }>): number {
+  const total = rows.reduce((sum, r) => sum + r.count, 0);
+  if (total === 0) return 0;
+  return Math.round(rows.reduce((sum, r) => sum + r.avg * r.count, 0) / total);
+}
+
 export interface IRollupProcessor {
   processRollup(jobData: RollupJobPayload): Promise<{
     status: 'completed' | 'skipped' | 'failed';
@@ -129,9 +140,17 @@ export class RollupProcessor implements IRollupProcessor {
             date_trunc('day', bucket_start) AS bucket_start,
             SUM(total_pings)::int AS total_pings,
             SUM(successful_pings)::int AS successful_pings,
-            ROUND(AVG(avg_response_time_ms))::int AS avg_response_time_ms,
+            -- Weighted by ping count: see weightedAverage() in this file.
+            -- NULLIF guards a day whose hourly rows are all empty, which would
+            -- otherwise divide by zero and abort the rollup transaction.
+            ROUND(SUM(avg_response_time_ms::numeric * total_pings)
+                  / NULLIF(SUM(total_pings), 0))::int AS avg_response_time_ms,
             MIN(min_response_time_ms)::int AS min_response_time_ms,
             MAX(max_response_time_ms)::int AS max_response_time_ms,
+            -- ponytail: these are percentiles OF hourly percentiles, not true daily
+            -- percentiles — the raw rows are gone by day 7. Error is unbounded but
+            -- bounded in practice by how uniform the hours are. Upgrade path is a
+            -- mergeable sketch (t-digest); the UI labels daily points as approximate.
             PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY p50_response_time_ms)::int AS p50_response_time_ms,
             PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY p95_response_time_ms)::int AS p95_response_time_ms,
             PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY p99_response_time_ms)::int AS p99_response_time_ms
