@@ -290,8 +290,6 @@ BEGIN
 END $$;
 
 -- Pre-create a month of partitions so the worker can insert immediately.
--- ponytail: re-run this DO block (or schedule create_daily_partition) before
--- the window runs out; a pg_cron job is the upgrade path if this app is long-lived.
 DO $$
 DECLARE d DATE;
 BEGIN
@@ -299,6 +297,28 @@ BEGIN
     PERFORM create_daily_partition(d);
   END LOOP;
 END $$;
+
+-- Keep a rolling 14-day runway of partitions and drop what retention has passed.
+-- Idempotent: create_daily_partition is CREATE TABLE IF NOT EXISTS, and the
+-- unschedule/schedule pair means re-running this file does not stack duplicate jobs.
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+DO $$
+BEGIN
+  PERFORM cron.unschedule('uptimekit-partitions');
+EXCEPTION WHEN OTHERS THEN
+  -- No such job yet on a first run.
+  NULL;
+END $$;
+
+SELECT cron.schedule(
+  'uptimekit-partitions',
+  '0 3 * * *',
+  $job$
+    SELECT create_daily_partition((CURRENT_DATE + i)::date) FROM generate_series(0, 14) i;
+    SELECT drop_expired_partitions(7);
+  $job$
+);
 
 -- ---------------------------------------------------------------------------
 -- Tier-aware metric read (raw < 7d, hourly < 90d, daily beyond)

@@ -15,4 +15,15 @@ describe('Partitioning Integration / Validation Tests', () => {
     expect(sql).toContain('drop_expired_partitions');
     expect(sql).toContain('list_active_partitions');
   });
+
+  it('schedules recurring partition maintenance instead of relying on a one-off DO block', () => {
+    const sql = fs.readFileSync(path.join(__dirname, '../../supabase/schema.sql'), 'utf8');
+
+    expect(sql).toContain("CREATE EXTENSION IF NOT EXISTS pg_cron");
+    expect(sql).toContain("uptimekit-partitions");
+    // The job must both create ahead and drop behind — creating alone leaks disk.
+    expect(sql).toContain('drop_expired_partitions(7)');
+    // Unscheduling first is what makes re-running schema.sql idempotent.
+    expect(sql).toContain("cron.unschedule('uptimekit-partitions')");
+  });
 });
