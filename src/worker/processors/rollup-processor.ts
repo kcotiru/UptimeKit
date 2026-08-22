@@ -141,10 +141,12 @@ export class RollupProcessor implements IRollupProcessor {
             SUM(total_pings)::int AS total_pings,
             SUM(successful_pings)::int AS successful_pings,
             -- Weighted by ping count: see weightedAverage() in this file.
-            -- NULLIF guards a day whose hourly rows are all empty, which would
-            -- otherwise divide by zero and abort the rollup transaction.
-            ROUND(SUM(avg_response_time_ms::numeric * total_pings)
-                  / NULLIF(SUM(total_pings), 0))::int AS avg_response_time_ms,
+            -- NULLIF avoids the division-by-zero error when a day's hourly rows
+            -- are all empty; COALESCE then turns that NULL back into 0 so the
+            -- NOT NULL column is satisfied and this matches weightedAverage()'s
+            -- all-zero-count case (which returns 0) exactly.
+            COALESCE(ROUND(SUM(avg_response_time_ms::numeric * total_pings)
+                  / NULLIF(SUM(total_pings), 0)), 0)::int AS avg_response_time_ms,
             MIN(min_response_time_ms)::int AS min_response_time_ms,
             MAX(max_response_time_ms)::int AS max_response_time_ms,
             -- ponytail: these are percentiles OF hourly percentiles, not true daily
