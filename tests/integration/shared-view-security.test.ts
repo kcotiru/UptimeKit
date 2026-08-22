@@ -114,8 +114,21 @@ suite('Shared view security', () => {
        VALUES ($1, $2, $3, 100, 99, 120, 40, 900, 110, 300, 800)`,
       [team.id, monitor.id, day]
     );
-    // A 02:00-06:00 window inside that day matches no midnight-stamped bucket
-    // unless the function widens it.
+    // An ADJACENT day bucket (the very next midnight), distinguishable by its
+    // sample count. If snapping over-widens window_to by one extra bucket
+    // (the pre-fix `date_trunc('day', w_to) + INTERVAL '1 day'` behaviour),
+    // this bucket leaks into the result too.
+    const nextDay = new Date(day.getTime() + 24 * 60 * 60 * 1000);
+    await client.query(
+      `INSERT INTO ping_logs_daily (team_id, monitor_id, bucket_start, total_pings, successful_pings,
+         avg_response_time_ms, min_response_time_ms, max_response_time_ms,
+         p50_response_time_ms, p95_response_time_ms, p99_response_time_ms)
+       VALUES ($1, $2, $3, 999, 999, 120, 40, 900, 110, 300, 800)`,
+      [team.id, monitor.id, nextDay]
+    );
+    // A 02:00-06:00 window inside the first day matches no midnight-stamped
+    // bucket unless the function widens it — but must not reach into the
+    // next day's bucket either.
     const from = new Date(day); from.setUTCHours(2);
     const to = new Date(day); to.setUTCHours(6);
     const { rows: [view] } = await client.query(
@@ -127,5 +140,24 @@ suite('Shared view security', () => {
     const { rows } = await client.query('SELECT * FROM get_shared_view($1)', [view.share_token]);
     expect(rows).toHaveLength(1);
     expect(rows[0].source_tier).toBe('daily');
+    expect(rows[0].sample_count).toBe(100);
+  });
+
+  it('returns nothing for a saved view with a malformed window instead of leaking an error', async () => {
+    const { rows: [team] } = await client.query(`INSERT INTO teams (name) VALUES ('t3') RETURNING id`);
+    const { rows: [monitor] } = await client.query(
+      `INSERT INTO monitors (team_id, name, url, check_interval)
+       VALUES ($1, 'Bad Config', 'https://bad.test', 60) RETURNING id`,
+      [team.id]
+    );
+    const { rows: [view] } = await client.query(
+      `INSERT INTO saved_views (team_id, creator_id, monitor_id, name, configuration)
+       VALUES ($1, NULL, $2, 'Malformed', $3::jsonb) RETURNING share_token`,
+      [team.id, monitor.id, JSON.stringify({ from: 'not-a-date', to: 'also-not-a-date' })]
+    );
+
+    await expect(
+      client.query('SELECT * FROM get_shared_view($1)', [view.share_token])
+    ).resolves.toMatchObject({ rows: [] });
   });
 });

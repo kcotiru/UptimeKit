@@ -30,12 +30,17 @@ CREATE INDEX IF NOT EXISTS idx_users_team_id ON users(team_id);
 
 -- Tenant key for every RLS policy below. SECURITY DEFINER so the policy on
 -- `users` cannot recurse into itself.
+-- pg_temp is searched before anything named here even when omitted from the
+-- path, so it must be listed explicitly: without it, any role can shadow
+-- `users` with a pg_temp.users carrying an attacker-chosen team_id, and since
+-- every RLS policy in this schema calls current_team_id(), that's a full
+-- tenant takeover, not just a leak from this one function.
 CREATE OR REPLACE FUNCTION current_team_id()
 RETURNS UUID
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
   SELECT team_id FROM users WHERE id = auth.uid()
 $$;
@@ -189,11 +194,15 @@ CREATE INDEX IF NOT EXISTS idx_deletion_queue_status ON deletion_queue(status);
 -- Soft-deleting a monitor queues its ping logs for purging. A trigger, not app
 -- code, so every delete path (web, worker, manual SQL) enqueues exactly once.
 -- SECURITY DEFINER because deletion_queue has RLS on with no policy.
+-- pg_temp must be listed explicitly in search_path (see current_team_id()
+-- above) — otherwise a poisoned pg_temp.deletion_queue silently swallows
+-- purge enqueues instead of erroring, and the monitor's data never gets
+-- reaped.
 CREATE OR REPLACE FUNCTION enqueue_monitor_purge()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 BEGIN
   INSERT INTO deletion_queue (monitor_id) VALUES (NEW.id);
@@ -489,23 +498,38 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+-- pg_temp is searched BEFORE anything named here even when omitted, so it
+-- must be listed explicitly — otherwise a caller with no privileges beyond
+-- EXECUTE can shadow saved_views/monitors with pg_temp tables of the same
+-- name and feed this definer-rights function whatever rows it wants.
+-- TimeZone is pinned for the same reason rollup-processor.ts pins it before
+-- rollups (see SET LOCAL TIME ZONE 'UTC' there): date_trunc follows the
+-- session zone, so an unpinned session changes which bucket a window snaps
+-- to depending on who's connected.
+SET search_path = public, pg_temp
+SET TimeZone = 'UTC'
 AS $$
 DECLARE
   v RECORD;
+  w_from TIMESTAMPTZ;
+  w_to TIMESTAMPTZ;
   snap_from TIMESTAMPTZ;
   snap_to TIMESTAMPTZ;
 BEGIN
   SELECT sv.name AS v_name,
          sv.team_id,
          sv.monitor_id,
-         (sv.configuration->>'from')::TIMESTAMPTZ AS w_from,
-         (sv.configuration->>'to')::TIMESTAMPTZ AS w_to,
+         sv.configuration->>'from' AS raw_from,
+         sv.configuration->>'to' AS raw_to,
          m.name AS m_name,
          m.status AS m_status
     INTO v
     FROM saved_views sv
-    JOIN monitors m ON m.id = sv.monitor_id
+    -- team_id must be pinned on the join, not just checked later: without it
+    -- a saved_views row can point at another team's monitor_id (nothing FKs
+    -- ping_logs_raw.monitor_id, and its RLS only checks team_id) and publish
+    -- that victim's monitor name and live status through this token.
+    JOIN monitors m ON m.id = sv.monitor_id AND m.team_id = sv.team_id
    WHERE sv.share_token = token
      AND sv.revoked_at IS NULL
      AND m.is_deleted = false;
@@ -516,18 +540,33 @@ BEGIN
     RETURN;
   END IF;
 
+  -- A malformed configuration (bad JSON value under 'from'/'to') must fail
+  -- the same way as an unknown token: no cast error text leaking table/column
+  -- names to an anonymous caller, no existence oracle from the error/no-error
+  -- split.
+  BEGIN
+    w_from := v.raw_from::TIMESTAMPTZ;
+    w_to   := v.raw_to::TIMESTAMPTZ;
+  EXCEPTION WHEN OTHERS THEN
+    RETURN;
+  END;
+
   -- Retention coarsens the data under a fixed window. Without widening, a
   -- 02:00-06:00 window served by midnight-stamped daily buckets returns
-  -- nothing at all — blank, not blurry.
-  IF v.w_from < NOW() - INTERVAL '90 days' THEN
-    snap_from := date_trunc('day', v.w_from);
-    snap_to   := date_trunc('day', v.w_to) + INTERVAL '1 day';
-  ELSIF v.w_from < NOW() - INTERVAL '7 days' THEN
-    snap_from := date_trunc('hour', v.w_from);
-    snap_to   := date_trunc('hour', v.w_to) + INTERVAL '1 hour';
+  -- nothing at all — blank, not blurry. The upper bound is NOT pushed a
+  -- further bucket out: select_ping_tier_for_team's BETWEEN is inclusive, and
+  -- date_trunc(unit, w_to) already lands in the bucket containing w_to, so
+  -- adding another unit would publish one whole extra bucket the sharer never
+  -- pinned.
+  IF w_from < NOW() - INTERVAL '90 days' THEN
+    snap_from := date_trunc('day', w_from);
+    snap_to   := date_trunc('day', w_to);
+  ELSIF w_from < NOW() - INTERVAL '7 days' THEN
+    snap_from := date_trunc('hour', w_from);
+    snap_to   := date_trunc('hour', w_to);
   ELSE
-    snap_from := v.w_from;
-    snap_to   := v.w_to;
+    snap_from := w_from;
+    snap_to   := w_to;
   END IF;
 
   RETURN QUERY
@@ -535,8 +574,8 @@ BEGIN
     v.v_name::TEXT,
     v.m_name::TEXT,
     v.m_status::TEXT,
-    v.w_from,
-    v.w_to,
+    w_from,
+    w_to,
     t.ts,
     t.response_time_ms,
     t.min_time_ms,
