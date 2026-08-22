@@ -75,7 +75,13 @@ describe('toSharedView', () => {
   });
 
   it('reports the coarsest tier present, so the page can say the data is approximate', () => {
-    const mixed = [rows[0], { ...rows[0], source_tier: 'daily' }];
+    // 'daily' sits in the middle, not last, so a buggy "last row wins"
+    // implementation would report 'hourly' here instead of 'daily'.
+    const mixed = [
+      { ...rows[0], source_tier: 'raw' },
+      { ...rows[0], source_tier: 'daily' },
+      { ...rows[0], source_tier: 'hourly' },
+    ];
     expect(toSharedView(mixed)?.sourceTier).toBe('daily');
   });
 
