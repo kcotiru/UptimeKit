@@ -57,4 +57,24 @@ describe('MonitorScheduler', () => {
     await scheduler.unscheduleMonitor('m1');
     expect(mockQueue.removeJobScheduler).toHaveBeenCalledWith('monitor:m1');
   });
+
+  it('forwards each monitor timeout into the ping job payload', async () => {
+    const dbPool: any = {
+      query: vi.fn().mockResolvedValue({
+        rows: [{ id: 'm1', team_id: 't1', url: 'https://a.test', expected_status: 200, check_interval: 60, timeout_ms: 1500 }],
+      }),
+    };
+    const queue: any = {
+      upsertJobScheduler: vi.fn().mockResolvedValue({}),
+      getJobSchedulers: vi.fn().mockResolvedValue([]),
+    };
+
+    await new MonitorScheduler(dbPool, queue).syncMonitors();
+
+    expect(queue.upsertJobScheduler).toHaveBeenCalledWith(
+      'monitor:m1',
+      { every: 60000 },
+      expect.objectContaining({ data: expect.objectContaining({ timeoutMs: 1500 }) })
+    );
+  });
 });

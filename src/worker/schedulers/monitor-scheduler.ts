@@ -10,6 +10,7 @@ export interface IMonitorScheduler {
     url: string;
     expectedStatus: number;
     checkInterval: number;
+    timeoutMs: number;
   }): Promise<void>;
   unscheduleMonitor(monitorId: string): Promise<void>;
 }
@@ -32,6 +33,7 @@ export class MonitorScheduler implements IMonitorScheduler {
     url: string;
     expectedStatus: number;
     checkInterval: number;
+    timeoutMs: number;
   }): Promise<void> {
     const schedulerId = `monitor:${monitor.id}`;
     const intervalMs = Math.max(monitor.checkInterval * 1000, 1000);
@@ -42,6 +44,7 @@ export class MonitorScheduler implements IMonitorScheduler {
       url: monitor.url,
       expectedStatus: monitor.expectedStatus,
       checkInterval: monitor.checkInterval,
+      timeoutMs: monitor.timeoutMs,
     };
 
     await this.queue.upsertJobScheduler(
@@ -67,7 +70,7 @@ export class MonitorScheduler implements IMonitorScheduler {
    */
   async syncMonitors(): Promise<{ added: number; updated: number; removed: number }> {
     const query = `
-      SELECT id, team_id, url, expected_status, check_interval
+      SELECT id, team_id, url, expected_status, check_interval, timeout_ms
       FROM monitors
       WHERE is_paused = false AND deleted_at IS NULL
     `;
@@ -84,6 +87,7 @@ export class MonitorScheduler implements IMonitorScheduler {
         url: row.url,
         expectedStatus: row.expected_status || 200,
         checkInterval: row.check_interval || 60,
+        timeoutMs: row.timeout_ms || 5000,
       };
       activeIds.add(monitor.id);
       await this.scheduleMonitor(monitor);

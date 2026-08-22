@@ -65,6 +65,18 @@ CREATE TABLE IF NOT EXISTS monitors (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Added after the initial release, so ADD COLUMN rather than a table field.
+-- Bounds mirror createMonitorSchema in src/web/lib/shared/validations/monitor.ts.
+ALTER TABLE monitors ADD COLUMN IF NOT EXISTS timeout_ms INTEGER NOT NULL DEFAULT 5000;
+
+DO $$
+BEGIN
+  ALTER TABLE monitors ADD CONSTRAINT monitors_timeout_ms_range
+    CHECK (timeout_ms BETWEEN 1000 AND 30000);
+EXCEPTION WHEN duplicate_object THEN
+  NULL;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_monitor_team_active ON monitors(team_id, is_deleted);
 
 CREATE TABLE IF NOT EXISTS incidents (
