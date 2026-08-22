@@ -114,3 +114,47 @@ export type TimeRangePreset = '1h' | '24h' | '7d' | '30d' | 'custom';
  *  failures rather than throwing, so client components can render the
  *  message without a try/catch around every call. */
 export type ActionResult<T = void> = { ok: true; data: T } | { ok: false; error: string };
+
+/** A pinned, absolute time window on one monitor, shareable by token. */
+export interface SavedView {
+  /** Unique saved view identifier (UUID v4) */
+  id: string;
+  /** Owning team identifier */
+  teamId: string;
+  /** Monitor the window belongs to */
+  monitorId: string;
+  /** Display name given by the creator */
+  name: string;
+  /** ISO 8601 window start — absolute, never relative */
+  from: string;
+  /** ISO 8601 window end */
+  to: string;
+  /** 43-char base64url token embedded in the public URL */
+  shareToken: string;
+  /** ISO 8601 timestamp the link was killed, or null while live */
+  revokedAt: string | null;
+  /** ISO 8601 timestamp of creation */
+  createdAt: string;
+}
+
+/** One point on a publicly shared chart. Carries no status code — rolled-up
+ *  tiers have none, and the public page does not distinguish up from down. */
+export interface SharedViewPoint {
+  timestamp: string;
+  responseTimeMs: number;
+  p95Ms: number;
+  sampleCount: number;
+}
+
+/** What an anonymous visitor gets. Note the absence of a URL field: the SQL
+ *  function never returns monitors.url, so it cannot be rendered by mistake. */
+export interface SharedView {
+  viewName: string;
+  monitorName: string;
+  monitorStatus: MonitorStatus;
+  from: string;
+  to: string;
+  /** Coarsest tier serving this window: 'raw' | 'hourly' | 'daily'. */
+  sourceTier: string;
+  points: SharedViewPoint[];
+}
