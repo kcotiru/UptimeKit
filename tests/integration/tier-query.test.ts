@@ -12,4 +12,15 @@ describe('Tier Query Function SQL Validation', () => {
     expect(sql).toContain("'hourly'");
     expect(sql).toContain("'daily'");
   });
+
+  it('exposes a team-parameterised tier query that select_ping_tier delegates to', () => {
+    const sql = fs.readFileSync(path.join(__dirname, '../../supabase/schema.sql'), 'utf8');
+
+    expect(sql).toContain('FUNCTION select_ping_tier_for_team(');
+    // The wrapper must delegate, not carry a second copy of the UNION.
+    const wrapper = sql.slice(sql.indexOf('CREATE OR REPLACE FUNCTION select_ping_tier('));
+    const wrapperBody = wrapper.slice(0, wrapper.indexOf('$$ LANGUAGE'));
+    expect(wrapperBody).toContain('select_ping_tier_for_team(current_team_id()');
+    expect(wrapperBody).not.toContain('UNION ALL');
+  });
 });

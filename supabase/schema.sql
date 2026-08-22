@@ -336,9 +336,13 @@ SELECT cron.schedule(
 -- Tier-aware metric read (raw < 7d, hourly < 90d, daily beyond)
 -- ---------------------------------------------------------------------------
 
--- Runs as the caller (no SECURITY DEFINER), so row level security on the
--- ping_logs_* tables still applies and the explicit team filter is a second guard.
-CREATE OR REPLACE FUNCTION select_ping_tier(
+-- The three-tier read, with the tenant as a parameter. SECURITY INVOKER, so an
+-- authenticated caller passing another team's UUID still hits RLS on the
+-- ping_logs_* tables and gets nothing. Called from get_shared_view (which is
+-- SECURITY DEFINER), the invoker is the definer's role and RLS is bypassed —
+-- that is the whole point of the split.
+CREATE OR REPLACE FUNCTION select_ping_tier_for_team(
+  target_team_id UUID,
   target_monitor_id UUID,
   start_time TIMESTAMPTZ,
   end_time TIMESTAMPTZ
@@ -359,7 +363,6 @@ DECLARE
   now_ts TIMESTAMPTZ := NOW();
   raw_cutoff TIMESTAMPTZ := now_ts - INTERVAL '7 days';
   hourly_cutoff TIMESTAMPTZ := now_ts - INTERVAL '90 days';
-  target_team_id UUID := current_team_id();
 BEGIN
   RETURN QUERY
   SELECT
@@ -413,6 +416,28 @@ BEGIN
     AND d.bucket_start < hourly_cutoff
 
   ORDER BY 1 ASC;
+END;
+$$ LANGUAGE plpgsql STABLE SET search_path = public;
+
+-- Unchanged signature — src/web/lib/server/data/monitors.ts calls this via RPC.
+CREATE OR REPLACE FUNCTION select_ping_tier(
+  target_monitor_id UUID,
+  start_time TIMESTAMPTZ,
+  end_time TIMESTAMPTZ
+)
+RETURNS TABLE (
+  ts TIMESTAMPTZ,
+  response_time_ms NUMERIC,
+  min_time_ms INTEGER,
+  max_time_ms INTEGER,
+  p95_time_ms INTEGER,
+  sample_count INTEGER,
+  status_code INTEGER,
+  source_tier TEXT
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT * FROM select_ping_tier_for_team(current_team_id(), target_monitor_id, start_time, end_time);
 END;
 $$ LANGUAGE plpgsql STABLE SET search_path = public;
 
