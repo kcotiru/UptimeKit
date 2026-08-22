@@ -8,6 +8,7 @@ import { Monitor, PingMetric } from '@/lib/shared/types';
 import { StatusBadge } from './status-badge';
 import { TimeRangePicker, TimeRangePreset } from './time-range-picker';
 import { TimeSeriesChart } from './time-series-chart';
+import { SaveViewButton } from './save-view-button';
 import { formatDate, calculateTimestamps } from '@/lib/shared/utils';
 import { fetchMetricsAction } from '@/lib/server/actions/monitors';
 
@@ -35,6 +36,13 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Kept in state so the share button pins the window actually on screen.
+  const initialBounds = calculateTimestamps(currentPreset);
+  const [window_, setWindow] = useState({
+    from: searchParams.get('from') ?? initialBounds.from,
+    to: searchParams.get('to') ?? initialBounds.to,
+  });
+
   const handleSelectPreset = (
     newPreset: TimeRangePreset,
     customFrom?: string,
@@ -53,6 +61,8 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
       from = bounds.from;
       to = bounds.to;
     }
+
+    setWindow({ from, to });
 
     // Synchronize URL query parameters for deep-linking (FR-008 & SC-004)
     const params = new URLSearchParams(searchParams.toString());
@@ -151,7 +161,10 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-slate-100">Performance History</h3>
-          <TimeRangePicker selectedPreset={preset} onSelectPreset={handleSelectPreset} />
+          <div className="flex items-center gap-2">
+            <SaveViewButton monitorId={monitor.id} from={window_.from} to={window_.to} />
+            <TimeRangePicker selectedPreset={preset} onSelectPreset={handleSelectPreset} />
+          </div>
         </div>
 
         <TimeSeriesChart metrics={metrics} />
