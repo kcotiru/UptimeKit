@@ -371,7 +371,9 @@ SELECT cron.schedule(
 -- authenticated caller passing another team's UUID still hits RLS on the
 -- ping_logs_* tables and gets nothing. Called from get_shared_view (which is
 -- SECURITY DEFINER), the invoker is the definer's role and RLS is bypassed —
--- that is the whole point of the split.
+-- that is the whole point of the split. pg_temp is pinned below even though
+-- this function is INVOKER, not DEFINER: it runs inside get_shared_view's
+-- definer context, so its search_path is part of that same boundary.
 CREATE OR REPLACE FUNCTION select_ping_tier_for_team(
   target_team_id UUID,
   target_monitor_id UUID,
@@ -448,7 +450,7 @@ BEGIN
 
   ORDER BY 1 ASC;
 END;
-$$ LANGUAGE plpgsql STABLE SET search_path = public;
+$$ LANGUAGE plpgsql STABLE SET search_path = public, pg_temp;
 
 -- Unchanged signature — src/web/lib/server/data/monitors.ts calls this via RPC.
 CREATE OR REPLACE FUNCTION select_ping_tier(
