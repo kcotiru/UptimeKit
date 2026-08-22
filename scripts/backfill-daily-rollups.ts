@@ -10,7 +10,7 @@ import { RollupProcessor } from '../src/worker/processors/rollup-processor';
 async function main(): Promise<void> {
   const processor = new RollupProcessor(dbPool);
 
-  const { rows } = await dbPool.query<{ bucket: string }>(
+  const { rows } = await dbPool.query<{ bucket: Date }>(
     `SELECT DISTINCT date_trunc('day', bucket_start) AS bucket
        FROM ping_logs_hourly
       ORDER BY bucket ASC`
@@ -19,7 +19,7 @@ async function main(): Promise<void> {
   console.log(`[Backfill] ${rows.length} day(s) to recompute`);
 
   for (const { bucket } of rows) {
-    const timeWindow = new Date(bucket).toISOString();
+    const timeWindow = bucket.toISOString();
 
     // The processor short-circuits on a 'completed' rollup_logs row, so clear the
     // marker first or every window returns 'skipped'.
@@ -33,6 +33,11 @@ async function main(): Promise<void> {
   }
 
   await dbPool.end();
+  // Importing `dbPool` from config/redis also opens an ioredis connection
+  // (redisConnection) as a side effect, and nothing here ever closes it.
+  // That open socket is an active event-loop handle, so without a hard
+  // exit the process hangs forever after printing its last log line.
+  process.exit(0);
 }
 
 main().catch((err: unknown) => {
