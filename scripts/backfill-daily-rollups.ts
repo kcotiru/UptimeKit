@@ -1,0 +1,41 @@
+/**
+ * One-shot: recompute every ping_logs_daily row still reachable from hourly data.
+ * Run once after deploying the weighted-average fix, then delete or ignore.
+ *
+ *   npx ts-node scripts/backfill-daily-rollups.ts
+ */
+import { dbPool } from '../src/worker/config/redis';
+import { RollupProcessor } from '../src/worker/processors/rollup-processor';
+
+async function main(): Promise<void> {
+  const processor = new RollupProcessor(dbPool);
+
+  const { rows } = await dbPool.query<{ bucket: string }>(
+    `SELECT DISTINCT date_trunc('day', bucket_start) AS bucket
+       FROM ping_logs_hourly
+      ORDER BY bucket ASC`
+  );
+
+  console.log(`[Backfill] ${rows.length} day(s) to recompute`);
+
+  for (const { bucket } of rows) {
+    const timeWindow = new Date(bucket).toISOString();
+
+    // The processor short-circuits on a 'completed' rollup_logs row, so clear the
+    // marker first or every window returns 'skipped'.
+    await dbPool.query(
+      `DELETE FROM rollup_logs WHERE rollup_type = 'hourly_to_daily' AND time_window = $1`,
+      [timeWindow]
+    );
+
+    const result = await processor.processRollup({ rollupType: 'hourly_to_daily', timeWindow });
+    console.log(`[Backfill] ${timeWindow} -> ${result.status} (${result.outputCount} rows)`);
+  }
+
+  await dbPool.end();
+}
+
+main().catch((err: unknown) => {
+  console.error('[Backfill] Failed:', err);
+  process.exit(1);
+});
