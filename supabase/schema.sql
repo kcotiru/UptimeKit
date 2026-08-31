@@ -167,6 +167,25 @@ CREATE TABLE IF NOT EXISTS ping_logs_daily (
 
 CREATE INDEX IF NOT EXISTS idx_ping_daily_team_time ON ping_logs_daily (team_id, bucket_start);
 
+-- Records where a daily row's percentiles actually came from. 'raw' means they
+-- are exact: the day's raw rows were still present AND complete (their count
+-- matched the hourly buckets' summed total_pings), so PERCENTILE_CONT ran over
+-- the real sample. 'hourly_approx' means the raw rows were gone or partial and
+-- the row carries percentiles OF hourly percentiles, whose error is unbounded.
+-- ALTER rather than a CREATE TABLE edit: the table already exists on deployed
+-- projects, and schema.sql must stay re-runnable.
+ALTER TABLE ping_logs_daily
+  ADD COLUMN IF NOT EXISTS percentile_source TEXT NOT NULL DEFAULT 'hourly_approx';
+
+DO $$
+BEGIN
+  ALTER TABLE ping_logs_daily
+    ADD CONSTRAINT ping_logs_daily_percentile_source_check
+    CHECK (percentile_source IN ('raw', 'hourly_approx'));
+EXCEPTION WHEN duplicate_object THEN
+  NULL;
+END $$;
+
 CREATE TABLE IF NOT EXISTS rollup_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   rollup_type VARCHAR(50) NOT NULL CHECK (rollup_type IN ('raw_to_hourly', 'hourly_to_daily')),
