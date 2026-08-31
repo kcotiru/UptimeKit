@@ -39,13 +39,14 @@ export interface SharedViewRow {
   monitor_status: string;
   window_from: string;
   window_to: string;
-  ts: string;
-  response_time_ms: number;
-  min_time_ms: number;
-  max_time_ms: number;
-  p95_time_ms: number;
-  sample_count: number;
-  source_tier: string;
+  // Null on the header row a valid-but-empty window returns.
+  ts: string | null;
+  response_time_ms: number | null;
+  min_time_ms: number | null;
+  max_time_ms: number | null;
+  p95_time_ms: number | null;
+  sample_count: number | null;
+  source_tier: string | null;
 }
 
 // Coarsest wins: if any point came from daily buckets, the whole chart is only
@@ -55,15 +56,31 @@ const TIER_RANK: Record<string, number> = { raw: 0, hourly: 1, daily: 2 };
 /**
  * Folds the function's flat rows — which repeat the view header on every point —
  * into one object. Returns null for zero rows, which is what an unknown, revoked,
- * or deleted-monitor token yields; the caller renders a 404, not an error.
+ * or deleted-monitor token yields; the caller renders a 404, not an error. A
+ * valid view whose pinned window holds no data comes back as a single header
+ * row with every series column null — that yields an empty `points` array,
+ * not null.
  */
 export function toSharedView(rows: SharedViewRow[]): SharedView | null {
   if (rows.length === 0) return null;
   const head = rows[0];
 
-  const sourceTier = rows.reduce(
+  // A valid view whose window holds no data comes back as a single header row
+  // with every series column null. Zero rows still means unknown/revoked/deleted.
+  const series = rows.filter(
+    (r): r is SharedViewRow & {
+      ts: string;
+      p95_time_ms: number;
+      sample_count: number;
+      source_tier: string;
+    } => r.ts !== null
+  );
+
+  // An empty window has no tier at all — '' matches no TIER_NOTE, so the page
+  // renders no tier label rather than a misleading one.
+  const sourceTier = series.reduce(
     (worst, r) => ((TIER_RANK[r.source_tier] ?? 0) > (TIER_RANK[worst] ?? 0) ? r.source_tier : worst),
-    head.source_tier
+    series[0]?.source_tier ?? ''
   );
 
   return {
@@ -75,7 +92,7 @@ export function toSharedView(rows: SharedViewRow[]): SharedView | null {
     from: head.window_from,
     to: head.window_to,
     sourceTier,
-    points: rows.map((r) => ({
+    points: series.map((r) => ({
       timestamp: r.ts,
       responseTimeMs: Math.round(Number(r.response_time_ms)),
       p95Ms: r.p95_time_ms,

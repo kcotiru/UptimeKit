@@ -574,6 +574,19 @@ BEGIN
     snap_to   := w_to;
   END IF;
 
+  -- LEFT JOIN LATERAL against a one-row anchor: a valid view always yields at
+  -- least its header row, with the series columns NULL when the pinned window
+  -- holds no data. Without this, a quiet or retention-emptied window returned
+  -- zero rows and the page 404'd a link that was perfectly valid.
+  --
+  -- This does hand back a token-VALIDITY oracle, which the earlier design
+  -- deliberately avoided. The trade is deliberate and bounded: share_token is
+  -- 43 base64url characters over 256 bits from gen_random_bytes, so an attacker
+  -- has no way to produce a candidate token to ask about, and an oracle that
+  -- cannot be queried with a plausible guess is not a practical exposure. The
+  -- cases that still reveal nothing are the ones that would matter — unknown,
+  -- revoked, soft-deleted monitor and malformed window all return zero rows
+  -- above, and must keep doing so.
   RETURN QUERY
   SELECT
     v.v_name::TEXT,
@@ -588,7 +601,9 @@ BEGIN
     t.p95_time_ms,
     t.sample_count,
     t.source_tier
-  FROM select_ping_tier_for_team(v.team_id, v.monitor_id, snap_from, snap_to) t;
+  FROM (SELECT 1) AS anchor
+  LEFT JOIN LATERAL
+    select_ping_tier_for_team(v.team_id, v.monitor_id, snap_from, snap_to) t ON TRUE;
 END;
 $$;
 

@@ -90,4 +90,28 @@ describe('toSharedView', () => {
   it('returns null for an unknown or revoked token, which yields zero rows', () => {
     expect(toSharedView([])).toBeNull();
   });
+
+  it('keeps the view header and returns no points when the series is empty', () => {
+    const result = toSharedView([
+      {
+        view_name: 'Tuesday outage',
+        monitor_name: 'api.example.com',
+        monitor_status: 'up',
+        window_from: '2026-08-01T02:00:00Z',
+        window_to: '2026-08-01T06:00:00Z',
+        ts: null,
+        response_time_ms: null,
+        min_time_ms: null,
+        max_time_ms: null,
+        p95_time_ms: null,
+        sample_count: null,
+        source_tier: null,
+      },
+    ]);
+
+    expect(result).not.toBeNull();
+    expect(result?.viewName).toBe('Tuesday outage');
+    expect(result?.monitorName).toBe('api.example.com');
+    expect(result?.points).toEqual([]);
+  });
 });

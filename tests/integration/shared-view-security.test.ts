@@ -30,7 +30,13 @@ suite('Shared view security', () => {
   });
 
   /** Builds a team, monitor, one raw ping, and a saved view over it. */
-  async function seedView(overrides: { revoked?: boolean; deletedMonitor?: boolean } = {}) {
+  async function seedView(
+    overrides: {
+      revoked?: boolean;
+      deletedMonitor?: boolean;
+      window?: { from: string; to: string };
+    } = {}
+  ) {
     const { rows: [team] } = await client.query(
       `INSERT INTO teams (name) VALUES ('t') RETURNING id`
     );
@@ -53,7 +59,7 @@ suite('Shared view security', () => {
       [
         team.id,
         monitor.id,
-        JSON.stringify({ from: from.toISOString(), to: to.toISOString() }),
+        JSON.stringify(overrides.window ?? { from: from.toISOString(), to: to.toISOString() }),
         overrides.revoked ? new Date() : null,
       ]
     );
@@ -204,6 +210,31 @@ suite('Shared view security', () => {
 
     const { rows } = await client.query('SELECT * FROM get_shared_view($1)', [view.share_token]);
     expect(rows).toHaveLength(0);
+  });
+
+  it('returns the view header, and no data points, for a valid token whose window is empty', async () => {
+    // The same fixture as every other case — a monitor that does have a ping —
+    // but pinned to a window far away from it, so the emptiness comes from the
+    // window and not from a bare monitor. Before this change the function
+    // returned zero rows here, indistinguishable from an unknown token, and the
+    // page 404'd a link that was perfectly valid.
+    const { token } = await seedView({
+      window: { from: '2019-01-01T00:00:00Z', to: '2019-01-01T04:00:00Z' },
+    });
+
+    const { rows } = await client.query('SELECT * FROM get_shared_view($1)', [token]);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].view_name).toBe('Outage window');
+    expect(rows[0].monitor_name).toBe('Checkout API');
+    expect(rows[0].window_from).not.toBeNull();
+    expect(rows[0].window_to).not.toBeNull();
+    // The series columns are null — there is no point to describe.
+    expect(rows[0].ts).toBeNull();
+    expect(rows[0].response_time_ms).toBeNull();
+    expect(rows[0].source_tier).toBeNull();
+    // And the redaction still holds.
+    expect(Object.keys(rows[0])).not.toContain('url');
   });
 
   it('returns nothing for a saved view with a malformed window instead of leaking an error', async () => {

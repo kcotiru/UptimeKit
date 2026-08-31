@@ -56,7 +56,13 @@ export default async function SharedViewPage({ params }: { params: { token: stri
           )}
         </div>
 
-        <TimeSeriesChart metrics={metrics} />
+        {shared.points.length === 0 ? (
+          <div className="w-full bg-surface/50 border border-surface-border border-dashed rounded-2xl p-8 text-center text-sm text-slate-400">
+            No response data was recorded in this window.
+          </div>
+        ) : (
+          <TimeSeriesChart metrics={metrics} />
+        )}
 
         <p className="text-[11px] text-slate-600 text-center">Shared from UptimeKit</p>
       </div>
