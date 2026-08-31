@@ -57,7 +57,10 @@ export default async function SharedViewPage({ params }: { params: { token: stri
         </div>
 
         {shared.points.length === 0 ? (
-          <div className="w-full bg-surface/50 border border-surface-border border-dashed rounded-2xl p-8 text-center text-sm text-slate-400">
+          <div
+            className="w-full bg-surface/50 border border-surface-border border-dashed rounded-2xl p-8 text-center text-sm text-slate-400"
+            style={{ height: 320 }}
+          >
             No response data was recorded in this window.
           </div>
         ) : (

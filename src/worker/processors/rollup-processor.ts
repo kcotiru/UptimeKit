@@ -204,6 +204,12 @@ export class RollupProcessor implements IRollupProcessor {
             -- ('raw') percentiles can be recomputed later with only the
             -- hourly approximation available. Keep the existing exact values
             -- rather than silently overwriting them with a coarser estimate.
+            -- Caveat: total_pings/successful_pings/avg/min/max above are still
+            -- overwritten from EXCLUDED even on this keep-old branch, so if the
+            -- hourly source changed between runs (a late raw_to_hourly re-run,
+            -- corrected data) the kept percentiles can describe a different
+            -- sample than the counts sitting next to them. Accepted: still
+            -- better than downgrading a once-exact percentile.
             p50_response_time_ms = CASE
               WHEN ping_logs_daily.percentile_source = 'raw' AND EXCLUDED.percentile_source <> 'raw'
               THEN ping_logs_daily.p50_response_time_ms ELSE EXCLUDED.p50_response_time_ms END,

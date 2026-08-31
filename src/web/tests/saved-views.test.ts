@@ -113,5 +113,6 @@ describe('toSharedView', () => {
     expect(result?.viewName).toBe('Tuesday outage');
     expect(result?.monitorName).toBe('api.example.com');
     expect(result?.points).toEqual([]);
+    expect(result?.sourceTier).toBe('');
   });
 });

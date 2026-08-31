@@ -55,18 +55,20 @@ const TIER_RANK: Record<string, number> = { raw: 0, hourly: 1, daily: 2 };
 
 /**
  * Folds the function's flat rows — which repeat the view header on every point —
- * into one object. Returns null for zero rows, which is what an unknown, revoked,
- * or deleted-monitor token yields; the caller renders a 404, not an error. A
- * valid view whose pinned window holds no data comes back as a single header
- * row with every series column null — that yields an empty `points` array,
- * not null.
+ * into one object. Returns null for zero rows, which is what an unknown,
+ * revoked, deleted-monitor, cross-tenant, or malformed-window (bad cast
+ * input) token yields; the caller renders a 404, not an error. A valid view
+ * whose pinned window holds no data — including a reversed window, where
+ * snap_from > snap_to — comes back as a single header row with every series
+ * column null — that yields an empty `points` array, not null.
  */
 export function toSharedView(rows: SharedViewRow[]): SharedView | null {
   if (rows.length === 0) return null;
   const head = rows[0];
 
   // A valid view whose window holds no data comes back as a single header row
-  // with every series column null. Zero rows still means unknown/revoked/deleted.
+  // with every series column null. Zero rows still means
+  // unknown/revoked/deleted-monitor/cross-tenant/malformed-window.
   const series = rows.filter(
     (r): r is SharedViewRow & {
       ts: string;

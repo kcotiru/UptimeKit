@@ -584,9 +584,25 @@ BEGIN
   -- 43 base64url characters over 256 bits from gen_random_bytes, so an attacker
   -- has no way to produce a candidate token to ask about, and an oracle that
   -- cannot be queried with a plausible guess is not a practical exposure. The
-  -- cases that still reveal nothing are the ones that would matter — unknown,
-  -- revoked, soft-deleted monitor and malformed window all return zero rows
-  -- above, and must keep doing so.
+  -- one caller who CAN exercise the oracle is the legitimate token holder —
+  -- they already have a valid token, so the only new thing they learn is
+  -- which of "revoked" or "valid but the window emptied" they're looking at,
+  -- and that is accepted.
+  --
+  -- The cases that still reveal nothing are the ones that would matter —
+  -- unknown, revoked, soft-deleted monitor, and cross-tenant all return zero
+  -- rows above, and must keep doing so. Cross-tenant (a saved_views row
+  -- pointing at another team's monitor_id) is blocked solely by the
+  -- `m.team_id = sv.team_id` join above — before this change
+  -- select_ping_tier_for_team's own team filter already returned nothing for
+  -- a mismatched monitor regardless, so that join has always been the real
+  -- barrier; a future editor loosening it would now leak the victim's monitor
+  -- name and live status with nothing behind it.
+  --
+  -- A malformed window (bad cast input) still returns zero rows via the
+  -- EXCEPTION block above. A reversed window (snap_from > snap_to) is NOT in
+  -- that list: it now returns a header row with an empty series, like any
+  -- other window that simply holds no data, rather than zero rows.
   RETURN QUERY
   SELECT
     v.v_name::TEXT,

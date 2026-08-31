@@ -61,13 +61,14 @@ cd src/web && npm install
 
 ## Deploying schema changes
 
-`supabase/schema.sql` is applied by hand — there is no migration runner enforcing order. When a change to this repo touches both the schema and application code, apply `supabase/schema.sql` to Supabase **first**, then deploy the web app and worker. The reverse order (old worker/web code still running against a NEW schema) is fine — new columns and tables that old code doesn't know about are simply ignored. It is new code running against an OLD schema that breaks, in at least three ways:
+`supabase/schema.sql` is applied by hand — there is no migration runner enforcing order. When a change to this repo touches both the schema and application code, apply `supabase/schema.sql` to Supabase **first**, then deploy the web app and worker. The reverse order (old worker/web code still running against a NEW schema) is fine — new columns and tables that old code doesn't know about are simply ignored. It is new code running against an OLD schema that breaks, in at least four ways:
 
 - `monitor-scheduler.ts`'s `SELECT ... timeout_ms` throws because the column doesn't exist yet, `syncMonitors()` rejects, and **zero monitors get scheduled** — a silent monitoring outage, not a visible error.
 - The saved-views share feature (`get_shared_view` RPC, the `saved_views` table) doesn't exist yet, so creating or viewing a shared graph link fails.
 - The `team_webhooks` table doesn't exist yet, so the Notifications settings page fails to load or save webhooks.
+- A worker shipped before the schema throws `column "percentile_source" does not exist` on every `hourly_to_daily` rollup run, leaving `rollup_logs` rows at `'failed'` and daily buckets simply missing for the gap — recoverable only by re-running `scripts/backfill-daily-rollups.ts`.
 
-Deploying old worker/web code against a new schema first, then rolling the schema forward, avoids all three.
+Deploying old worker/web code against a new schema first, then rolling the schema forward, avoids all four.
 
 ### Verifying partition maintenance after applying the schema
 
