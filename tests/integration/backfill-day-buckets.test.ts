@@ -12,6 +12,16 @@ suite('backfill day bucketing', () => {
   let client: Client;
   let teamId: string;
   let monitorId: string;
+  let utcDay: string;
+  // Scope to this fixture's monitor: DISTINCT_DAYS_SQL deliberately has no
+  // team/monitor filter (production wants every day, globally), so without
+  // this the assertions below are coupled to whatever else is in
+  // ping_logs_hourly — a leftover row from a crashed prior run would poison
+  // this file permanently.
+  const scopedDaysSql = DISTINCT_DAYS_SQL.replace(
+    'WHERE bucket_start',
+    'WHERE monitor_id = $1 AND bucket_start'
+  );
 
   beforeAll(async () => {
     client = await getTestClient();
@@ -28,10 +38,15 @@ suite('backfill day bucketing', () => {
     );
     monitorId = monitor.rows[0].id;
 
+    // Ten days back: comfortably inside the backfill's 90-day repairable
+    // window, and 22:00Z/23:00Z are still the NEXT day in Pacific/Kiritimati
+    // (UTC+14), which is what makes this test discriminate.
+    utcDay = new Date(Date.now() - 10 * 86_400_000).toISOString().slice(0, 10);
+
     // Two hourly buckets that land on the SAME UTC day but on DIFFERENT days
-    // in a far-eastern zone: 22:00Z and 23:00Z on 2026-03-10 are both
-    // 2026-03-11 in Pacific/Kiritimati (UTC+14).
-    for (const ts of ['2026-03-10T22:00:00Z', '2026-03-10T23:00:00Z']) {
+    // in a far-eastern zone: 22:00Z and 23:00Z on utcDay are both the next
+    // calendar day in Pacific/Kiritimati (UTC+14).
+    for (const ts of [`${utcDay}T22:00:00Z`, `${utcDay}T23:00:00Z`]) {
       await client.query(
         `INSERT INTO ping_logs_hourly
            (team_id, monitor_id, bucket_start, total_pings, successful_pings,
@@ -57,17 +72,17 @@ suite('backfill day bucketing', () => {
     // Setting a hostile zone here is what a wrong connection would look like.
     await client.query("SET TIME ZONE 'Pacific/Kiritimati'");
 
-    const { rows } = await client.query<{ bucket: Date }>(DISTINCT_DAYS_SQL);
+    const { rows } = await client.query<{ bucket: Date }>(scopedDaysSql, [monitorId]);
 
     const buckets = rows.map((r) => r.bucket.toISOString());
-    expect(buckets).toEqual(['2026-03-10T00:00:00.000Z']);
+    expect(buckets).toEqual([`${utcDay}T00:00:00.000Z`]);
   });
 
   it('produces the same buckets under UTC', async () => {
     await client.query("SET TIME ZONE 'UTC'");
 
-    const { rows } = await client.query<{ bucket: Date }>(DISTINCT_DAYS_SQL);
+    const { rows } = await client.query<{ bucket: Date }>(scopedDaysSql, [monitorId]);
 
-    expect(rows.map((r) => r.bucket.toISOString())).toEqual(['2026-03-10T00:00:00.000Z']);
+    expect(rows.map((r) => r.bucket.toISOString())).toEqual([`${utcDay}T00:00:00.000Z`]);
   });
 });

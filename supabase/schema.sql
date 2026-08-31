@@ -676,13 +676,21 @@ SELECT cron.schedule(
   $job$
 );
 
--- Assert the postcondition. Without this, a cron.schedule() that returned but
--- left no row — a pg_cron installed into a database its background worker does
--- not poll, a partially provisioned extension — leaves partition maintenance
--- unscheduled and silent, and ping_logs_raw stops accepting inserts about
--- 30 days later. Failing the schema apply is the loud alternative.
+-- Assert the postcondition. Without this, a partially provisioned extension
+-- that leaves cron.schedule() returning but no row landing in cron.job would
+-- leave partition maintenance unscheduled and silent, and ping_logs_raw stops
+-- accepting inserts about 30 days later. Failing the schema apply is the loud
+-- alternative. This does NOT catch pg_cron installed into a database its
+-- background worker doesn't poll — that is caught separately below, since
+-- cron.job would still contain the row in that case.
 DO $$
 BEGIN
+  IF current_setting('cron.database_name', true) IS DISTINCT FROM current_database() THEN
+    RAISE EXCEPTION
+      'pg_cron polls database "%" but this schema was applied to "%" — uptimekit-partitions will never run',
+      current_setting('cron.database_name', true), current_database();
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1 FROM cron.job WHERE jobname = 'uptimekit-partitions'
   ) THEN

@@ -72,15 +72,15 @@ Deploying old worker/web code against a new schema first, then rolling the schem
 ### Verifying partition maintenance after applying the schema
 
 `supabase/schema.sql` now raises an exception if the `uptimekit-partitions`
-job fails to register, so a successful apply is itself the proof. To confirm
-later — or to check that the job is still scheduled and running — run this in
-the Supabase SQL Editor:
+job fails to register, so a successful apply proves the job registered in a
+database pg_cron polls. To confirm later — or to check that the job is still
+scheduled and running — run this in the Supabase SQL Editor:
 
 ```sql
 SELECT jobname, schedule, active FROM cron.job WHERE jobname = 'uptimekit-partitions';
 SELECT status, start_time, return_message
   FROM cron.job_run_details
- WHERE jobname = 'uptimekit-partitions'
+ WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'uptimekit-partitions')
  ORDER BY start_time DESC
  LIMIT 5;
 ```

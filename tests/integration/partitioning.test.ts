@@ -43,6 +43,18 @@ describe('Partitioning Integration / Validation Tests', () => {
     expect(sql).toMatch(/RAISE\s+EXCEPTION\s+'[^']*uptimekit-partitions/);
   });
 
+  it('rejects an apply where pg_cron polls a different database than this schema was applied to', () => {
+    const sql = fs.readFileSync(path.join(__dirname, '../../supabase/schema.sql'), 'utf8');
+
+    // cron.job existing in THIS database's row does not mean pg_cron's
+    // background worker will ever read it — that worker only polls the
+    // database named by cron.database_name. Without this check, applying the
+    // schema to the wrong database passes the cron.job existence check and
+    // the job silently never runs.
+    expect(sql).toContain("current_setting('cron.database_name', true)");
+    expect(sql).toContain('current_database()');
+  });
+
   it('fences the whole pg_cron region with strip sentinels the test harness can find', () => {
     const sql = fs.readFileSync(path.join(__dirname, '../../supabase/schema.sql'), 'utf8');
 
@@ -61,5 +73,11 @@ describe('Partitioning Integration / Validation Tests', () => {
     const outsideSentinels = sql.slice(0, start) + sql.slice(end);
     expect(outsideSentinels).not.toContain('cron.');
     expect(outsideSentinels).not.toContain('pg_cron');
+
+    // The security-load-bearing ordering rule: anything appended after the
+    // fence lands after a statement that throws on a project without pg_cron,
+    // and silently never runs. An RLS enable or a tenant policy added there
+    // leaves a table unprotected in a multi-tenant database.
+    expect(sql.trimEnd().endsWith('-- @local-test:strip-end')).toBe(true);
   });
 });

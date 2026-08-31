@@ -38,8 +38,17 @@ export async function getTestClient(): Promise<Client> {
 // such as the cron.job postcondition assertion — silently escaped the strip
 // and broke every DB-backed test. tests/integration/partitioning.test.ts
 // asserts that no `cron.` reference survives outside the sentinels.
+//
+// This fenced region is the one part of schema.sql with zero local test
+// coverage — nothing in this repo's test suite ever executes it. Only
+// pg_cron statements belong inside the fence; anything else placed there
+// silently escapes every DB-backed test.
+//
+// `g` flag: without it, only the first fenced region is stripped, so a
+// second fenced region added later would survive and break every
+// DB-backed test with a confusing "extension not available" error.
 const PG_CRON_BLOCK =
-  /-- @local-test:strip-start \(pg_cron\)[\s\S]*?-- @local-test:strip-end\n?/;
+  /-- @local-test:strip-start \(pg_cron\)[\s\S]*?-- @local-test:strip-end\n?/g;
 
 /** Applies the full schema. Idempotent — every statement is CREATE ... IF NOT EXISTS or OR REPLACE. */
 export async function applySchema(client: Client): Promise<void> {

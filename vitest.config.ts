@@ -17,6 +17,9 @@ export default defineConfig({
     // deadlock on Postgres system catalogs (pg_proc) while each redefines the
     // same functions. The suite is small and fast enough that serial file
     // execution costs nothing worth trading for the intermittent failure.
+    // ponytail: repo-wide serialisation to dodge a two-file DDL race; per-file
+    // mutual exclusion (SELECT pg_advisory_lock(hashtext('uptimekit-schema'))
+    // around applySchema) if the suite grows.
     fileParallelism: false,
   },
 });
