@@ -39,6 +39,27 @@ In the Supabase dashboard, open **SQL Editor**, paste the entire contents of [`s
 
 Deploying old worker/web code against a new schema first, then rolling the schema forward, avoids all three.
 
+### Verifying partition maintenance after applying the schema
+
+`supabase/schema.sql` now raises an exception if the `uptimekit-partitions`
+job fails to register, so a successful apply is itself the proof. To confirm
+later — or to check that the job is still scheduled and running — run this in
+the Supabase SQL Editor:
+
+```sql
+SELECT jobname, schedule, active FROM cron.job WHERE jobname = 'uptimekit-partitions';
+SELECT status, start_time, return_message
+  FROM cron.job_run_details
+ WHERE jobname = 'uptimekit-partitions'
+ ORDER BY start_time DESC
+ LIMIT 5;
+```
+
+If the first query returns no rows, partition maintenance is not scheduled:
+`ping_logs_raw` will start rejecting every insert once the pre-created
+partitions run out, and monitoring stops without a visible error. Re-apply
+`supabase/schema.sql`.
+
 ### 2. Configure the web app
 
 ```bash

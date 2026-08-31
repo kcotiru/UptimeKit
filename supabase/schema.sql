@@ -637,6 +637,7 @@ DROP POLICY IF EXISTS tenant_isolation_views ON saved_views;
 CREATE POLICY tenant_isolation_views ON saved_views
   FOR ALL TO authenticated USING (team_id = current_team_id());
 
+-- @local-test:strip-start (pg_cron)
 -- ---------------------------------------------------------------------------
 -- Partition maintenance schedule (pg_cron)
 --
@@ -649,6 +650,11 @@ CREATE POLICY tenant_isolation_views ON saved_views
 -- a table with RLS disabled.
 -- Idempotent: create_daily_partition is CREATE TABLE IF NOT EXISTS, and the
 -- unschedule/schedule pair means re-running this file does not stack duplicate jobs.
+--
+-- The sentinel comments below fence the whole region.
+-- tests/integration/helpers/db-setup.ts strips everything between them before
+-- applying this file to a local Postgres, which has no pg_cron. Keep every
+-- `cron.` reference inside the fence.
 -- ---------------------------------------------------------------------------
 
 CREATE EXTENSION IF NOT EXISTS pg_cron;
@@ -669,3 +675,19 @@ SELECT cron.schedule(
     SELECT drop_expired_partitions(7);
   $job$
 );
+
+-- Assert the postcondition. Without this, a cron.schedule() that returned but
+-- left no row — a pg_cron installed into a database its background worker does
+-- not poll, a partially provisioned extension — leaves partition maintenance
+-- unscheduled and silent, and ping_logs_raw stops accepting inserts about
+-- 30 days later. Failing the schema apply is the loud alternative.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM cron.job WHERE jobname = 'uptimekit-partitions'
+  ) THEN
+    RAISE EXCEPTION
+      'uptimekit-partitions is not registered in cron.job — partition maintenance is NOT scheduled; ping_logs_raw will stop accepting inserts once the pre-created partitions run out';
+  END IF;
+END $$;
+-- @local-test:strip-end
