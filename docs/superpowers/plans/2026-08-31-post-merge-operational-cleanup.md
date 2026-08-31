@@ -63,7 +63,10 @@ Add this test to `tests/integration/partitioning.test.ts`, inside the existing `
     // trusting that cron.schedule() had the intended effect.
     expect(sql).toContain('FROM cron.job');
     expect(sql).toContain("WHERE jobname = 'uptimekit-partitions'");
-    expect(sql).toMatch(/RAISE EXCEPTION '[^']*uptimekit-partitions/);
+    // \s+ not a literal space: the RAISE EXCEPTION in schema.sql wraps onto the
+    // next line, and a whitespace-literal assertion would fail against a
+    // perfectly correct implementation.
+    expect(sql).toMatch(/RAISE\s+EXCEPTION\s+'[^']*uptimekit-partitions/);
   });
 
   it('fences the whole pg_cron region with strip sentinels the test harness can find', () => {
@@ -99,7 +102,10 @@ Expected: the two new tests FAIL. The first on `expect(sql).toContain('FROM cron
 
 Replace the trailing block. The region now opens with a sentinel, and closes with a sentinel after a new `DO` block that asserts the job landed:
 
+Note the sentinel opens **above** the explanatory comment, not below it. The comment itself says "pg_cron" several times, and the test in Step 2 asserts that no `pg_cron` or `cron.` text survives outside the sentinels — put the sentinel below the comment and that assertion fails against a correct implementation.
+
 ```sql
+-- @local-test:strip-start (pg_cron)
 -- ---------------------------------------------------------------------------
 -- Partition maintenance schedule (pg_cron)
 --
@@ -119,7 +125,6 @@ Replace the trailing block. The region now opens with a sentinel, and closes wit
 -- `cron.` reference inside the fence.
 -- ---------------------------------------------------------------------------
 
--- @local-test:strip-start (pg_cron)
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 
 DO $$
