@@ -27,6 +27,36 @@ Row level security scopes every table by `team_id`. The web app queries as the s
 
 In the Supabase dashboard, open **SQL Editor**, paste the entire contents of [`supabase/schema.sql`](supabase/schema.sql), and run it. It is idempotent, so re-running is safe.
 
+### 2. Configure the web app
+
+```bash
+cd src/web
+cp .env.local.example .env.local
+```
+
+Fill in the three values from **Supabase → Project Settings → API**:
+
+| Variable | Where to find it |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon` `public` key |
+| `SUPABASE_SERVICE_ROLE_KEY` | `service_role` key — server-only, never expose to the browser |
+
+### 3. Configure the worker (optional)
+
+```bash
+cp .env.example .env
+```
+
+Set `DATABASE_URL` to the **Session pooler** URI from **Supabase → Project Settings → Database → Connection string**, and `REDIS_URL` to your local Redis. Use the pooler, not *Direct connection*: `db.<ref>.supabase.co` resolves to IPv6 only, so on an IPv4-only network the worker hangs and then fails with `ENOTFOUND`.
+
+### 4. Install
+
+```bash
+npm install            # worker
+cd src/web && npm install
+```
+
 ---
 
 ## Deploying schema changes
@@ -59,36 +89,6 @@ If the first query returns no rows, partition maintenance is not scheduled:
 `ping_logs_raw` will start rejecting every insert once the pre-created
 partitions run out, and monitoring stops without a visible error. Re-apply
 `supabase/schema.sql`.
-
-### 2. Configure the web app
-
-```bash
-cd src/web
-cp .env.local.example .env.local
-```
-
-Fill in the three values from **Supabase → Project Settings → API**:
-
-| Variable | Where to find it |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon` `public` key |
-| `SUPABASE_SERVICE_ROLE_KEY` | `service_role` key — server-only, never expose to the browser |
-
-### 3. Configure the worker (optional)
-
-```bash
-cp .env.example .env
-```
-
-Set `DATABASE_URL` to the **Session pooler** URI from **Supabase → Project Settings → Database → Connection string**, and `REDIS_URL` to your local Redis. Use the pooler, not *Direct connection*: `db.<ref>.supabase.co` resolves to IPv6 only, so on an IPv4-only network the worker hangs and then fails with `ENOTFOUND`.
-
-### 4. Install
-
-```bash
-npm install            # worker
-cd src/web && npm install
-```
 
 ---
 
