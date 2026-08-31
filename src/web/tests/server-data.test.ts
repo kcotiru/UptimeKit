@@ -54,6 +54,7 @@ const monitorRow = {
   name: 'Prod API',
   url: 'https://api.example.com',
   check_interval: 60,
+  timeout_ms: 5000,
   status: 'up',
   created_at: '2026-01-01T00:00:00.000Z',
   updated_at: '2026-01-02T00:00:00.000Z',
@@ -75,6 +76,12 @@ describe('listMonitors', () => {
     const { db } = stubDb({ data: null, error: { message: 'permission denied' } });
 
     await expect(listMonitors(db)).rejects.toThrow('permission denied');
+  });
+
+  it('reads the real timeout column rather than a hardcoded constant', async () => {
+    const { db } = stubDb({ data: [{ ...monitorRow, timeout_ms: 12000 }], error: null });
+    const [monitor] = await listMonitors(db);
+    expect(monitor.timeoutMs).toBe(12000);
   });
 });
 

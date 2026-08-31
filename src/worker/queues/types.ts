@@ -7,6 +7,9 @@ export interface PingJobPayload {
   url: string;
   expectedStatus: number;
   checkInterval: number;
+  /** Per-monitor HTTP timeout. Optional: a job enqueued before this field
+   *  existed still processes, falling back to workerConfig.defaultHttpTimeoutMs. */
+  timeoutMs?: number;
 }
 
 /**

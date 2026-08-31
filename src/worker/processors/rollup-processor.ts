@@ -20,6 +20,17 @@ export function closedBucket(
   return d.toISOString();
 }
 
+/**
+ * The daily average the hourly_to_daily SQL computes, expressed in TypeScript so
+ * the weighting is testable without a database. Keep the two in step: an hour is
+ * weighted by its ping count, because a quiet hour is not worth a busy one.
+ */
+export function weightedAverage(rows: Array<{ avg: number; count: number }>): number {
+  const total = rows.reduce((sum, r) => sum + r.count, 0);
+  if (total === 0) return 0;
+  return Math.round(rows.reduce((sum, r) => sum + r.avg * r.count, 0) / total);
+}
+
 export interface IRollupProcessor {
   processRollup(jobData: RollupJobPayload): Promise<{
     status: 'completed' | 'skipped' | 'failed';
@@ -118,35 +129,99 @@ export class RollupProcessor implements IRollupProcessor {
         await client.query(`DELETE FROM ping_logs_raw WHERE timestamp < (NOW() - INTERVAL '7 days')`);
       } else if (rollupType === 'hourly_to_daily') {
         const aggregateQuery = `
+          WITH h AS (
+            SELECT
+              team_id,
+              monitor_id,
+              date_trunc('day', bucket_start) AS bucket_start,
+              SUM(total_pings)::int AS total_pings,
+              SUM(successful_pings)::int AS successful_pings,
+              -- Weighted by ping count: see weightedAverage() in this file.
+              -- NULLIF avoids the division-by-zero error when a day's hourly rows
+              -- are all empty; COALESCE then turns that NULL back into 0 so the
+              -- NOT NULL column is satisfied and this matches weightedAverage()'s
+              -- all-zero-count case (which returns 0) exactly.
+              COALESCE(ROUND(SUM(avg_response_time_ms::numeric * total_pings)
+                    / NULLIF(SUM(total_pings), 0)), 0)::int AS avg_response_time_ms,
+              MIN(min_response_time_ms)::int AS min_response_time_ms,
+              MAX(max_response_time_ms)::int AS max_response_time_ms,
+              -- Percentiles OF hourly percentiles. Kept only as the fallback for
+              -- days whose raw rows have aged out or are partially purged.
+              PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY p50_response_time_ms)::int AS approx_p50,
+              PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY p95_response_time_ms)::int AS approx_p95,
+              PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY p99_response_time_ms)::int AS approx_p99
+            FROM ping_logs_hourly
+            WHERE bucket_start >= $1::timestamptz AND bucket_start < ($1::timestamptz + INTERVAL '1 day')
+            GROUP BY team_id, monitor_id, date_trunc('day', bucket_start)
+          )
           INSERT INTO ping_logs_daily (
             team_id, monitor_id, bucket_start, total_pings, successful_pings,
             avg_response_time_ms, min_response_time_ms, max_response_time_ms,
-            p50_response_time_ms, p95_response_time_ms, p99_response_time_ms
+            p50_response_time_ms, p95_response_time_ms, p99_response_time_ms,
+            percentile_source
           )
           SELECT
-            team_id,
-            monitor_id,
-            date_trunc('day', bucket_start) AS bucket_start,
-            SUM(total_pings)::int AS total_pings,
-            SUM(successful_pings)::int AS successful_pings,
-            ROUND(AVG(avg_response_time_ms))::int AS avg_response_time_ms,
-            MIN(min_response_time_ms)::int AS min_response_time_ms,
-            MAX(max_response_time_ms)::int AS max_response_time_ms,
-            PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY p50_response_time_ms)::int AS p50_response_time_ms,
-            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY p95_response_time_ms)::int AS p95_response_time_ms,
-            PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY p99_response_time_ms)::int AS p99_response_time_ms
-          FROM ping_logs_hourly
-          WHERE bucket_start >= $1::timestamptz AND bucket_start < ($1::timestamptz + INTERVAL '1 day')
-          GROUP BY team_id, monitor_id, date_trunc('day', bucket_start)
+            h.team_id,
+            h.monitor_id,
+            h.bucket_start,
+            h.total_pings,
+            h.successful_pings,
+            h.avg_response_time_ms,
+            h.min_response_time_ms,
+            h.max_response_time_ms,
+            COALESCE(r.p50, h.approx_p50),
+            COALESCE(r.p95, h.approx_p95),
+            COALESCE(r.p99, h.approx_p99),
+            CASE WHEN r.p95 IS NULL THEN 'hourly_approx' ELSE 'raw' END
+          FROM h
+          -- The raw rows for this day are still inside the 7-day retention window
+          -- when the scheduled rollup runs, so the exact percentile is available
+          -- and no mergeable sketch is needed. HAVING pins completeness rather
+          -- than mere presence: a day straddling the purge boundary keeps SOME
+          -- raw rows, and a percentile over a partial sample is silently wrong in
+          -- a way the approximation is not. Count mismatch => fall back.
+          LEFT JOIN LATERAL (
+            SELECT
+              PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY response_time_ms)::int AS p50,
+              PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms)::int AS p95,
+              PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms)::int AS p99
+            FROM ping_logs_raw
+            WHERE team_id = h.team_id
+              AND monitor_id = h.monitor_id
+              AND timestamp >= h.bucket_start
+              AND timestamp < h.bucket_start + INTERVAL '1 day'
+            HAVING COUNT(*) = h.total_pings AND COUNT(*) > 0
+          ) r ON TRUE
           ON CONFLICT (team_id, monitor_id, bucket_start) DO UPDATE SET
             total_pings = EXCLUDED.total_pings,
             successful_pings = EXCLUDED.successful_pings,
             avg_response_time_ms = EXCLUDED.avg_response_time_ms,
             min_response_time_ms = EXCLUDED.min_response_time_ms,
             max_response_time_ms = EXCLUDED.max_response_time_ms,
-            p50_response_time_ms = EXCLUDED.p50_response_time_ms,
-            p95_response_time_ms = EXCLUDED.p95_response_time_ms,
-            p99_response_time_ms = EXCLUDED.p99_response_time_ms
+            -- Never downgrade: scripts/backfill-daily-rollups.ts re-runs this
+            -- rollup for old days whose raw rows have since aged out of the
+            -- 7-day retention window, so a day that once landed with exact
+            -- ('raw') percentiles can be recomputed later with only the
+            -- hourly approximation available. Keep the existing exact values
+            -- rather than silently overwriting them with a coarser estimate.
+            -- Caveat: total_pings/successful_pings/avg/min/max above are still
+            -- overwritten from EXCLUDED even on this keep-old branch, so if the
+            -- hourly source changed between runs (a late raw_to_hourly re-run,
+            -- corrected data) the kept percentiles can describe a different
+            -- sample than the counts sitting next to them. Accepted: still
+            -- better than downgrading a once-exact percentile.
+            p50_response_time_ms = CASE
+              WHEN ping_logs_daily.percentile_source = 'raw' AND EXCLUDED.percentile_source <> 'raw'
+              THEN ping_logs_daily.p50_response_time_ms ELSE EXCLUDED.p50_response_time_ms END,
+            p95_response_time_ms = CASE
+              WHEN ping_logs_daily.percentile_source = 'raw' AND EXCLUDED.percentile_source <> 'raw'
+              THEN ping_logs_daily.p95_response_time_ms ELSE EXCLUDED.p95_response_time_ms END,
+            p99_response_time_ms = CASE
+              WHEN ping_logs_daily.percentile_source = 'raw' AND EXCLUDED.percentile_source <> 'raw'
+              THEN ping_logs_daily.p99_response_time_ms ELSE EXCLUDED.p99_response_time_ms END,
+            percentile_source = CASE
+              WHEN ping_logs_daily.percentile_source = 'raw' AND EXCLUDED.percentile_source <> 'raw'
+              THEN ping_logs_daily.percentile_source ELSE EXCLUDED.percentile_source END
         `;
         const aggRes = await client.query(aggregateQuery, [timeWindow]);
         outputCount = aggRes.rowCount || 0;

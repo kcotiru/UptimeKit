@@ -38,6 +38,20 @@ export function supabaseAdmin() {
   });
 }
 
+/**
+ * Session-free client using the public anon key. For pages served to visitors
+ * with no account — currently only /share/[token], where authorization is the
+ * token itself, checked inside get_shared_view. Carries no elevated privilege:
+ * every RLS policy still applies, which is exactly why the share path needs a
+ * SECURITY DEFINER function rather than a direct table read. Do not confuse
+ * this with supabaseAdmin(), which uses the service-role key and bypasses RLS.
+ */
+export function supabaseAnon() {
+  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
 /** Current user plus their team, or null when unauthenticated. */
 export async function getSessionUser() {
   const supabase = supabaseServer();

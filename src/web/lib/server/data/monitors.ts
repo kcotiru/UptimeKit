@@ -3,11 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Monitor, PingMetric } from '../../shared/types';
 import { createMonitorSchema } from '../../shared/validations/monitor';
 
-const MONITOR_COLUMNS = 'id, team_id, name, url, check_interval, status, created_at, updated_at';
-
-// ponytail: the schema has no per-monitor timeout column; the worker uses one
-// global DEFAULT_HTTP_TIMEOUT_MS. Add a column if timeouts ever go per-monitor.
-const DEFAULT_TIMEOUT_MS = 5000;
+const MONITOR_COLUMNS = 'id, team_id, name, url, check_interval, timeout_ms, status, created_at, updated_at';
 
 interface MonitorRow {
   id: string;
@@ -15,6 +11,7 @@ interface MonitorRow {
   name: string;
   url: string;
   check_interval: number;
+  timeout_ms: number;
   status: string;
   created_at: string;
   updated_at: string;
@@ -27,7 +24,7 @@ export function toMonitor(row: MonitorRow): Monitor {
     name: row.name,
     url: row.url,
     intervalSeconds: row.check_interval,
-    timeoutMs: DEFAULT_TIMEOUT_MS,
+    timeoutMs: row.timeout_ms,
     status: row.status === 'paused' ? 'unknown' : (row.status as Monitor['status']),
     // The worker touches updated_at on every ping, so it doubles as last-checked.
     lastCheckedAt: row.updated_at ?? null,
@@ -76,6 +73,7 @@ export async function createMonitor(db: SupabaseClient, input: unknown): Promise
       name: parsed.data.name,
       url: parsed.data.url,
       check_interval: parsed.data.intervalSeconds,
+      timeout_ms: parsed.data.timeoutMs,
     })
     .select(MONITOR_COLUMNS)
     .single();

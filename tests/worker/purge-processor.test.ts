@@ -45,4 +45,24 @@ describe('PurgeProcessor', () => {
       ['dq1']
     );
   });
+
+  it('revokes share links for the purged monitor inside the same transaction', async () => {
+    const queries: string[] = [];
+    const client: any = {
+      query: vi.fn(async (sql: string) => {
+        queries.push(sql);
+        return { rowCount: 0, rows: [] };
+      }),
+      release: vi.fn(),
+    };
+    const dbPool: any = { connect: vi.fn().mockResolvedValue(client), query: vi.fn() };
+
+    await new PurgeProcessor(dbPool).processPurge({ deletionQueueId: 'dq1', monitorId: 'm1' });
+
+    const revoke = queries.findIndex((q) => q.includes('UPDATE saved_views'));
+    expect(revoke).toBeGreaterThan(-1);
+    // Inside the transaction: a link left live after its data is gone shows a
+    // blank chart with no explanation.
+    expect(queries.indexOf('COMMIT')).toBeGreaterThan(revoke);
+  });
 });

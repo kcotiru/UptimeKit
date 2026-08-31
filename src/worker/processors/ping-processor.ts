@@ -47,7 +47,7 @@ export class PingProcessor {
       const response = await this.pingClient.executePing(
         url,
         ssrfResult.resolvedIp,
-        workerConfig.defaultHttpTimeoutMs
+        jobData.timeoutMs ?? workerConfig.defaultHttpTimeoutMs
       );
 
       let status: 'up' | 'down' | 'degraded' = 'up';
