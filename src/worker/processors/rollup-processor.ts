@@ -198,10 +198,24 @@ export class RollupProcessor implements IRollupProcessor {
             avg_response_time_ms = EXCLUDED.avg_response_time_ms,
             min_response_time_ms = EXCLUDED.min_response_time_ms,
             max_response_time_ms = EXCLUDED.max_response_time_ms,
-            p50_response_time_ms = EXCLUDED.p50_response_time_ms,
-            p95_response_time_ms = EXCLUDED.p95_response_time_ms,
-            p99_response_time_ms = EXCLUDED.p99_response_time_ms,
-            percentile_source = EXCLUDED.percentile_source
+            -- Never downgrade: scripts/backfill-daily-rollups.ts re-runs this
+            -- rollup for old days whose raw rows have since aged out of the
+            -- 7-day retention window, so a day that once landed with exact
+            -- ('raw') percentiles can be recomputed later with only the
+            -- hourly approximation available. Keep the existing exact values
+            -- rather than silently overwriting them with a coarser estimate.
+            p50_response_time_ms = CASE
+              WHEN ping_logs_daily.percentile_source = 'raw' AND EXCLUDED.percentile_source <> 'raw'
+              THEN ping_logs_daily.p50_response_time_ms ELSE EXCLUDED.p50_response_time_ms END,
+            p95_response_time_ms = CASE
+              WHEN ping_logs_daily.percentile_source = 'raw' AND EXCLUDED.percentile_source <> 'raw'
+              THEN ping_logs_daily.p95_response_time_ms ELSE EXCLUDED.p95_response_time_ms END,
+            p99_response_time_ms = CASE
+              WHEN ping_logs_daily.percentile_source = 'raw' AND EXCLUDED.percentile_source <> 'raw'
+              THEN ping_logs_daily.p99_response_time_ms ELSE EXCLUDED.p99_response_time_ms END,
+            percentile_source = CASE
+              WHEN ping_logs_daily.percentile_source = 'raw' AND EXCLUDED.percentile_source <> 'raw'
+              THEN ping_logs_daily.percentile_source ELSE EXCLUDED.percentile_source END
         `;
         const aggRes = await client.query(aggregateQuery, [timeWindow]);
         outputCount = aggRes.rowCount || 0;

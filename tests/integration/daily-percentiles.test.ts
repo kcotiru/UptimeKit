@@ -15,6 +15,8 @@ suite('daily percentiles', () => {
   let monitorId: string;
   let day: string;
   let day2: string;
+  let day3: string;
+  let day4: string;
 
   beforeAll(async () => {
     client = await getTestClient();
@@ -27,8 +29,12 @@ suite('daily percentiles', () => {
     // EXISTS, so calling it here is safe and idempotent.
     day = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
     day2 = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10);
+    day3 = new Date(Date.now() - 4 * 86_400_000).toISOString().slice(0, 10);
+    day4 = new Date(Date.now() - 5 * 86_400_000).toISOString().slice(0, 10);
     await client.query('SELECT create_daily_partition($1::date)', [day]);
     await client.query('SELECT create_daily_partition($1::date)', [day2]);
+    await client.query('SELECT create_daily_partition($1::date)', [day3]);
+    await client.query('SELECT create_daily_partition($1::date)', [day4]);
 
     // RollupProcessor.processRollup() calls this.dbPool.connect(), which on a
     // real Pool hands back a PoolClient; on a bare pg Client, .connect()
@@ -55,8 +61,9 @@ suite('daily percentiles', () => {
       // `day`/`day2` are derived from Date.now(), a leftover row here would
       // silently poison every later run on the same calendar day.
       await client.query(
-        `DELETE FROM rollup_logs WHERE rollup_type = 'hourly_to_daily' AND time_window IN ($1::timestamptz, $2::timestamptz)`,
-        [`${day}T00:00:00Z`, `${day2}T00:00:00Z`]
+        `DELETE FROM rollup_logs WHERE rollup_type = 'hourly_to_daily'
+           AND time_window IN ($1::timestamptz, $2::timestamptz, $3::timestamptz, $4::timestamptz)`,
+        [`${day}T00:00:00Z`, `${day2}T00:00:00Z`, `${day3}T00:00:00Z`, `${day4}T00:00:00Z`]
       );
       await client.query('DELETE FROM ping_logs_daily WHERE team_id = $1', [teamId]);
       await client.query('DELETE FROM ping_logs_hourly WHERE team_id = $1', [teamId]);
@@ -158,5 +165,98 @@ suite('daily percentiles', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].percentile_source).toBe('hourly_approx');
     expect(rows[0].p95_response_time_ms).toBe(777);
+  });
+
+  it('never downgrades an already-exact daily row on re-run (e.g. the backfill script)', async () => {
+    // First pass: raw coverage is complete, so the row lands with exact
+    // percentiles from a skewed 2-value sample (50ms, 900ms) that the hourly
+    // approximation (p95 = 100) would never happen to reproduce.
+    await client.query(
+      `INSERT INTO ping_logs_raw (team_id, monitor_id, timestamp, response_time_ms, status_code)
+       VALUES ($1, $2, $3::timestamptz, 50, 200), ($1, $2, $4::timestamptz, 900, 200)`,
+      [teamId, monitorId, `${day3}T01:00:00Z`, `${day3}T01:00:30Z`]
+    );
+    await client.query(
+      `INSERT INTO ping_logs_hourly
+         (team_id, monitor_id, bucket_start, total_pings, successful_pings,
+          avg_response_time_ms, min_response_time_ms, max_response_time_ms,
+          p50_response_time_ms, p95_response_time_ms, p99_response_time_ms)
+       VALUES ($1, $2, $3::timestamptz, 2, 2, 475, 50, 900, 100, 100, 100)`,
+      [teamId, monitorId, `${day3}T01:00:00Z`]
+    );
+
+    const processor = new RollupProcessor(pool);
+    await processor.processRollup({
+      rollupType: 'hourly_to_daily',
+      timeWindow: `${day3}T00:00:00.000Z`,
+    });
+
+    const first = await client.query<{ p95_response_time_ms: number; percentile_source: string }>(
+      `SELECT p95_response_time_ms, percentile_source FROM ping_logs_daily
+        WHERE team_id = $1 AND monitor_id = $2 AND bucket_start = $3::timestamptz`,
+      [teamId, monitorId, `${day3}T00:00:00Z`]
+    );
+    expect(first.rows[0].percentile_source).toBe('raw');
+    const exactP95 = first.rows[0].p95_response_time_ms;
+    expect(exactP95).not.toBe(100); // must be the exact PERCENTILE_CONT over [50, 900], not the hourly approx
+
+    // Second pass mimics scripts/backfill-daily-rollups.ts: raw rows for the
+    // day have since aged out, and the rollup_logs marker is cleared so the
+    // day is recomputed. Raw coverage is now zero, so the HAVING guard
+    // correctly falls back to the (coarser) hourly approximation — but the
+    // existing exact row must not be overwritten by it.
+    await client.query('DELETE FROM ping_logs_raw WHERE team_id = $1 AND monitor_id = $2', [
+      teamId,
+      monitorId,
+    ]);
+    await client.query(
+      `DELETE FROM rollup_logs WHERE rollup_type = 'hourly_to_daily' AND time_window = $1::timestamptz`,
+      [`${day3}T00:00:00Z`]
+    );
+
+    await processor.processRollup({
+      rollupType: 'hourly_to_daily',
+      timeWindow: `${day3}T00:00:00.000Z`,
+    });
+
+    const second = await client.query<{ p95_response_time_ms: number; percentile_source: string }>(
+      `SELECT p95_response_time_ms, percentile_source FROM ping_logs_daily
+        WHERE team_id = $1 AND monitor_id = $2 AND bucket_start = $3::timestamptz`,
+      [teamId, monitorId, `${day3}T00:00:00Z`]
+    );
+    expect(second.rows[0].percentile_source).toBe('raw');
+    expect(second.rows[0].p95_response_time_ms).toBe(exactP95);
+  });
+
+  it('falls back to the hourly approximation when raw rows outnumber the hourly total (duplicates/late arrivals)', async () => {
+    // The hourly bucket claims 1 ping, but 2 raw rows are present in that
+    // window — the COUNT(*) > total_pings side of the completeness guard.
+    await client.query(
+      `INSERT INTO ping_logs_raw (team_id, monitor_id, timestamp, response_time_ms, status_code)
+       VALUES ($1, $2, $3::timestamptz, 100, 200), ($1, $2, $4::timestamptz, 200, 200)`,
+      [teamId, monitorId, `${day4}T01:00:00Z`, `${day4}T01:00:30Z`]
+    );
+    await client.query(
+      `INSERT INTO ping_logs_hourly
+         (team_id, monitor_id, bucket_start, total_pings, successful_pings,
+          avg_response_time_ms, min_response_time_ms, max_response_time_ms,
+          p50_response_time_ms, p95_response_time_ms, p99_response_time_ms)
+       VALUES ($1, $2, $3::timestamptz, 1, 1, 100, 100, 100, 100, 100, 100)`,
+      [teamId, monitorId, `${day4}T01:00:00Z`]
+    );
+
+    const processor = new RollupProcessor(pool);
+    await processor.processRollup({
+      rollupType: 'hourly_to_daily',
+      timeWindow: `${day4}T00:00:00.000Z`,
+    });
+
+    const { rows } = await client.query<{ percentile_source: string }>(
+      `SELECT percentile_source FROM ping_logs_daily
+        WHERE team_id = $1 AND monitor_id = $2 AND bucket_start = $3::timestamptz`,
+      [teamId, monitorId, `${day4}T00:00:00Z`]
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].percentile_source).toBe('hourly_approx');
   });
 });
