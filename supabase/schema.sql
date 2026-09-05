@@ -694,6 +694,126 @@ DROP POLICY IF EXISTS tenant_isolation_views ON saved_views;
 CREATE POLICY tenant_isolation_views ON saved_views
   FOR ALL TO authenticated USING (team_id = current_team_id());
 
+-- ---------------------------------------------------------------------------
+-- Signup: team invites and the auth.users trigger
+--
+-- Last of the table definitions rather than up with the others, because its
+-- token DEFAULT needs gen_share_token() and its policy needs current_team_id().
+-- ---------------------------------------------------------------------------
+
+-- An invite is a capability: whoever holds the link joins this team at this
+-- role. Same shape as saved_views.share_token — 256 bits from gen_share_token,
+-- revocable without deletion so a leaked link dies without losing the record.
+CREATE TABLE IF NOT EXISTS team_invites (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id UUID NOT NULL REFERENCES teams(id),
+  -- Nullable for the same reason as saved_views.creator_id: an invite must
+  -- outlive the admin who sent it.
+  creator_id UUID REFERENCES users(id),
+  token VARCHAR(255) NOT NULL UNIQUE DEFAULT gen_share_token(),
+  role VARCHAR(50) NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member', 'viewer')),
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_team_invites_token ON team_invites(token);
+CREATE INDEX IF NOT EXISTS idx_team_invites_team_id ON team_invites(team_id);
+
+ALTER TABLE team_invites ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation_invites ON team_invites;
+CREATE POLICY tenant_isolation_invites ON team_invites
+  FOR ALL TO authenticated
+  USING (team_id = current_team_id())
+  WITH CHECK (team_id = current_team_id());
+
+-- Creates the team and profile rows for a brand new auth user.
+--
+-- TRUST BOUNDARY. NEW.raw_user_meta_data is whatever the client passed to
+-- signUp({ options: { data } }) — entirely attacker-controlled. Only two keys
+-- are read, and neither can be abused:
+--   team_name    names a team the caller is about to own anyway;
+--   invite_token must match a live row in team_invites to have any effect.
+-- The role is taken from THE INVITE ROW, never from the metadata. Do not add a
+-- branch that reads a role or a team_id out of the metadata: a client that
+-- could name its own team_id would join any team on the system, and one that
+-- could name its own role would join as admin.
+--
+-- Raising here rolls back the auth.users INSERT, so a rejected signup leaves no
+-- orphaned auth user behind. That is what replaces the hand-written rollback in
+-- the old /api/auth/register route.
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_token   TEXT := NULLIF(NEW.raw_user_meta_data->>'invite_token', '');
+  v_team_id UUID;
+  v_role    TEXT;
+BEGIN
+  IF v_token IS NOT NULL THEN
+    SELECT team_id, role INTO v_team_id, v_role
+      FROM team_invites
+     WHERE token = v_token
+       AND revoked_at IS NULL
+       AND expires_at > NOW();
+
+    IF v_team_id IS NULL THEN
+      RAISE EXCEPTION 'invite is invalid, revoked or expired';
+    END IF;
+  ELSE
+    INSERT INTO teams (name)
+    VALUES (COALESCE(
+      NULLIF(NEW.raw_user_meta_data->>'team_name', ''),
+      split_part(COALESCE(NEW.email, 'new'), '@', 1) || '''s team'
+    ))
+    RETURNING id INTO v_team_id;
+
+    -- First member of a new team owns it.
+    v_role := 'admin';
+  END IF;
+
+  INSERT INTO users (id, team_id, email, role)
+  VALUES (NEW.id, v_team_id, NEW.email, v_role);
+
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+-- Lets an anonymous visitor holding an invite link see whose team they are
+-- about to join, before they have any account at all. SECURITY DEFINER because
+-- team_invites is behind RLS and the caller has no team yet.
+--
+-- Returns the team name and role for a live invite, and ZERO ROWS for unknown,
+-- revoked or expired ones — the caller cannot tell those three apart. It leaks
+-- nothing else off the row: not the creator, not the expiry, not the team id.
+--
+-- Same token-validity oracle as get_shared_view, accepted for the same reason:
+-- the token is 43 base64url characters over 256 bits, so an attacker has no way
+-- to produce a candidate to ask about, and the legitimate holder learns only
+-- whether their own link is still good.
+CREATE OR REPLACE FUNCTION describe_invite(p_token TEXT)
+RETURNS TABLE (team_name TEXT, invite_role TEXT)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  SELECT t.name::TEXT, i.role::TEXT
+    FROM team_invites i
+    JOIN teams t ON t.id = i.team_id
+   WHERE i.token = p_token
+     AND i.revoked_at IS NULL
+     AND i.expires_at > NOW()
+$$;
+
 -- @local-test:strip-start (pg_cron)
 -- ---------------------------------------------------------------------------
 -- Partition maintenance schedule (pg_cron)
