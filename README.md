@@ -40,7 +40,19 @@ Fill in the three values from **Supabase → Project Settings → API**:
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon` `public` key |
-| `SUPABASE_SERVICE_ROLE_KEY` | `service_role` key — server-only, never expose to the browser |
+
+The app needs no `service_role` key. Signup used to require one to create the team
+before the user had a session; the `handle_new_user()` trigger does that inside the
+database now, so the RLS-bypassing key never reaches a request path.
+
+**Turn "Confirm email" ON** under Authentication -> Providers -> Email, or verification
+means nothing: `signUp()` returns a usable session immediately and unverified
+addresses can sign straight in.
+
+Password reset and the signup confirmation both go through Supabase's built-in
+sender, which is capped at a few messages an hour and only delivers to members of
+the Supabase project. That is fine for local use and for a demo. Real delivery is
+custom SMTP under Authentication -> Emails — dashboard configuration, no code change.
 
 ### 3. Configure the worker (optional)
 
@@ -67,6 +79,7 @@ cd src/web && npm install
 - The saved-views share feature (`get_shared_view` RPC, the `saved_views` table) doesn't exist yet, so creating or viewing a shared graph link fails.
 - The `team_webhooks` table doesn't exist yet, so the Notifications settings page fails to load or save webhooks.
 - A worker shipped before the schema throws `column "percentile_source" does not exist` on every `hourly_to_daily` rollup run, leaving `rollup_logs` rows at `'failed'` and daily buckets simply missing for the gap — recoverable only by re-running `scripts/backfill-daily-rollups.ts`.
+- A web build shipped before the schema has no `handle_new_user()` trigger, so `signUp()` creates an auth user with **no team and no profile row**. That account can confirm its address and sign in, then hit an empty `current_team_id()` and see nothing, forever. The `team_invites` table and `describe_invite()` are missing too, so invite links 404 at the same time.
 
 Deploying old worker/web code against a new schema first, then rolling the schema forward, avoids all four.
 
@@ -102,7 +115,7 @@ cd src/web
 npm run dev            # http://localhost:3001
 ```
 
-That is the whole app. Register, log in, and create monitors without the worker running — they just sit at `paused` until something pings them.
+That is the whole app. Register, confirm your address, log in, and create monitors without the worker running — they just sit at `paused` until something pings them.
 
 ### Worker engine
 
@@ -129,10 +142,17 @@ To pause a monitor without deleting it, set `is_paused = true` on its row — th
 ## Usage
 
 1. Open **[http://localhost:3001](http://localhost:3001)**.
-2. Register at `/register` — this creates a Supabase Auth user, a team, and the profile row linking them.
-3. Click **Add Monitor** and enter a public endpoint (e.g. `https://google.com`). Minimum check interval is 30 seconds.
-4. Start the worker to begin collecting pings, then open a monitor to see its time-series graph.
-5. Open **Notifications** in the sidebar to add a Slack, Discord, or generic JSON webhook. Use **Test** to confirm the destination works without waiting for an outage. Without a webhook the worker still records incidents, but has nowhere to send them.
+2. Register at `/register`. `signUp()` creates the Supabase Auth user; the
+   `handle_new_user()` trigger creates the team and the profile row linking them,
+   inside the same transaction — if it raises, the auth user is rolled back too.
+   Open the confirmation link before signing in.
+3. To add someone to an existing team, open **Notifications -> Team members** and
+   create an invite link. Anyone holding that link registers straight into the team
+   at the role you picked, so share it like a password. Only admins can mint or
+   revoke one. Forgot a password? `/forgot-password` emails a reset link.
+4. Click **Add Monitor** and enter a public endpoint (e.g. `https://google.com`). Minimum check interval is 30 seconds.
+5. Start the worker to begin collecting pings, then open a monitor to see its time-series graph.
+6. Open **Notifications** in the sidebar to add a Slack, Discord, or generic JSON webhook. Use **Test** to confirm the destination works without waiting for an outage. Without a webhook the worker still records incidents, but has nowhere to send them.
 
 ---
 
