@@ -17,7 +17,16 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 DO $b$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $b$;
 DO $b$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $b$;
 CREATE SCHEMA IF NOT EXISTS auth;
+-- `email` and `raw_user_meta_data` exist because handle_new_user() reads both:
+-- the trigger names the team from the metadata and copies the address into
+-- public.users. Real auth.users has far more, but a stub that lacked these two
+-- would make the signup trigger untestable here — the exact class of gap that
+-- let the pgcrypto placement bug above through.
+-- ADD COLUMN rather than widening the CREATE: this file has already run against
+-- existing test databases, where CREATE TABLE IF NOT EXISTS is a no-op.
 CREATE TABLE IF NOT EXISTS auth.users (id UUID PRIMARY KEY DEFAULT gen_random_uuid());
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS raw_user_meta_data JSONB NOT NULL DEFAULT '{}'::jsonb;
 CREATE OR REPLACE FUNCTION auth.uid() RETURNS UUID LANGUAGE sql STABLE AS $f$ SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid $f$;
 
 -- Supabase-like grants: Supabase leans on RLS rather than table grants, so
