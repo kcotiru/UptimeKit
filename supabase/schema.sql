@@ -298,7 +298,14 @@ BEGIN
   EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', partition_name);
   RETURN partition_name;
 END;
-$$ LANGUAGE plpgsql;
+-- search_path pinned for the same reason as the definer functions above, even
+-- though these three are INVOKER: they build DDL with format() against
+-- unqualified names, and pg_temp is searched first for relations unless it is
+-- named explicitly. Supabase's linter flags the unpinned form
+-- (0011_function_search_path_mutable), and every other function in this file
+-- already pins it — leaving three exceptions is how the next reader concludes
+-- the rule is optional.
+$$ LANGUAGE plpgsql SET search_path = public, pg_temp;
 
 CREATE OR REPLACE FUNCTION drop_expired_partitions(retention_days INTEGER DEFAULT 7)
 RETURNS TABLE (dropped_partition TEXT) AS $$
@@ -327,7 +334,7 @@ BEGIN
     END;
   END LOOP;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public, pg_temp;
 
 CREATE OR REPLACE FUNCTION list_active_partitions()
 RETURNS TABLE (partition_name TEXT) AS $$
@@ -340,7 +347,7 @@ BEGIN
   WHERE p.relname = 'ping_logs_raw'
   ORDER BY c.relname;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public, pg_temp;
 
 -- Backfill: partitions created before create_daily_partition() enabled RLS.
 DO $$
