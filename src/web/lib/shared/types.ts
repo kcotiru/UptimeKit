@@ -115,6 +115,22 @@ export type TimeRangePreset = '1h' | '24h' | '7d' | '30d' | 'custom';
  *  message without a try/catch around every call. */
 export type ActionResult<T = void> = { ok: true; data: T } | { ok: false; error: string };
 
+/** A bearer link that lets its holder register straight into a team. */
+export interface TeamInvite {
+  /** Unique invite identifier (UUID v4) */
+  id: string;
+  /** 43-char base64url token embedded in the /register?invite= URL */
+  token: string;
+  /** Role the holder joins as — 'admin' | 'member' | 'viewer' */
+  role: string;
+  /** ISO 8601 expiry; a link with no end date is a permanent key to the team */
+  expiresAt: string;
+  /** Set once revoked; the link stops working but members who joined keep their seat */
+  revokedAt: string | null;
+  /** ISO 8601 creation timestamp */
+  createdAt: string;
+}
+
 /** A pinned, absolute time window on one monitor, shareable by token. */
 export interface SavedView {
   /** Unique saved view identifier (UUID v4) */

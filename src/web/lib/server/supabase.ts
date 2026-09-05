@@ -54,7 +54,7 @@ export async function getSessionUser() {
 
   const { data: profile } = await supabase
     .from('users')
-    .select('team_id')
+    .select('team_id, role')
     .eq('id', data.user.id)
     .single();
 
@@ -62,5 +62,8 @@ export async function getSessionUser() {
     id: data.user.id,
     email: data.user.email ?? '',
     teamId: profile?.team_id ?? '',
+    // Read from the profile row, never from the JWT: app_metadata would need
+    // re-issuing on every role change, and user_metadata is client-writable.
+    role: profile?.role ?? 'viewer',
   };
 }
