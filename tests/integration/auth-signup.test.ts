@@ -210,6 +210,28 @@ suite('describe_invite', () => {
     expect(await describeToken(await seed({ expired: true }))).toHaveLength(0);
   });
 
+  // The whole point of describe_invite is that a visitor with no account can
+  // call it. Testing only as `postgres` would pass even if anon could not
+  // execute it at all, and the invite page would silently show "link invalid"
+  // to exactly the audience it exists for.
+  it('is callable by anon, which still cannot read team_invites directly', async () => {
+    const token = await seed();
+
+    await client.query('SET ROLE anon');
+    try {
+      const { rows } = await client.query('SELECT * FROM describe_invite($1)', [token]);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].team_name).toBe('Globex');
+
+      // Definer rights apply inside the function only: anon's own reads of the
+      // base table must still come back empty under RLS.
+      const direct = await client.query('SELECT * FROM team_invites');
+      expect(direct.rows).toHaveLength(0);
+    } finally {
+      await client.query('RESET ROLE');
+    }
+  });
+
   it('exposes only the team name and role, never the rest of the row', async () => {
     const { rows } = await client.query(
       'SELECT * FROM describe_invite($1)',
