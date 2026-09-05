@@ -4,17 +4,13 @@ import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Activity, Lock, Mail, AlertCircle, ArrowRight } from 'lucide-react';
+import { supabaseBrowser } from '@/lib/client/supabase';
+import { safeRedirect } from '@/lib/shared/validations/redirect';
 
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // Only same-origin paths. `//evil.com` and absolute URLs would make this an
-  // open redirect: sign in on the real site, land on an attacker's page.
-  const requested = searchParams.get('redirect');
-  const redirect =
-    requested && requested.startsWith('/') && !requested.startsWith('//')
-      ? requested
-      : '/dashboard/monitors';
+  const redirect = safeRedirect(searchParams.get('redirect'));
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,16 +29,19 @@ export function LoginForm() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+      const { error: signInError } = await supabaseBrowser().auth.signInWithPassword({
+        email,
+        password,
       });
 
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        setError(data.error || 'Invalid credentials. Please check your details and try again.');
+      if (signInError) {
+        // Supabase returns this for an unconfirmed address; the generic
+        // "invalid credentials" text would send people hunting for a typo.
+        setError(
+          signInError.message.toLowerCase().includes('not confirmed')
+            ? 'Please confirm your email address first — check your inbox for the link.'
+            : 'Invalid credentials. Please check your details and try again.'
+        );
         setLoading(false);
         return;
       }
@@ -122,7 +121,12 @@ export function LoginForm() {
         </button>
       </form>
 
-      <div className="text-center pt-2 border-t border-surface-border/50">
+      <div className="text-center pt-2 border-t border-surface-border/50 space-y-2">
+        <p className="text-xs text-slate-400">
+          <Link href="/forgot-password" className="text-slate-400 hover:text-slate-200 hover:underline">
+            Forgot your password?
+          </Link>
+        </p>
         <p className="text-xs text-slate-400">
           Don&apos;t have an account?{' '}
           <Link href="/register" className="text-brand-400 font-semibold hover:underline">

@@ -29,22 +29,16 @@ export function supabaseServer() {
 }
 
 /**
- * Service-role client. Bypasses row level security — only for signup, where the
- * team row has to exist before the user has a session. Never expose to the browser.
- */
-export function supabaseAdmin() {
-  return createClient(SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
-/**
  * Session-free client using the public anon key. For pages served to visitors
  * with no account — currently only /share/[token], where authorization is the
  * token itself, checked inside get_shared_view. Carries no elevated privilege:
  * every RLS policy still applies, which is exactly why the share path needs a
- * SECURITY DEFINER function rather than a direct table read. Do not confuse
- * this with supabaseAdmin(), which uses the service-role key and bypasses RLS.
+ * SECURITY DEFINER function rather than a direct table read.
+ *
+ * There is deliberately no service-role client anywhere in this app. Signup used
+ * to need one to create the team before the user had a session; the
+ * handle_new_user() trigger does that inside the database now, so the
+ * RLS-bypassing key never reaches a request path.
  */
 export function supabaseAnon() {
   return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {

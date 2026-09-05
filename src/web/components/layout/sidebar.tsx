@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Activity, LayoutDashboard, PlusCircle, Bell, LogOut } from 'lucide-react';
 import { cn } from '@/lib/shared/utils';
+import { supabaseBrowser } from '@/lib/client/supabase';
 
 /**
  * Persistent sidebar navigation bar providing branding, menu items, and logout action.
@@ -33,7 +34,9 @@ export function Sidebar() {
   ];
 
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    await supabaseBrowser().auth.signOut();
+    // Hard navigation, not router.push: it drops every cached Server Component
+    // payload rendered for the signed-in user.
     window.location.href = '/login';
   };
 

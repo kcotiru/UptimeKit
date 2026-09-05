@@ -50,6 +50,16 @@ export async function middleware(request: NextRequest) {
     return redirectTo('/login', { redirect: pathname });
   }
 
+  // /reset-password runs on the recovery session the emailed link established,
+  // so it needs a session like /dashboard does — but landing on /login would
+  // strand someone who cannot log in, which is the whole reason they are here.
+  if (!user && pathname === '/reset-password') {
+    return redirectTo('/forgot-password');
+  }
+
+  // /reset-password is deliberately absent: a signed-in user reaching it has a
+  // live recovery session and is there on purpose. Bouncing them to the
+  // dashboard would make the emailed link unusable.
   if (user && (pathname === '/login' || pathname === '/register')) {
     return redirectTo('/dashboard/monitors');
   }
@@ -58,14 +68,18 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // No /api/* entry: the only routes left under app/api are the auth ones,
-  // which must stay reachable without a session. Client mutations go through
-  // Server Actions, which POST to the page URL and are covered by /dashboard.
-  // Adding an authenticated /api/* route means adding it here AND restoring a
-  // JSON 401 branch above — a redirect to an HTML login page is wrong for JSON.
+  // There is no app/api tree any more — sign-in, sign-up and sign-out call
+  // Supabase from the browser, and every mutation goes through a Server Action,
+  // which POSTs to the page URL and is covered by /dashboard. Adding an
+  // authenticated /api/* route means adding it here AND restoring a JSON 401
+  // branch above — a redirect to an HTML login page is wrong for JSON.
+  //
+  // /auth/callback is deliberately absent: it redeems the emailed confirmation
+  // and recovery codes, so it runs before a session exists and the guard above
+  // would bounce it to /login before the code was ever exchanged.
   //
   // /share/:token is deliberately absent: it is the public read path and must
   // work with no session. Its authorization is the token, enforced inside the
   // get_shared_view SQL function, not here.
-  matcher: ['/dashboard/:path*', '/login', '/register'],
+  matcher: ['/dashboard/:path*', '/login', '/register', '/forgot-password', '/reset-password'],
 };
