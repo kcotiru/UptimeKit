@@ -787,6 +787,11 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 
+-- PostgREST exposes every public function as an RPC endpoint. This one is a
+-- trigger function, not an API: drop the PUBLIC grant. The trigger keeps
+-- firing — EXECUTE is checked when the trigger is created, not when it fires.
+REVOKE EXECUTE ON FUNCTION handle_new_user() FROM PUBLIC, anon, authenticated;
+
 -- Lets an anonymous visitor holding an invite link see whose team they are
 -- about to join, before they have any account at all. SECURITY DEFINER because
 -- team_invites is behind RLS and the caller has no team yet.
