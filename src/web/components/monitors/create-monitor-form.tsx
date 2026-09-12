@@ -80,7 +80,7 @@ export function CreateMonitorForm() {
         </div>
 
         {serverError && (
-          <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-3 text-red-400 text-sm">
+          <div className="p-3.5 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-3 text-red-400 text-sm">
             <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
             <span>{serverError}</span>
           </div>

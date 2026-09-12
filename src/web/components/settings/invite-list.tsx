@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Copy, Link2Off, UserPlus } from 'lucide-react';
+import { AlertCircle, Check, Copy, Link2Off, UserPlus } from 'lucide-react';
 import type { TeamInvite } from '@/lib/shared/types';
 import { formatDate } from '@/lib/shared/utils';
 import { createInviteAction, revokeInviteAction } from '@/lib/server/actions/invites';
@@ -120,8 +120,9 @@ export function InviteList({
       )}
 
       {error && (
-        <div className="p-3.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-          {error}
+        <div className="p-3.5 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-3 text-red-400 text-sm">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <span>{error}</span>
         </div>
       )}
 

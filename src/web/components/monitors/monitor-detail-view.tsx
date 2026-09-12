@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Clock, ExternalLink, RefreshCw } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Clock, ExternalLink, RefreshCw } from 'lucide-react';
 import { Monitor, PingMetric } from '@/lib/shared/types';
 import { summarize, coarsestTier } from '@/lib/shared/stats';
 import { StatusWord } from './status-badge';
@@ -124,8 +124,9 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
       </div>
 
       {error && (
-        <div className="p-3.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium">
-          {error}
+        <div className="p-3.5 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-3 text-red-400 text-sm">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <span>{error}</span>
         </div>
       )}
 

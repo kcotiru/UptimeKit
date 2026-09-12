@@ -67,8 +67,8 @@ export function WebhookForm({ onCreated }: { onCreated?: () => void }) {
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 p-3.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium">
-          <AlertCircle className="h-4 w-4 shrink-0 mt-px" />
+        <div className="p-3.5 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-3 text-red-400 text-sm">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
           <span>{error}</span>
         </div>
       )}
