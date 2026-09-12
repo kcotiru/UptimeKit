@@ -3,7 +3,7 @@ import { ExternalLink, Trash2 } from 'lucide-react';
 import { Monitor, PingMetric } from '@/lib/shared/types';
 import { StatusWord } from './status-badge';
 import { Sparkline } from './sparkline';
-import { cn, formatRelative, formatDuration } from '@/lib/shared/utils';
+import { cn, formatRelative, formatDuration, RECENT_WINDOW_HOURS } from '@/lib/shared/utils';
 import { downsample } from '@/lib/shared/sparkline';
 import { summarize } from '@/lib/shared/stats';
 
@@ -28,6 +28,18 @@ export function MonitorRow({ monitor, metrics, onDeleteRequest }: MonitorRowProp
   // metrics are ascending by timestamp; walk back from the end for the most
   // recent point that was actually up.
   const lastUp = needsAttention ? [...metrics].reverse().find((m) => m.isUp) ?? null : null;
+
+  const windowStartMs = Date.now() - RECENT_WINDOW_HOURS * 3600 * 1000;
+  const createdMs = new Date(monitor.createdAt).getTime();
+
+  // Without an up-sample in the window we cannot know when it went down —
+  // unless the monitor is younger than the window, in which case it cannot
+  // have been down for longer than it has existed.
+  const downLabel = lastUp
+    ? `down for ${formatDuration(lastUp.timestamp)}`
+    : createdMs > windowStartMs
+      ? `down for ${formatDuration(monitor.createdAt)}`
+      : `down for over ${RECENT_WINDOW_HOURS}h`;
 
   return (
     <div
@@ -66,11 +78,11 @@ export function MonitorRow({ monitor, metrics, onDeleteRequest }: MonitorRowProp
             )}
 
             {stats && (
-              <span className="text-xs text-slate-400">
-                {`uptime ${(stats.uptime * 100).toFixed(1)}%`}
-                {stats.p50Ms !== null && ` p50 ${stats.p50Ms}ms`}
-                {stats.p95Ms !== null && ` p95 ${stats.p95Ms}ms`}
-                {' 3h'}
+              <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-slate-400">
+                <span>{`uptime ${(stats.uptime * 100).toFixed(1)}%`}</span>
+                {stats.p50Ms !== null && <span>{`p50 ${stats.p50Ms}ms`}</span>}
+                {stats.p95Ms !== null && <span>{`p95 ${stats.p95Ms}ms`}</span>}
+                <span>{`${RECENT_WINDOW_HOURS}h`}</span>
               </span>
             )}
 
@@ -78,11 +90,7 @@ export function MonitorRow({ monitor, metrics, onDeleteRequest }: MonitorRowProp
               <span className="text-xs text-status-down">{`HTTP ${latest.statusCode}`}</span>
             )}
 
-            {needsAttention && (
-              <span className="text-xs text-status-down">
-                {lastUp ? `down for ${formatDuration(lastUp.timestamp)}` : 'down for over 3h'}
-              </span>
-            )}
+            {needsAttention && <span className="text-xs text-status-down">{downLabel}</span>}
           </div>
         </div>
 

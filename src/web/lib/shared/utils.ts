@@ -11,6 +11,9 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
+/** How far back the monitors list looks for its per-row figures. */
+export const RECENT_WINDOW_HOURS = 3;
+
 /**
  * Formats an ISO date string into a localized, human-readable date string.
  * @param isoString - ISO 8601 timestamp string or null

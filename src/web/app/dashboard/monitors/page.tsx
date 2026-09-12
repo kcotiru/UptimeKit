@@ -2,12 +2,11 @@ import { listMonitors, listRecentMetrics } from '@/lib/server/data/monitors';
 import { Header } from '@/components/layout/header';
 import { MonitorList } from '@/components/monitors/monitor-list';
 import { supabaseServer } from '@/lib/server/supabase';
+import { RECENT_WINDOW_HOURS } from '@/lib/shared/utils';
 import type { PingMetric } from '@/lib/shared/types';
 
 // Per-user data behind a session cookie — never prerender.
 export const dynamic = 'force-dynamic';
-
-const RECENT_WINDOW_HOURS = 3;
 
 /**
  * React Server Component for the primary dashboard monitors list page.
