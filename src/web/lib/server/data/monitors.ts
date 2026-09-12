@@ -171,6 +171,12 @@ export interface TierRow {
 }
 
 export function toPingMetric(row: TierRow): PingMetric {
+  // The raw branch of select_ping_tier echoes the single sample into
+  // min/max/p95/p50/p99 (min = max = p95 = ... = the one response time).
+  // A single sample has no range and no percentile, so those five fields are
+  // forced null here rather than passed through — matching listRecentMetrics
+  // and the null-on-raw contract documented on PingMetric in types.ts.
+  const isRaw = row.source_tier === 'raw';
   return {
     timestamp: row.ts,
     responseTimeMs: Math.round(Number(row.response_time_ms)),
@@ -178,14 +184,14 @@ export function toPingMetric(row: TierRow): PingMetric {
     // Rolled-up tiers average away individual failures, so only raw rows can
     // report a point as down.
     isUp: row.source_tier !== 'raw' || (row.status_code !== null && row.status_code < 400),
-    minMs: row.min_time_ms,
-    maxMs: row.max_time_ms,
-    p95Ms: row.p95_time_ms,
+    minMs: isRaw ? null : row.min_time_ms,
+    maxMs: isRaw ? null : row.max_time_ms,
+    p95Ms: isRaw ? null : row.p95_time_ms,
     sampleCount: row.sample_count ?? 1,
     sourceTier: row.source_tier as PingMetric['sourceTier'],
     successCount: row.success_count ?? 0,
-    p50Ms: row.p50_time_ms,
-    p99Ms: row.p99_time_ms,
+    p50Ms: isRaw ? null : row.p50_time_ms,
+    p99Ms: isRaw ? null : row.p99_time_ms,
     // The DB column is TEXT; narrowed here at the boundary where it enters
     // TypeScript. select_ping_tier(_for_team) only ever emits 'raw' or
     // 'hourly_approx' (or null), so this cast makes no untrue claim.

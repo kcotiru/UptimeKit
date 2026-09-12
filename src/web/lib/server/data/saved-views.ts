@@ -98,21 +98,28 @@ export function toSharedView(rows: SharedViewRow[]): SharedView | null {
     from: head.window_from,
     to: head.window_to,
     sourceTier,
-    points: series.map((r) => ({
-      timestamp: r.ts,
-      responseTimeMs: Math.round(Number(r.response_time_ms)),
-      p95Ms: r.p95_time_ms,
-      sampleCount: r.sample_count,
-      minMs: r.min_time_ms,
-      maxMs: r.max_time_ms,
-      successCount: r.success_count ?? 0,
-      p50Ms: r.p50_time_ms,
-      p99Ms: r.p99_time_ms,
-      // The DB column is TEXT; narrowed here at the boundary where it enters
-      // TypeScript. get_shared_view only ever emits 'raw' or 'hourly_approx'
-      // (or null), so this cast makes no untrue claim.
-      percentileSource: r.percentile_source as SharedViewPoint['percentileSource'],
-    })),
+    // get_shared_view's raw branch echoes the single sample into
+    // min/max/p95/p50/p99 (min = max = p95 = ... = the one response time).
+    // A single sample has no range and no percentile, so those five fields
+    // are forced null on raw points rather than passed through.
+    points: series.map((r) => {
+      const isRaw = r.source_tier === 'raw';
+      return {
+        timestamp: r.ts,
+        responseTimeMs: Math.round(Number(r.response_time_ms)),
+        p95Ms: isRaw ? null : r.p95_time_ms,
+        sampleCount: r.sample_count,
+        minMs: isRaw ? null : r.min_time_ms,
+        maxMs: isRaw ? null : r.max_time_ms,
+        successCount: r.success_count ?? 0,
+        p50Ms: isRaw ? null : r.p50_time_ms,
+        p99Ms: isRaw ? null : r.p99_time_ms,
+        // The DB column is TEXT; narrowed here at the boundary where it enters
+        // TypeScript. get_shared_view only ever emits 'raw' or 'hourly_approx'
+        // (or null), so this cast makes no untrue claim.
+        percentileSource: r.percentile_source as SharedViewPoint['percentileSource'],
+      };
+    }),
   };
 }
 

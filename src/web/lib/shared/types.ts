@@ -80,7 +80,9 @@ export interface PingMetric {
   sourceTier: Tier;
   /** Samples in this bucket that succeeded. 1 or 0 on the raw tier. */
   successCount: number;
+  /** This bucket's p50; null on the raw tier. A single sample has no percentile. */
   p50Ms: number | null;
+  /** This bucket's p99; null on the raw tier. A single sample has no percentile. */
   p99Ms: number | null;
   /** 'raw' when this bucket's percentiles came from real samples;
    *  'hourly_approx' when they are percentiles of percentiles. */
@@ -184,13 +186,15 @@ export interface SavedView {
 export interface SharedViewPoint {
   timestamp: string;
   responseTimeMs: number;
-  p95Ms: number;
+  /** Null on the raw tier — a single sample has no percentile. */
+  p95Ms: number | null;
   sampleCount: number;
-  /** get_shared_view returns these and toSharedView used to drop them. */
+  /** Fastest/slowest sample in this bucket; null on the raw tier. */
   minMs: number | null;
   maxMs: number | null;
   /** Samples in this bucket that succeeded. 1 or 0 on the raw tier. */
   successCount: number;
+  /** This bucket's p50/p99; null on the raw tier. A single sample has no percentile. */
   p50Ms: number | null;
   p99Ms: number | null;
   /** 'raw' when this bucket's percentiles came from real samples;
