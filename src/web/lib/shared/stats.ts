@@ -64,3 +64,40 @@ export function summarize(metrics: PingMetric[], tier: Tier): WindowStats | null
     tier,
   };
 }
+
+/** One contiguous down run, identified by the x-axis label of its first and
+ *  last point (inclusive) — what a chart's ReferenceArea anchors on. */
+export interface OutageRange {
+  from: string;
+  to: string;
+}
+
+/** A chart point reduced to what outage detection needs: a unique x-axis
+ *  label and whether the sample was up. */
+export interface OutagePoint {
+  time: string;
+  isUp: boolean;
+}
+
+/**
+ * Contiguous runs of `isUp === false`, so an outage can be shaded on a chart
+ * instead of the trace silently continuing through it. `time` must be unique
+ * per point — recharts matches a ReferenceArea to a category axis by value,
+ * so a repeating label (e.g. bare HH:MM across days) would shade the wrong
+ * region.
+ */
+export function outageRanges(points: OutagePoint[]): OutageRange[] {
+  const ranges: OutageRange[] = [];
+  let i = 0;
+  while (i < points.length) {
+    if (points[i].isUp) {
+      i++;
+      continue;
+    }
+    const start = i;
+    while (i + 1 < points.length && !points[i + 1].isUp) i++;
+    ranges.push({ from: points[start].time, to: points[i].time });
+    i++;
+  }
+  return ranges;
+}
