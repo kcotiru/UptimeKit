@@ -49,11 +49,13 @@ export function TimeRangePicker({
       {presets.map((preset) => (
         <button
           key={preset.id}
+          type="button"
+          aria-pressed={selectedPreset === preset.id}
           onClick={() => onSelectPreset(preset.id)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
             selectedPreset === preset.id
-              ? 'bg-brand-600 text-white font-semibold'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-surface-hover'
+              ? 'bg-surface-hover text-slate-100'
+              : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           {preset.label}
@@ -61,11 +63,13 @@ export function TimeRangePicker({
       ))}
 
       <button
+        type="button"
+        aria-pressed={selectedPreset === 'custom'}
         onClick={() => setShowCustomModal(true)}
-        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
           selectedPreset === 'custom'
-            ? 'bg-brand-600 text-white font-semibold'
-            : 'text-slate-400 hover:text-slate-200 hover:bg-surface-hover'
+            ? 'bg-surface-hover text-slate-100'
+            : 'text-slate-400 hover:text-slate-200'
         }`}
       >
         Custom
