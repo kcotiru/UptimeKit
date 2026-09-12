@@ -1688,3 +1688,66 @@ Claude-Session: https://claude.ai/code/session_019uXnSGTMyNdwwXT57EMUdJ"
 **Placeholder scan:** no TBD, no "add error handling", no "similar to Task N". Every code step carries the actual code.
 
 **Type consistency:** `StatusWord` (not `StatusBadge`) is used consistently from Task 4 onward, including the rename sweep in Task 4 Step 8. `summarize(metrics, tier)` has the same signature in Tasks 3, 6. `WindowStats` field names match between `stats.ts`, `StatRow` and the tests. `Tier` is defined once in `types.ts` and imported everywhere. `sparklinePath(values, width, height)` matches between the module, the component and its test.
+
+---
+
+# Addendum — Response time / Uptime tabs
+
+Added mid-execution at the product owner's request: the chart gets a tab bar
+switching between the latency view and an uptime view, one visible at a time,
+sharing the time-range picker.
+
+**Why this needs a migration.** `ping_logs_hourly` and `ping_logs_daily` both
+carry `successful_pings` and `total_pings`, and also `p50_response_time_ms` and
+`p99_response_time_ms`, and `ping_logs_daily` carries `percentile_source`.
+`select_ping_tier` returns none of them. Without them an uptime series would read
+a flat 100% on every rolled-up window, because `isUp` is synthesised as always
+true for buckets — a confident, false number. The owner chose the fuller
+migration.
+
+**Signature change, not a body change.** `RETURNS TABLE` cannot be altered by
+`CREATE OR REPLACE`; both functions must be dropped and recreated, innermost
+last. `get_shared_view` calls `select_ping_tier_for_team` through a LATERAL join
+but selects columns **by name**, so widening does not break it — verified by
+reading, and the integration suite must prove it.
+
+### Task 9: Widen the tier function
+
+**Files:** `supabase/schema.sql`, `tests/integration/` (new cases)
+
+- `select_ping_tier_for_team` and `select_ping_tier` gain `success_count INTEGER`,
+  `p50_time_ms INTEGER`, `p99_time_ms INTEGER`, `percentile_source TEXT`.
+- Raw branch: `success_count` is 1 when `status_code < 400` else 0; `p50`/`p99`
+  are the sample itself; `percentile_source` is `'raw'`.
+- Hourly branch: the stored `successful_pings`, `p50_response_time_ms`,
+  `p99_response_time_ms`; `percentile_source` is `'raw'` — hourly percentiles are
+  computed by `PERCENTILE_CONT` over that hour's real samples at rollup time.
+- Daily branch: the stored columns, and `d.percentile_source` as recorded.
+- `get_shared_view` gains the same four columns so the public chart keeps parity.
+- Applied to production only after the local integration suite passes.
+
+### Task 10: Carry the new columns, and compute uptime
+
+**Files:** `lib/shared/types.ts`, `lib/server/data/monitors.ts`,
+`lib/server/data/saved-views.ts`, `lib/shared/stats.ts`, tests
+
+- `PingMetric` and `SharedViewPoint` gain `successCount`, `p50Ms`, `p99Ms`,
+  `percentileSource`.
+- `summarize` reports real percentiles on rolled-up tiers from the per-bucket
+  values, and counts how many daily buckets are `'hourly_approx'` so the UI can
+  say "3 of 30 days approximate" instead of suppressing the figure entirely.
+- Uptime per bucket is `successCount / sampleCount`, exact on every tier.
+- Closes the `font-mono` gap left in `monitor-detail-view.tsx`,
+  `time-series-chart.tsx` and `app/share/[token]/page.tsx`.
+
+### Task 11: The tab bar
+
+**Files:** `components/monitors/time-series-chart.tsx` (or a sibling),
+`components/monitors/monitor-detail-view.tsx`, `app/share/[token]/page.tsx`
+
+- A segmented control above the chart: **Response time** | **Uptime**.
+- Response time keeps the envelope, p95 line and outage shading.
+- Uptime plots per-bucket percentage on a 0–100% axis, where an outage reads as
+  a dip to zero rather than a shaded band.
+- Both share one time range and one window; switching tabs refetches nothing.
+- Selection is per-view UI state; it does not go in the URL.
