@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { percentile, summarize, bucketUptime, coarsestTier } from '../lib/shared/stats';
+import {
+  percentile,
+  summarize,
+  bucketUptime,
+  coarsestTier,
+  spansMoreThanADay,
+  chartLabel,
+} from '../lib/shared/stats';
 import type { PingMetric } from '../lib/shared/types';
 
 function point(overrides: Partial<PingMetric> = {}): PingMetric {
@@ -123,6 +130,20 @@ describe('summarize', () => {
     expect(summarize(metrics, 'hourly')!.uptime).toBeCloseTo(17 / 23);
   });
 
+  // A plain per-point average would give the 3-ping bucket the same weight
+  // as the 120-ping one, dragging the mean toward the small bucket's value.
+  it('weights meanMs by sampleCount, not a flat average of points', () => {
+    const metrics = [
+      point({ sourceTier: 'hourly', responseTimeMs: 100, sampleCount: 120 }),
+      point({ sourceTier: 'hourly', responseTimeMs: 1000, sampleCount: 3 }),
+    ];
+    const stats = summarize(metrics, 'hourly')!;
+
+    // Unweighted average would be 550; weighted is (100*120 + 1000*3) / 123.
+    expect(stats.meanMs).toBe(Math.round((100 * 120 + 1000 * 3) / 123));
+    expect(stats.meanMs).not.toBe(550);
+  });
+
   it('sums the samples a rolled-up window stands for', () => {
     const metrics = [
       point({ sourceTier: 'hourly', sampleCount: 12 }),
@@ -148,6 +169,39 @@ describe('summarize', () => {
   it('reports zero approxBuckets on the raw tier', () => {
     const metrics = [point(), point()];
     expect(summarize(metrics, 'raw')!.approxBuckets).toBe(0);
+  });
+});
+
+describe('spansMoreThanADay / chartLabel', () => {
+  it('is false for a window under 24h, and chartLabel omits the date', () => {
+    const metrics = [
+      point({ timestamp: '2026-09-12T00:00:00Z' }),
+      point({ timestamp: '2026-09-12T12:00:00Z' }),
+    ];
+    expect(spansMoreThanADay(metrics)).toBe(false);
+    expect(chartLabel(metrics[0].timestamp, false)).not.toMatch(/\d{4}|Sep/);
+  });
+
+  it('is true for a window over 24h, and chartLabel includes the date', () => {
+    const metrics = [
+      point({ timestamp: '2026-09-10T00:00:00Z' }),
+      point({ timestamp: '2026-09-13T00:00:00Z' }),
+    ];
+    expect(spansMoreThanADay(metrics)).toBe(true);
+    expect(chartLabel(metrics[0].timestamp, true)).toMatch(/Sep/);
+  });
+
+  it('is false for a single point or an empty window, which cannot span anything', () => {
+    expect(spansMoreThanADay([point()])).toBe(false);
+    expect(spansMoreThanADay([])).toBe(false);
+  });
+
+  it('is false for a window of exactly 24h, since the threshold is "more than"', () => {
+    const metrics = [
+      point({ timestamp: '2026-09-12T00:00:00Z' }),
+      point({ timestamp: '2026-09-13T00:00:00Z' }),
+    ];
+    expect(spansMoreThanADay(metrics)).toBe(false);
   });
 });
 

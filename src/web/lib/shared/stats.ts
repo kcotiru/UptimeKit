@@ -2,7 +2,8 @@ import type { PingMetric, Tier } from './types';
 
 /** Window-level figures, with nulls wherever the tier cannot support a claim. */
 export interface WindowStats {
-  /** Arithmetic mean of every point. Always available. */
+  /** Mean response time, weighted by each point's sampleCount so a 120-ping
+   *  hour counts 120x as much as a 3-ping one. Always available. */
   meanMs: number;
   /** Exact *window* percentiles. Raw tier only — a single window percentile
    *  cannot be recovered from pre-aggregated buckets, so these stay null on
@@ -85,14 +86,19 @@ export function summarize(metrics: PingMetric[], tier: Tier): WindowStats | null
 
   const exact = tier === 'raw';
   const latencies = metrics.map((m) => m.responseTimeMs).sort((a, b) => a - b);
-  const mean = latencies.reduce((sum, ms) => sum + ms, 0) / latencies.length;
 
   const successCount = metrics.reduce((sum, m) => sum + m.successCount, 0);
   const sampleCount = metrics.reduce((sum, m) => sum + (m.sampleCount || 1), 0);
   const approxBuckets = metrics.filter((m) => m.percentileSource === 'hourly_approx').length;
 
+  // Weighted by sampleCount, not a plain average of points: on a rolled-up
+  // tier each point already stands for many samples, and an unweighted mean
+  // would let a 120-ping hour count the same as a 3-ping one.
+  const weightedMean =
+    metrics.reduce((sum, m) => sum + m.responseTimeMs * (m.sampleCount || 1), 0) / sampleCount;
+
   return {
-    meanMs: Math.round(mean),
+    meanMs: Math.round(weightedMean),
     // ping_logs_raw.response_time_ms is NOT NULL, so a failed ping still
     // contributes its elapsed time to this pool: raw percentiles describe
     // every attempt, not just successful responses. Failures are not
