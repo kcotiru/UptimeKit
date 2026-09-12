@@ -147,19 +147,35 @@ suite('tier query success_count / p50 / p99 / percentile_source', () => {
   });
 
   it('get_shared_view: still hides the URL, still works end to end, and now carries the four new columns', async () => {
-    const now = new Date();
-    const pingTime = new Date(now.getTime() - 5 * 60_000);
+    // Seeded with four columns holding four DISTINCT values, and picked so
+    // no two columns can share a value even if get_shared_view's positional
+    // SELECT list transposes a pair: source_tier ('hourly') differs from
+    // percentile_source ('raw' — hourly percentiles are always exact,
+    // synthesized rather than read off the row), p50 (120) differs from p99
+    // (850), and success_count (58) differs from sample_count/total_pings
+    // (60). A raw-tier fixture can't do this — a single sample makes
+    // p50==p99 and success_count==sample_count by construction, so a swapped
+    // pair would pass silently. This must fail if any two of the four swap.
+    // A different bucket_start than the hourly-tier test above (which also
+    // uses "10 days back") — ping_logs_hourly is keyed on
+    // (team_id, monitor_id, bucket_start), so reusing the same hour collides.
+    const bucket = new Date(Date.now() - 11 * 86_400_000);
+    bucket.setUTCMinutes(0, 0, 0);
     await client.query(
-      `INSERT INTO ping_logs_raw (monitor_id, team_id, timestamp, response_time_ms, status_code)
-       VALUES ($1, $2, $3, 250, 200)`,
-      [monitorId, teamId, pingTime]
+      `INSERT INTO ping_logs_hourly
+         (team_id, monitor_id, bucket_start, total_pings, successful_pings,
+          avg_response_time_ms, min_response_time_ms, max_response_time_ms,
+          p50_response_time_ms, p95_response_time_ms, p99_response_time_ms)
+       VALUES ($1, $2, $3, 60, 58, 150, 40, 900, 120, 400, 850)`,
+      [teamId, monitorId, bucket]
     );
 
-    const from = new Date(now.getTime() - 30 * 60_000);
+    const from = new Date(bucket.getTime() - 60 * 60_000);
+    const to = new Date(bucket.getTime() + 60 * 60_000);
     const { rows: [view] } = await client.query(
       `INSERT INTO saved_views (team_id, creator_id, monitor_id, name, configuration)
        VALUES ($1, NULL, $2, 'Tier cols share', $3::jsonb) RETURNING share_token`,
-      [teamId, monitorId, JSON.stringify({ from: from.toISOString(), to: now.toISOString() })]
+      [teamId, monitorId, JSON.stringify({ from: from.toISOString(), to: to.toISOString() })]
     );
 
     const { rows, fields } = await client.query('SELECT * FROM get_shared_view($1)', [
@@ -173,9 +189,10 @@ suite('tier query success_count / p50 / p99 / percentile_source', () => {
     );
 
     expect(rows.length).toBeGreaterThan(0);
-    expect(rows[0].success_count).toBe(1);
-    expect(rows[0].p50_time_ms).toBe(250);
-    expect(rows[0].p99_time_ms).toBe(250);
+    expect(rows[0].source_tier).toBe('hourly');
+    expect(rows[0].success_count).toBe(58);
+    expect(rows[0].p50_time_ms).toBe(120);
+    expect(rows[0].p99_time_ms).toBe(850);
     expect(rows[0].percentile_source).toBe('raw');
   });
 

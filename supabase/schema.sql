@@ -2,6 +2,14 @@
 -- Paste this whole file into the Supabase SQL editor and run it once.
 -- Auth (signup/login/sessions/password hashing) is handled by Supabase Auth;
 -- `public.users` only maps an auth user to a team + role.
+--
+-- Production apply: wrap this file's contents in an explicit BEGIN / COMMIT.
+-- Several functions below are DROPped and CREATEd tens to hundreds of lines
+-- apart (e.g. select_ping_tier), and a plain `psql -f` run is not
+-- transactional on its own — there is a real window where a dropped function
+-- doesn't exist yet, and a live RPC call hits it. After COMMIT, run
+-- `NOTIFY pgrst, 'reload schema';` so PostgREST picks up the new function
+-- OIDs instead of returning PGRST202.
 
 -- ---------------------------------------------------------------------------
 -- Tenancy
