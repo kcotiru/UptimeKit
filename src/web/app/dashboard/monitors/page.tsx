@@ -1,3 +1,4 @@
+import { AlertCircle } from 'lucide-react';
 import { listMonitors, listRecentMetrics } from '@/lib/server/data/monitors';
 import { Header } from '@/components/layout/header';
 import { MonitorList } from '@/components/monitors/monitor-list';
@@ -14,11 +15,13 @@ export const dynamic = 'force-dynamic';
 export default async function MonitorsPage() {
   let monitors: Awaited<ReturnType<typeof listMonitors>> = [];
   let recentMetrics: Map<string, PingMetric[]> = new Map();
+  let loadFailed = false;
 
   try {
     monitors = await listMonitors(supabaseServer());
   } catch (error: unknown) {
     console.error('Failed to fetch monitors list:', error instanceof Error ? error.message : error);
+    loadFailed = true;
   }
 
   try {
@@ -30,22 +33,33 @@ export default async function MonitorsPage() {
     console.error('Failed to fetch recent metrics:', error instanceof Error ? error.message : error);
   }
 
+  // A row alarms on anything other than 'up' (degraded counts too), so the
+  // header count must match that, not just 'down'.
+  const alarming = monitors.filter((m) => m.status !== 'up').length;
+
   return (
     <div className="space-y-6">
       <Header
         title="Monitors"
         subtitle={
-          monitors.length === 0
-            ? 'Nothing being checked yet'
-            : `${monitors.length} endpoint${monitors.length === 1 ? '' : 's'}, ${
-                monitors.filter((m) => m.status === 'down').length
-              } down`
+          loadFailed
+            ? 'Could not load your monitors'
+            : monitors.length === 0
+              ? 'Nothing being checked yet'
+              : `${monitors.length} endpoint${monitors.length === 1 ? '' : 's'}, ${alarming} down`
         }
       />
-      <MonitorList
-        initialMonitors={monitors}
-        metricsByMonitor={Object.fromEntries(recentMetrics)}
-      />
+      {loadFailed ? (
+        <div className="p-3.5 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-3 text-red-400 text-sm">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <span>Could not load your monitors. Try refreshing the page.</span>
+        </div>
+      ) : (
+        <MonitorList
+          initialMonitors={monitors}
+          metricsByMonitor={Object.fromEntries(recentMetrics)}
+        />
+      )}
     </div>
   );
 }
