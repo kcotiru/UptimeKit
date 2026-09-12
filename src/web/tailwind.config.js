@@ -49,13 +49,15 @@ module.exports = {
         },
         // Status lands on the status WORD and nowhere else.
         status: {
-          up: '#90dfba',
+          up: '#8f9bbd',       // colourless on purpose: healthy is not an event
           degraded: '#ffd285',
           down: '#ffb4ab',
           unknown: '#8f9bbd',
         },
-        // Retinted so the handful of non-badge usages stay coherent.
-        emerald: { 400: '#90dfba', 500: '#90dfba' },
+        // Green is not in this palette. A transient success affordance
+        // ("Copied", "Delivered (200)") takes the primary tint; steady-state
+        // health stays neutral.
+        emerald: { 400: '#7ca3fe', 500: '#7ca3fe' },
         amber: { 400: '#ffd285', 500: '#ffd285' },
         red: { 400: '#ffb4ab', 500: '#ffb4ab' },
       },

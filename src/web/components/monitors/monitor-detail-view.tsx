@@ -5,7 +5,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Clock, ExternalLink, RefreshCw } from 'lucide-react';
 import { Monitor, PingMetric } from '@/lib/shared/types';
-import { StatusBadge } from './status-badge';
+import { StatusWord } from './status-badge';
 import { TimeRangePicker, TimeRangePreset } from './time-range-picker';
 import { TimeSeriesChart } from './time-series-chart';
 import { SaveViewButton } from './save-view-button';
@@ -126,7 +126,7 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
           <div className="space-y-1">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-slate-50 tracking-tight">{monitor.name}</h1>
-              <StatusBadge status={monitor.status} />
+              <StatusWord status={monitor.status} />
             </div>
             <a
               href={monitor.url}

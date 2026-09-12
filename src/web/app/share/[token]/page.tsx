@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { getSharedView } from '@/lib/server/data/saved-views';
 import { supabaseAnon } from '@/lib/server/supabase';
-import { StatusBadge } from '@/components/monitors/status-badge';
+import { StatusWord } from '@/components/monitors/status-badge';
 import { TimeSeriesChart } from '@/components/monitors/time-series-chart';
 import { formatDate } from '@/lib/shared/utils';
 import type { PingMetric, SharedViewPoint } from '@/lib/shared/types';
@@ -57,7 +57,7 @@ export default async function SharedViewPage({ params }: { params: { token: stri
             <h1 className="text-2xl font-bold text-slate-50 tracking-tight">
               {shared.monitorName}
             </h1>
-            <StatusBadge status={shared.monitorStatus} />
+            <StatusWord status={shared.monitorStatus} />
           </div>
           <p className="text-sm text-slate-400">{shared.viewName}</p>
           <p className="text-xs text-slate-500 font-mono">

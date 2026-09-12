@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ExternalLink, Clock, Trash2, ChevronRight } from 'lucide-react';
 import { Monitor } from '@/lib/shared/types';
-import { StatusBadge } from './status-badge';
+import { StatusWord } from './status-badge';
 import { formatDate } from '@/lib/shared/utils';
 
 /**
@@ -26,7 +26,7 @@ export function MonitorCard({ monitor, onDeleteRequest }: MonitorCardProps) {
             <h3 className="font-semibold text-slate-100 text-base truncate group-hover:text-brand-400 transition-colors">
               {monitor.name}
             </h3>
-            <StatusBadge status={monitor.status} />
+            <StatusWord status={monitor.status} />
           </div>
           <a
             href={monitor.url}

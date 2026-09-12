@@ -29,6 +29,21 @@ export function formatDate(isoString: string | null): string {
 }
 
 /**
+ * Renders a timestamp as elapsed time. A dashboard reader wants "12s ago",
+ * not an absolute clock time they have to subtract from.
+ * @param isoString ISO 8601 timestamp or null
+ */
+export function formatRelative(isoString: string | null): string {
+  if (!isoString) return 'never';
+
+  const seconds = Math.max(0, Math.floor((Date.now() - new Date(isoString).getTime()) / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+/**
  * Formats response duration milliseconds into display string.
  * @param ms - Duration in milliseconds or null
  * @returns Formatted ms string or '-- ms' if null
