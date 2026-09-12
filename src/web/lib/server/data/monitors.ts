@@ -132,16 +132,21 @@ export async function listRecentMetrics(
   const byMonitor = new Map<string, PingMetric[]>();
   for (const row of data ?? []) {
     const list = byMonitor.get(row.monitor_id) ?? [];
+    const isUp = row.status_code !== null && row.status_code < 400;
     list.push({
       timestamp: row.timestamp,
       responseTimeMs: Math.round(Number(row.response_time_ms)),
       statusCode: row.status_code,
-      isUp: row.status_code !== null && row.status_code < 400,
+      isUp,
       minMs: null,
       maxMs: null,
       p95Ms: null,
       sampleCount: 1,
       sourceTier: 'raw',
+      successCount: isUp ? 1 : 0,
+      p50Ms: Math.round(Number(row.response_time_ms)),
+      p99Ms: Math.round(Number(row.response_time_ms)),
+      percentileSource: 'raw',
     });
     byMonitor.set(row.monitor_id, list);
   }
@@ -159,6 +164,10 @@ export interface TierRow {
   sample_count: number | null;
   status_code: number | null;
   source_tier: string;
+  success_count: number | null;
+  p50_time_ms: number | null;
+  p99_time_ms: number | null;
+  percentile_source: string | null;
 }
 
 export function toPingMetric(row: TierRow): PingMetric {
@@ -174,5 +183,9 @@ export function toPingMetric(row: TierRow): PingMetric {
     p95Ms: row.p95_time_ms,
     sampleCount: row.sample_count ?? 1,
     sourceTier: row.source_tier as PingMetric['sourceTier'],
+    successCount: row.success_count ?? 0,
+    p50Ms: row.p50_time_ms,
+    p99Ms: row.p99_time_ms,
+    percentileSource: row.percentile_source,
   };
 }

@@ -78,6 +78,13 @@ export interface PingMetric {
   sampleCount: number;
   /** Which tier served this point */
   sourceTier: Tier;
+  /** Samples in this bucket that succeeded. 1 or 0 on the raw tier. */
+  successCount: number;
+  p50Ms: number | null;
+  p99Ms: number | null;
+  /** 'raw' when this bucket's percentiles came from real samples;
+   *  'hourly_approx' when they are percentiles of percentiles. */
+  percentileSource: string | null;
 }
 
 /**
@@ -182,6 +189,13 @@ export interface SharedViewPoint {
   /** get_shared_view returns these and toSharedView used to drop them. */
   minMs: number | null;
   maxMs: number | null;
+  /** Samples in this bucket that succeeded. 1 or 0 on the raw tier. */
+  successCount: number;
+  p50Ms: number | null;
+  p99Ms: number | null;
+  /** 'raw' when this bucket's percentiles came from real samples;
+   *  'hourly_approx' when they are percentiles of percentiles. */
+  percentileSource: string | null;
 }
 
 /** What an anonymous visitor gets. Note the absence of a URL field: the SQL

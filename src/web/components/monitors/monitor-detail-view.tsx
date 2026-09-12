@@ -140,7 +140,7 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
               href={monitor.url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-brand-400 font-mono transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-brand-400 transition-colors"
             >
               {monitor.url} <ExternalLink className="h-3.5 w-3.5" />
             </a>
@@ -149,17 +149,17 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
           <div className="flex items-center gap-6 text-xs text-slate-400 border-t sm:border-t-0 sm:border-l border-surface-border pt-3 sm:pt-0 sm:pl-6">
             <div>
               <p className="text-[11px] text-slate-500">interval</p>
-              <p className="font-semibold text-slate-200 font-mono flex items-center gap-1 mt-0.5">
+              <p className="font-semibold text-slate-200 flex items-center gap-1 mt-0.5">
                 <Clock className="h-3.5 w-3.5 text-slate-400" /> {monitor.intervalSeconds}s
               </p>
             </div>
             <div>
               <p className="text-[11px] text-slate-500">timeout</p>
-              <p className="font-semibold text-slate-200 font-mono mt-0.5">{monitor.timeoutMs}ms</p>
+              <p className="font-semibold text-slate-200 mt-0.5">{monitor.timeoutMs}ms</p>
             </div>
             <div>
               <p className="text-[11px] text-slate-500">last check</p>
-              <p className="font-semibold text-slate-200 font-mono mt-0.5">{formatRelative(monitor.lastCheckedAt)}</p>
+              <p className="font-semibold text-slate-200 mt-0.5">{formatRelative(monitor.lastCheckedAt)}</p>
             </div>
           </div>
         </div>

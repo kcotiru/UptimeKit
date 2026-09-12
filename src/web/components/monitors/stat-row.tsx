@@ -23,8 +23,13 @@ export function StatRow({ stats }: { stats: WindowStats }) {
       {stats.p50Ms !== null && <Stat label="p50" value={`${stats.p50Ms}ms`} />}
       {stats.p95Ms !== null && <Stat label="p95" value={`${stats.p95Ms}ms`} />}
       {stats.p99Ms !== null && <Stat label="p99" value={`${stats.p99Ms}ms`} />}
-      {stats.peakP95Ms !== null && <Stat label="peak hourly p95" value={`${stats.peakP95Ms}ms`} />}
+      {stats.peakP50Ms !== null && <Stat label="peak p50" value={`${stats.peakP50Ms}ms`} />}
+      {stats.peakP95Ms !== null && <Stat label="peak p95" value={`${stats.peakP95Ms}ms`} />}
+      {stats.peakP99Ms !== null && <Stat label="peak p99" value={`${stats.peakP99Ms}ms`} />}
       <Stat label="samples" value={stats.sampleCount.toLocaleString()} />
+      {stats.approxBuckets > 0 && (
+        <Stat label="approximate" value={`${stats.approxBuckets} of ${stats.bucketCount}`} />
+      )}
     </div>
   );
 }

@@ -37,6 +37,10 @@ describe('Supabase row mapping', () => {
       p95_time_ms: null,
       sample_count: null,
       source_tier: 'raw',
+      success_count: 1,
+      p50_time_ms: 12,
+      p99_time_ms: 12,
+      percentile_source: 'raw',
     };
     expect(toPingMetric({ ...raw, status_code: 200 }).isUp).toBe(true);
     expect(toPingMetric({ ...raw, status_code: 500 }).isUp).toBe(false);
@@ -53,6 +57,10 @@ describe('Supabase row mapping', () => {
       sample_count: null,
       status_code: null,
       source_tier: 'hourly',
+      success_count: null,
+      p50_time_ms: null,
+      p99_time_ms: null,
+      percentile_source: null,
     });
     expect(metric.isUp).toBe(true);
     expect(metric.responseTimeMs).toBe(13);
@@ -68,6 +76,10 @@ describe('Supabase row mapping', () => {
       sample_count: 12,
       status_code: 200,
       source_tier: 'hourly',
+      success_count: 11,
+      p50_time_ms: 140,
+      p99_time_ms: 410,
+      percentile_source: 'raw',
     });
 
     expect(metric.minMs).toBe(90);
@@ -75,9 +87,13 @@ describe('Supabase row mapping', () => {
     expect(metric.p95Ms).toBe(380);
     expect(metric.sampleCount).toBe(12);
     expect(metric.sourceTier).toBe('hourly');
+    expect(metric.successCount).toBe(11);
+    expect(metric.p50Ms).toBe(140);
+    expect(metric.p99Ms).toBe(410);
+    expect(metric.percentileSource).toBe('raw');
   });
 
-  it('defaults sample count to one for a raw sample', () => {
+  it('defaults sample count to one for a raw sample, and success count to zero when null', () => {
     const metric = toPingMetric({
       ts: '2026-09-12T00:00:00Z',
       response_time_ms: 150,
@@ -87,8 +103,13 @@ describe('Supabase row mapping', () => {
       sample_count: null,
       status_code: 200,
       source_tier: 'raw',
+      success_count: null,
+      p50_time_ms: null,
+      p99_time_ms: null,
+      percentile_source: null,
     });
 
     expect(metric.sampleCount).toBe(1);
+    expect(metric.successCount).toBe(0);
   });
 });

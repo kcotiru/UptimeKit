@@ -22,6 +22,10 @@ function toChartPoint(point: SharedViewPoint, tier: string): PingMetric {
     p95Ms: point.p95Ms,
     sampleCount: point.sampleCount,
     sourceTier: tier as PingMetric['sourceTier'],
+    successCount: point.successCount,
+    p50Ms: point.p50Ms,
+    p99Ms: point.p99Ms,
+    percentileSource: point.percentileSource,
   };
 }
 
@@ -60,7 +64,7 @@ export default async function SharedViewPage({ params }: { params: { token: stri
             <StatusWord status={shared.monitorStatus} />
           </div>
           <p className="text-sm text-slate-400">{shared.viewName}</p>
-          <p className="text-xs text-slate-500 font-mono">
+          <p className="text-xs text-slate-500">
             {formatDate(shared.from)} — {formatDate(shared.to)}
           </p>
           <TierNote tier={tier} />

@@ -47,6 +47,10 @@ export interface SharedViewRow {
   p95_time_ms: number | null;
   sample_count: number | null;
   source_tier: string | null;
+  success_count: number | null;
+  p50_time_ms: number | null;
+  p99_time_ms: number | null;
+  percentile_source: string | null;
 }
 
 // Coarsest wins: if any point came from daily buckets, the whole chart is only
@@ -101,6 +105,10 @@ export function toSharedView(rows: SharedViewRow[]): SharedView | null {
       sampleCount: r.sample_count,
       minMs: r.min_time_ms,
       maxMs: r.max_time_ms,
+      successCount: r.success_count ?? 0,
+      p50Ms: r.p50_time_ms,
+      p99Ms: r.p99_time_ms,
+      percentileSource: r.percentile_source,
     })),
   };
 }

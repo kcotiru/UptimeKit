@@ -13,6 +13,10 @@ function point(overrides: Partial<PingMetric> = {}): PingMetric {
     p95Ms: null,
     sampleCount: 1,
     sourceTier: 'raw',
+    successCount: 1,
+    p50Ms: null,
+    p99Ms: null,
+    percentileSource: 'raw',
     ...overrides,
   };
 }
@@ -44,20 +48,25 @@ describe('summarize', () => {
     expect(summarize([], 'raw')).toBeNull();
   });
 
-  it('computes exact percentiles on the raw tier', () => {
+  // ping_logs_raw.response_time_ms is NOT NULL, so a failed ping still
+  // contributes its elapsed time to the raw percentile pool — these figures
+  // describe every attempt, not only successful ones. This test uses
+  // distinct values per field so a transposed field would fail.
+  it('computes exact window percentiles on the raw tier, over every attempt including failures', () => {
     const metrics = [100, 200, 300, 400].map((ms) => point({ responseTimeMs: ms }));
     const stats = summarize(metrics, 'raw')!;
 
     expect(stats.meanMs).toBe(250);
     expect(stats.p50Ms).toBe(250);
     expect(stats.p95Ms).toBe(385);
+    expect(stats.p99Ms).toBe(397);
     expect(stats.tier).toBe('raw');
   });
 
   // A window p95 cannot be recovered from per-bucket summaries, so the rolled
   // up tiers must not claim one. This is the spec's central honesty rule.
-  it('refuses to report window percentiles on rolled-up tiers', () => {
-    const metrics = [100, 200].map((ms) => point({ responseTimeMs: ms, sourceTier: 'hourly', p95Ms: ms * 2 }));
+  it('refuses to report exact window percentiles on rolled-up tiers', () => {
+    const metrics = [100, 200].map((ms) => point({ responseTimeMs: ms, sourceTier: 'hourly', p50Ms: ms, p95Ms: ms * 2, p99Ms: ms * 3 }));
     const stats = summarize(metrics, 'hourly')!;
 
     expect(stats.p50Ms).toBeNull();
@@ -65,32 +74,53 @@ describe('summarize', () => {
     expect(stats.p99Ms).toBeNull();
   });
 
-  it('reports the peak bucket p95 on the hourly tier, where buckets are exact', () => {
+  it('reports the peak per-bucket p50/p95/p99 on the hourly tier, ignoring nulls', () => {
     const metrics = [
-      point({ sourceTier: 'hourly', p95Ms: 300 }),
-      point({ sourceTier: 'hourly', p95Ms: 900 }),
+      point({ sourceTier: 'hourly', p50Ms: 110, p95Ms: 300, p99Ms: 500 }),
+      point({ sourceTier: 'hourly', p50Ms: 210, p95Ms: 900, p99Ms: 950 }),
+      point({ sourceTier: 'hourly', p50Ms: null, p95Ms: null, p99Ms: null }),
     ];
-    expect(summarize(metrics, 'hourly')!.peakP95Ms).toBe(900);
+    const stats = summarize(metrics, 'hourly')!;
+
+    expect(stats.peakP50Ms).toBe(210);
+    expect(stats.peakP95Ms).toBe(900);
+    expect(stats.peakP99Ms).toBe(950);
   });
 
-  // percentile_source never reaches the client, so a daily p95 may be a
-  // percentile of percentiles with unbounded error. Report nothing.
-  it('reports no percentile at all on the daily tier', () => {
-    const metrics = [point({ sourceTier: 'daily', p95Ms: 900 })];
+  // Daily buckets carry the same per-bucket p50/p95/p99 columns as hourly, so
+  // the same "worst bucket" figure holds — it never becomes null just
+  // because the tier is coarser.
+  it('reports the peak per-bucket percentiles on the daily tier too', () => {
+    const metrics = [
+      point({ sourceTier: 'daily', p50Ms: 140, p95Ms: 380, p99Ms: 600, percentileSource: 'raw' }),
+      point({ sourceTier: 'daily', p50Ms: 260, p95Ms: 920, p99Ms: 970, percentileSource: 'hourly_approx' }),
+    ];
     const stats = summarize(metrics, 'daily')!;
 
-    expect(stats.peakP95Ms).toBeNull();
-    expect(stats.p95Ms).toBeNull();
+    expect(stats.peakP50Ms).toBe(260);
+    expect(stats.peakP95Ms).toBe(920);
+    expect(stats.peakP99Ms).toBe(970);
   });
 
-  it('measures uptime as the share of points that were up', () => {
+  it('measures uptime on the raw tier from successCount/sampleCount', () => {
     const metrics = [
-      point({ isUp: true }),
-      point({ isUp: true }),
-      point({ isUp: true }),
-      point({ isUp: false }),
+      point({ successCount: 1, sampleCount: 1 }),
+      point({ successCount: 1, sampleCount: 1 }),
+      point({ successCount: 1, sampleCount: 1 }),
+      point({ successCount: 0, sampleCount: 1 }),
     ];
     expect(summarize(metrics, 'raw')!.uptime).toBe(0.75);
+  });
+
+  // The old implementation read isUp off buckets, which is always
+  // synthesised true, silently reading 100% no matter what actually
+  // happened. successCount/sampleCount must disprove that.
+  it('measures uptime on a rolled-up tier as sum(successCount)/sum(sampleCount), not a flat 100%', () => {
+    const metrics = [
+      point({ sourceTier: 'hourly', successCount: 9, sampleCount: 12 }),
+      point({ sourceTier: 'hourly', successCount: 8, sampleCount: 11 }),
+    ];
+    expect(summarize(metrics, 'hourly')!.uptime).toBeCloseTo(17 / 23);
   });
 
   it('sums the samples a rolled-up window stands for', () => {
@@ -99,5 +129,24 @@ describe('summarize', () => {
       point({ sourceTier: 'hourly', sampleCount: 11 }),
     ];
     expect(summarize(metrics, 'hourly')!.sampleCount).toBe(23);
+  });
+
+  it('counts only hourly_approx buckets toward approxBuckets, out of the total bucketCount', () => {
+    const metrics = [
+      point({ sourceTier: 'daily', percentileSource: 'raw' }),
+      point({ sourceTier: 'daily', percentileSource: 'hourly_approx' }),
+      point({ sourceTier: 'daily', percentileSource: 'hourly_approx' }),
+      point({ sourceTier: 'daily', percentileSource: 'raw' }),
+      point({ sourceTier: 'daily', percentileSource: 'hourly_approx' }),
+    ];
+    const stats = summarize(metrics, 'daily')!;
+
+    expect(stats.approxBuckets).toBe(3);
+    expect(stats.bucketCount).toBe(5);
+  });
+
+  it('reports zero approxBuckets on the raw tier', () => {
+    const metrics = [point(), point()];
+    expect(summarize(metrics, 'raw')!.approxBuckets).toBe(0);
   });
 });

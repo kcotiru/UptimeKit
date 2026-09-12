@@ -4,18 +4,30 @@ import type { PingMetric, Tier } from './types';
 export interface WindowStats {
   /** Arithmetic mean of every point. Always available. */
   meanMs: number;
-  /** Exact percentiles. Raw tier only — null everywhere else. */
+  /** Exact *window* percentiles. Raw tier only — a single window percentile
+   *  cannot be recovered from pre-aggregated buckets, so these stay null on
+   *  hourly and daily. */
   p50Ms: number | null;
   p95Ms: number | null;
   p99Ms: number | null;
-  /** Highest per-bucket p95. Hourly only, where each bucket's p95 was computed
-   *  by PERCENTILE_CONT over that hour's real samples. Null on daily, whose
-   *  provenance flag never reaches the client. */
+  /** Highest per-bucket p50/p95/p99 across the window — "the worst bucket's
+   *  percentile", not a window percentile. Available on hourly and daily,
+   *  where each point already carries its own bucket's percentiles. Null on
+   *  raw, where p50Ms/p95Ms/p99Ms above are already exact and stronger. */
+  peakP50Ms: number | null;
   peakP95Ms: number | null;
-  /** Share of points reporting up, 0..1. */
+  peakP99Ms: number | null;
+  /** Exact on every tier: sum(successCount) / sum(sampleCount). Rolled-up
+   *  buckets carry a real success count now, so this is never a synthesised
+   *  100%. */
   uptime: number;
   /** How many raw samples the window represents. */
   sampleCount: number;
+  /** How many buckets in this window are 'hourly_approx' (percentiles of
+   *  percentiles) rather than 'raw'. Always 0 on the raw tier. */
+  approxBuckets: number;
+  /** Total buckets (points) in the window — the denominator for approxBuckets. */
+  bucketCount: number;
   tier: Tier;
 }
 
@@ -36,12 +48,21 @@ export function percentile(sorted: number[], p: number): number {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (rank - lo);
 }
 
+/** Max of the non-null values, or null if none. */
+function peakOf(values: (number | null)[]): number | null {
+  const present = values.filter((v): v is number => v !== null);
+  return present.length > 0 ? Math.max(...present) : null;
+}
+
 /**
  * Reduces a window to the figures its tier can honestly support.
  *
- * Rolled-up tiers carry pre-aggregated buckets, and a window percentile cannot
- * be recovered from bucket summaries — so p50/p95/p99 are null there rather
- * than approximated. Returns null for an empty window.
+ * Rolled-up tiers carry pre-aggregated buckets, and a single *window*
+ * percentile cannot be recovered from them — so exact p50/p95/p99 stay null
+ * there. What the buckets do support truthfully is a peak: the worst bucket's
+ * own percentile, reported separately so the UI can say "the worst hour's p95
+ * was 402ms" without implying it is a window-wide figure. Returns null for an
+ * empty window.
  */
 export function summarize(metrics: PingMetric[], tier: Tier): WindowStats | null {
   if (metrics.length === 0) return null;
@@ -49,18 +70,28 @@ export function summarize(metrics: PingMetric[], tier: Tier): WindowStats | null
   const exact = tier === 'raw';
   const latencies = metrics.map((m) => m.responseTimeMs).sort((a, b) => a - b);
   const mean = latencies.reduce((sum, ms) => sum + ms, 0) / latencies.length;
-  const bucketP95s = metrics
-    .map((m) => m.p95Ms)
-    .filter((ms): ms is number => ms !== null);
+
+  const successCount = metrics.reduce((sum, m) => sum + m.successCount, 0);
+  const sampleCount = metrics.reduce((sum, m) => sum + (m.sampleCount || 1), 0);
+  const approxBuckets = metrics.filter((m) => m.percentileSource === 'hourly_approx').length;
 
   return {
     meanMs: Math.round(mean),
+    // ping_logs_raw.response_time_ms is NOT NULL, so a failed ping still
+    // contributes its elapsed time to this pool: raw percentiles describe
+    // every attempt, not just successful responses. Failures are not
+    // filtered out here — that would change what the number means without
+    // saying so.
     p50Ms: exact ? Math.round(percentile(latencies, 0.5)) : null,
     p95Ms: exact ? Math.round(percentile(latencies, 0.95)) : null,
     p99Ms: exact ? Math.round(percentile(latencies, 0.99)) : null,
-    peakP95Ms: tier === 'hourly' && bucketP95s.length > 0 ? Math.max(...bucketP95s) : null,
-    uptime: metrics.filter((m) => m.isUp).length / metrics.length,
-    sampleCount: metrics.reduce((sum, m) => sum + (m.sampleCount || 1), 0),
+    peakP50Ms: exact ? null : peakOf(metrics.map((m) => m.p50Ms)),
+    peakP95Ms: exact ? null : peakOf(metrics.map((m) => m.p95Ms)),
+    peakP99Ms: exact ? null : peakOf(metrics.map((m) => m.p99Ms)),
+    uptime: successCount / sampleCount,
+    sampleCount,
+    approxBuckets,
+    bucketCount: metrics.length,
     tier,
   };
 }

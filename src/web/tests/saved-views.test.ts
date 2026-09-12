@@ -65,6 +65,10 @@ describe('toSharedView', () => {
       p95_time_ms: 428,
       sample_count: 1,
       source_tier: 'raw',
+      success_count: 1,
+      p50_time_ms: 412,
+      p99_time_ms: 430,
+      percentile_source: 'raw',
     },
   ];
 
@@ -108,6 +112,10 @@ describe('toSharedView', () => {
         p95_time_ms: null,
         sample_count: null,
         source_tier: null,
+        success_count: null,
+        p50_time_ms: null,
+        p99_time_ms: null,
+        percentile_source: null,
       },
     ]);
 
