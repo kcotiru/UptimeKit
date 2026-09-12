@@ -34,8 +34,10 @@ export function MonitorRow({ monitor, metrics, onDeleteRequest }: MonitorRowProp
   return (
     <div
       className={cn(
-        'group bg-surface border rounded-lg p-4 transition-colors',
-        needsAttention ? 'border-status-down/50' : 'border-surface-border hover:border-brand-500/40'
+        'group border rounded-lg p-4 transition-colors',
+        needsAttention
+          ? 'bg-surface-alarm border-status-down/55'
+          : 'bg-surface border-surface-border hover:border-brand-500/40'
       )}
     >
       <div className="flex items-start justify-between gap-4">

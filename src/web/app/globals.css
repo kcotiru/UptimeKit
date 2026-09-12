@@ -23,16 +23,16 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #0b1326;
+  background: #1c1c1c;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2a3a5c;
+  background: #3e3e3e;
   border-radius: 8px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #525252;
 }
 
 /* The design system forbids elevation, so .glow-emerald, .glow-red and

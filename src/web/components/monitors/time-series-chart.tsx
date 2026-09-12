@@ -97,16 +97,16 @@ export function TimeSeriesChart({ metrics, height = 320 }: TimeSeriesChartProps)
                 <stop offset="95%" stopColor="#2665fd" stopOpacity={0.0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a3a5c" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#3e3e3e" vertical={false} />
             <XAxis
               dataKey="time"
-              stroke="#8f9bbd"
+              stroke="#a0a0a0"
               fontSize={11}
               tickLine={false}
-              axisLine={{ stroke: '#2a3a5c' }}
+              axisLine={{ stroke: '#3e3e3e' }}
             />
             <YAxis
-              stroke="#8f9bbd"
+              stroke="#a0a0a0"
               fontSize={11}
               tickLine={false}
               axisLine={false}
@@ -154,7 +154,7 @@ export function TimeSeriesChart({ metrics, height = 320 }: TimeSeriesChartProps)
                 key={i}
                 x1={outage.from}
                 x2={outage.to}
-                fill="#ffb4ab"
+                fill="#ff6166"
                 fillOpacity={0.12}
                 strokeOpacity={0}
               />

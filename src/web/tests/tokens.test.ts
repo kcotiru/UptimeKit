@@ -23,8 +23,8 @@ describe('design tokens', () => {
   const bg = colors.background;
 
   it('uses the design system surface colour', () => {
-    expect(bg).toBe('#0b1326');
-    expect(colors.surface.DEFAULT).toBe('#172340');
+    expect(bg).toBe('#1c1c1c');
+    expect(colors.surface.DEFAULT).toBe('#2a2a2a');
   });
 
   // The card must be legible by fill AND by border, per docs/design-system.md.
@@ -62,5 +62,13 @@ describe('design tokens', () => {
 
   it('keeps the primary out of the text palette', () => {
     expect(contrast(colors.brand['600'], bg)).toBeLessThan(4.5);
+  });
+
+  // The one surface where coloured text meets a coloured ground.
+  it('keeps text legible on the alarm fill', () => {
+    const alarm = colors.surface.alarm;
+    expect(contrast(colors.status.down, alarm)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(colors.slate['100'], alarm)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(colors.slate['400'], alarm)).toBeGreaterThanOrEqual(4.5);
   });
 });

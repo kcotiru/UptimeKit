@@ -3,9 +3,9 @@ name: DevFocus Dark
 colors:
   primary: "#2665fd"
   secondary: "#475569"
-  surface: "#0b1326"
+  surface: "#1c1c1c"
   on-surface: "#dae2fd"
-  error: "#ffb4ab"
+  error: "#ff6166"
 typography:
   body-md:
     fontFamily: Inter
@@ -24,9 +24,10 @@ Clean lines, low visual noise, high information density.
 ## Colors
 - **Primary** (#2665fd): CTAs, active states, key interactive elements
 - **Secondary** (#475569): Supporting UI, chips, secondary actions
-- **Surface** (#0b1326): Page backgrounds
+- **Surface** (#1c1c1c): Page backgrounds
 - **On-surface** (#dae2fd): Primary text on dark backgrounds
-- **Error** (#ffb4ab): Validation errors, destructive actions
+- **Error** (#ff6166): Validation errors, destructive actions
+- The ground moved off the original navy (#0b1326) because it strained the eyes; the error tone was strengthened for attention.
 
 ## Typography
 - **Headlines**: Inter, semi-bold
