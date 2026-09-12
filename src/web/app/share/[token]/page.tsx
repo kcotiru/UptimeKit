@@ -4,7 +4,7 @@ import { supabaseAnon } from '@/lib/server/supabase';
 import { StatusWord } from '@/components/monitors/status-badge';
 import { StatRow } from '@/components/monitors/stat-row';
 import { TierNote } from '@/components/monitors/tier-note';
-import { TimeSeriesChart } from '@/components/monitors/time-series-chart';
+import { MetricTabs } from '@/components/monitors/metric-tabs';
 import { summarize } from '@/lib/shared/stats';
 import { formatDate } from '@/lib/shared/utils';
 import type { PingMetric, SharedViewPoint, Tier } from '@/lib/shared/types';
@@ -80,7 +80,7 @@ export default async function SharedViewPage({ params }: { params: { token: stri
         ) : (
           <>
             {stats && <StatRow stats={stats} />}
-            <TimeSeriesChart metrics={metrics} />
+            <MetricTabs metrics={metrics} />
           </>
         )}
 

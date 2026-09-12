@@ -96,6 +96,44 @@ export function summarize(metrics: PingMetric[], tier: Tier): WindowStats | null
   };
 }
 
+/**
+ * Uptime for a single bucket, 0..100, or null when the bucket stands for no
+ * samples at all. On the raw tier a point is one sample, so this is 100 or 0
+ * and the series reads as a square wave — which is the honest shape of an
+ * outage, not a defect to smooth.
+ */
+export function bucketUptime(metric: PingMetric): number | null {
+  const total = metric.sampleCount || 0;
+  if (total <= 0) return null;
+  return (metric.successCount / total) * 100;
+}
+
+/**
+ * X-axis label for a chart point. Recharts anchors a ReferenceArea on a
+ * category axis by matching the category value; a bare HH:MM repeats every
+ * day, so on a window spanning more than 24h (the hourly and daily tiers)
+ * two different points could share a label and shade/tooltip the wrong one.
+ * Shared by every chart keyed on `metrics` so the two never drift apart.
+ */
+export function chartLabel(iso: string, spansDays: boolean): string {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return spansDays
+    ? `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${time}`
+    : time;
+}
+
+/** Whether a window of ordered metrics spans more than 24 hours — the
+ *  threshold at which {@link chartLabel} must qualify a label with the date. */
+export function spansMoreThanADay(metrics: PingMetric[]): boolean {
+  return (
+    metrics.length > 1 &&
+    new Date(metrics[metrics.length - 1].timestamp).getTime() -
+      new Date(metrics[0].timestamp).getTime() >
+      24 * 3600 * 1000
+  );
+}
+
 /** One contiguous down run, identified by the x-axis label of its first and
  *  last point (inclusive) — what a chart's ReferenceArea anchors on. */
 export interface OutageRange {

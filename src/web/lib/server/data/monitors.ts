@@ -186,6 +186,9 @@ export function toPingMetric(row: TierRow): PingMetric {
     successCount: row.success_count ?? 0,
     p50Ms: row.p50_time_ms,
     p99Ms: row.p99_time_ms,
-    percentileSource: row.percentile_source,
+    // The DB column is TEXT; narrowed here at the boundary where it enters
+    // TypeScript. select_ping_tier(_for_team) only ever emits 'raw' or
+    // 'hourly_approx' (or null), so this cast makes no untrue claim.
+    percentileSource: row.percentile_source as PingMetric['percentileSource'],
   };
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { percentile, summarize } from '../lib/shared/stats';
+import { percentile, summarize, bucketUptime } from '../lib/shared/stats';
 import type { PingMetric } from '../lib/shared/types';
 
 function point(overrides: Partial<PingMetric> = {}): PingMetric {
@@ -148,5 +148,23 @@ describe('summarize', () => {
   it('reports zero approxBuckets on the raw tier', () => {
     const metrics = [point(), point()];
     expect(summarize(metrics, 'raw')!.approxBuckets).toBe(0);
+  });
+});
+
+describe('bucketUptime', () => {
+  it('is 100 for a fully successful bucket', () => {
+    expect(bucketUptime(point({ successCount: 1, sampleCount: 1 }))).toBe(100);
+  });
+
+  it('is 0 for a fully failed bucket', () => {
+    expect(bucketUptime(point({ successCount: 0, sampleCount: 1 }))).toBe(0);
+  });
+
+  it('is the right percentage for a partial bucket', () => {
+    expect(bucketUptime(point({ successCount: 58, sampleCount: 60 }))).toBeCloseTo((58 / 60) * 100);
+  });
+
+  it('returns null rather than dividing by zero when sampleCount is 0', () => {
+    expect(bucketUptime(point({ successCount: 0, sampleCount: 0 }))).toBeNull();
   });
 });

@@ -10,7 +10,7 @@ import { StatusWord } from './status-badge';
 import { StatRow } from './stat-row';
 import { TierNote } from './tier-note';
 import { TimeRangePicker, TimeRangePreset } from './time-range-picker';
-import { TimeSeriesChart } from './time-series-chart';
+import { MetricTabs } from './metric-tabs';
 import { SaveViewButton } from './save-view-button';
 import { formatRelative, calculateTimestamps } from '@/lib/shared/utils';
 import { fetchMetricsAction } from '@/lib/server/actions/monitors';
@@ -180,7 +180,7 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
           <TierNote tier={tier} />
         </div>
 
-        <TimeSeriesChart metrics={metrics} />
+        <MetricTabs metrics={metrics} />
       </div>
     </div>
   );

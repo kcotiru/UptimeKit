@@ -1,6 +1,6 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { MonitorStatus, SavedView, SharedView } from '../../shared/types';
+import type { MonitorStatus, SavedView, SharedView, SharedViewPoint } from '../../shared/types';
 import { createSavedViewSchema } from '../../shared/validations/saved-view';
 
 const VIEW_COLUMNS =
@@ -108,7 +108,10 @@ export function toSharedView(rows: SharedViewRow[]): SharedView | null {
       successCount: r.success_count ?? 0,
       p50Ms: r.p50_time_ms,
       p99Ms: r.p99_time_ms,
-      percentileSource: r.percentile_source,
+      // The DB column is TEXT; narrowed here at the boundary where it enters
+      // TypeScript. get_shared_view only ever emits 'raw' or 'hourly_approx'
+      // (or null), so this cast makes no untrue claim.
+      percentileSource: r.percentile_source as SharedViewPoint['percentileSource'],
     })),
   };
 }

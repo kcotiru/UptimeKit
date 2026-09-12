@@ -12,7 +12,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { PingMetric } from '@/lib/shared/types';
-import { outageRanges } from '@/lib/shared/stats';
+import { outageRanges, chartLabel, spansMoreThanADay } from '@/lib/shared/stats';
 import { Activity } from 'lucide-react';
 
 /**
@@ -50,23 +50,12 @@ export function TimeSeriesChart({ metrics, height = 320 }: TimeSeriesChartProps)
   // category value. A bare HH:MM repeats every day, so on a window spanning
   // more than 24h (the hourly and daily tiers) two different points could
   // share a label and shade the wrong region. Include the date whenever that
-  // can happen.
-  const spansDays =
-    metrics.length > 1 &&
-    new Date(metrics[metrics.length - 1].timestamp).getTime() -
-      new Date(metrics[0].timestamp).getTime() >
-      24 * 3600 * 1000;
-
-  const label = (iso: string) => {
-    const d = new Date(iso);
-    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    return spansDays
-      ? `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${time}`
-      : time;
-  };
+  // can happen. Shared with UptimeChart via lib/shared/stats so the two never
+  // drift apart.
+  const spansDays = spansMoreThanADay(metrics);
 
   const formattedData = metrics.map((m) => ({
-    time: label(m.timestamp),
+    time: chartLabel(m.timestamp, spansDays),
     fullTime: new Date(m.timestamp).toLocaleString(),
     latency: m.responseTimeMs,
     // Recharts draws a band from a [low, high] tuple on one dataKey.

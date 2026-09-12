@@ -84,7 +84,7 @@ export interface PingMetric {
   p99Ms: number | null;
   /** 'raw' when this bucket's percentiles came from real samples;
    *  'hourly_approx' when they are percentiles of percentiles. */
-  percentileSource: string | null;
+  percentileSource: 'raw' | 'hourly_approx' | null;
 }
 
 /**
@@ -195,7 +195,7 @@ export interface SharedViewPoint {
   p99Ms: number | null;
   /** 'raw' when this bucket's percentiles came from real samples;
    *  'hourly_approx' when they are percentiles of percentiles. */
-  percentileSource: string | null;
+  percentileSource: 'raw' | 'hourly_approx' | null;
 }
 
 /** What an anonymous visitor gets. Note the absence of a URL field: the SQL
