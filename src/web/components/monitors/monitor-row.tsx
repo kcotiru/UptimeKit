@@ -3,7 +3,7 @@ import { ExternalLink, Trash2 } from 'lucide-react';
 import { Monitor, PingMetric } from '@/lib/shared/types';
 import { StatusWord } from './status-badge';
 import { Sparkline } from './sparkline';
-import { cn, formatRelative, formatDuration, RECENT_WINDOW_HOURS } from '@/lib/shared/utils';
+import { cn, formatRelative, downSinceLabel, RECENT_WINDOW_HOURS } from '@/lib/shared/utils';
 import { downsample } from '@/lib/shared/sparkline';
 import { summarize } from '@/lib/shared/stats';
 
@@ -29,17 +29,7 @@ export function MonitorRow({ monitor, metrics, onDeleteRequest }: MonitorRowProp
   // recent point that was actually up.
   const lastUp = needsAttention ? [...metrics].reverse().find((m) => m.isUp) ?? null : null;
 
-  const windowStartMs = Date.now() - RECENT_WINDOW_HOURS * 3600 * 1000;
-  const createdMs = new Date(monitor.createdAt).getTime();
-
-  // Without an up-sample in the window we cannot know when it went down —
-  // unless the monitor is younger than the window, in which case it cannot
-  // have been down for longer than it has existed.
-  const downLabel = lastUp
-    ? `down for ${formatDuration(lastUp.timestamp)}`
-    : createdMs > windowStartMs
-      ? `down for ${formatDuration(monitor.createdAt)}`
-      : `down for over ${RECENT_WINDOW_HOURS}h`;
+  const downLabel = downSinceLabel(monitor.createdAt, lastUp?.timestamp ?? null, RECENT_WINDOW_HOURS);
 
   return (
     <div

@@ -46,13 +46,41 @@ export function formatRelative(isoString: string | null): string {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
-/** Elapsed time with no suffix, for phrases like "down for 4m". */
-export function formatDuration(isoString: string): string {
-  const seconds = Math.max(0, Math.floor((Date.now() - new Date(isoString).getTime()) / 1000));
+/** Elapsed time with no suffix, for phrases like "down for 4m".
+ * @param now injectable current time, defaulting to `Date.now()`. */
+export function formatDuration(isoString: string, now: number = Date.now()): string {
+  const seconds = Math.max(0, Math.floor((now - new Date(isoString).getTime()) / 1000));
   if (seconds < 60) return `${seconds}s`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
   return `${Math.floor(seconds / 86400)}d`;
+}
+
+/**
+ * How long a monitor has been failing, as far as the window can actually show.
+ *
+ * With no successful sample in the window we do not know when it went down —
+ * except that a monitor younger than the window cannot have been down longer
+ * than it has existed. `now` is injectable so this is testable without clocks.
+ *
+ * @param createdAt        ISO 8601 creation timestamp of the monitor
+ * @param lastUpTimestamp  ISO 8601 of the most recent successful sample, or null
+ * @param windowHours      how far back the caller fetched
+ * @returns a bare duration such as "4m", or "over Xh" when it cannot be bounded
+ */
+export function downSinceLabel(
+  createdAt: string,
+  lastUpTimestamp: string | null,
+  windowHours: number,
+  now: number = Date.now()
+): string {
+  if (lastUpTimestamp) return `down for ${formatDuration(lastUpTimestamp, now)}`;
+
+  const windowStartMs = now - windowHours * 3600 * 1000;
+  const createdMs = new Date(createdAt).getTime();
+  if (createdMs > windowStartMs) return `down for ${formatDuration(createdAt, now)}`;
+
+  return `down for over ${windowHours}h`;
 }
 
 /** Lower sorts first. Anything needing attention outranks anything healthy. */
