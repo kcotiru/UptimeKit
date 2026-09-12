@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import type { TimeRangePreset } from './types';
+import type { Monitor, MonitorStatus, TimeRangePreset } from './types';
 
 /**
  * Combines Tailwind CSS class names with automatic conflict resolution.
@@ -41,6 +41,31 @@ export function formatRelative(isoString: string | null): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+/** Elapsed time with no suffix, for phrases like "down for 4m". */
+export function formatDuration(isoString: string): string {
+  const seconds = Math.max(0, Math.floor((Date.now() - new Date(isoString).getTime()) / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
+}
+
+/** Lower sorts first. Anything needing attention outranks anything healthy. */
+const URGENCY: Record<MonitorStatus, number> = {
+  down: 0,
+  degraded: 1,
+  unknown: 2,
+  up: 3,
+};
+
+/**
+ * Orders monitors by how much they need a human, then by name so the list does
+ * not reshuffle between renders.
+ */
+export function byUrgency(a: Monitor, b: Monitor): number {
+  return URGENCY[a.status] - URGENCY[b.status] || a.name.localeCompare(b.name);
 }
 
 /**

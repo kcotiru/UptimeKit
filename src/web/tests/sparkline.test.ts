@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sparklinePath } from '../lib/shared/sparkline';
+import { sparklinePath, downsample } from '../lib/shared/sparkline';
 import { formatRelative } from '../lib/shared/utils';
 
 describe('sparklinePath', () => {
@@ -22,6 +22,24 @@ describe('sparklinePath', () => {
   it('puts the lowest value at the bottom and the highest at the top', () => {
     // y is inverted: 0 is the top of an SVG viewport.
     expect(sparklinePath([0, 10], 100, 20)).toBe('M 0 20 L 100 0');
+  });
+});
+
+describe('downsample', () => {
+  it('returns a shorter-than-cap series unchanged', () => {
+    expect(downsample([1, 2, 3], 48)).toEqual([1, 2, 3]);
+  });
+
+  it('thins a long series to exactly max points', () => {
+    const values = Array.from({ length: 500 }, (_, i) => i);
+    expect(downsample(values, 48)).toHaveLength(48);
+  });
+
+  it('always keeps the first and last elements', () => {
+    const values = Array.from({ length: 500 }, (_, i) => i);
+    const thinned = downsample(values, 48);
+    expect(thinned[0]).toBe(0);
+    expect(thinned[thinned.length - 1]).toBe(499);
   });
 });
 

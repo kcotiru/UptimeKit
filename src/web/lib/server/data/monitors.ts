@@ -107,6 +107,48 @@ export async function getMetrics(db: SupabaseClient, id: string, from: string, t
   return (data ?? []).map(toPingMetric);
 }
 
+/**
+ * Recent raw samples for every monitor on the team, keyed by monitor id.
+ *
+ * One query rather than one per monitor: the `tenant_isolation_raw` policy on
+ * ping_logs_raw already scopes reads to the caller's team, so a single read is
+ * both correct and cheap.
+ *
+ * ponytail: fixed short window, thinned in JS. A team with hundreds of monitors
+ * on 30s intervals would want a bucketed SQL query instead.
+ */
+export async function listRecentMetrics(
+  db: SupabaseClient,
+  sinceISO: string
+): Promise<Map<string, PingMetric[]>> {
+  const { data, error } = await db
+    .from('ping_logs_raw')
+    .select('monitor_id, timestamp, response_time_ms, status_code')
+    .gte('timestamp', sinceISO)
+    .order('timestamp', { ascending: true });
+
+  if (error) throw new Error(error.message);
+
+  const byMonitor = new Map<string, PingMetric[]>();
+  for (const row of data ?? []) {
+    const list = byMonitor.get(row.monitor_id) ?? [];
+    list.push({
+      timestamp: row.timestamp,
+      responseTimeMs: Math.round(Number(row.response_time_ms)),
+      statusCode: row.status_code,
+      isUp: row.status_code !== null && row.status_code < 400,
+      minMs: null,
+      maxMs: null,
+      p95Ms: null,
+      sampleCount: 1,
+      sourceTier: 'raw',
+    });
+    byMonitor.set(row.monitor_id, list);
+  }
+
+  return byMonitor;
+}
+
 export interface TierRow {
   /** Named `ts` in SQL — an output column named `timestamp` is a Postgres syntax error. */
   ts: string;

@@ -26,3 +26,10 @@ export function sparklinePath(values: number[], width: number, height: number): 
     })
     .join(' ');
 }
+
+/** Evenly thins a series to at most `max` points, always keeping first and last. */
+export function downsample<T>(values: T[], max: number): T[] {
+  if (values.length <= max || max < 2) return values;
+  const step = (values.length - 1) / (max - 1);
+  return Array.from({ length: max }, (_, i) => values[Math.round(i * step)]);
+}
