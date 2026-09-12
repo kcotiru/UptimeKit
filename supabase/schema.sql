@@ -384,6 +384,13 @@ END $$;
 -- that is the whole point of the split. pg_temp is pinned below even though
 -- this function is INVOKER, not DEFINER: it runs inside get_shared_view's
 -- definer context, so its search_path is part of that same boundary.
+-- RETURNS TABLE cannot be widened by CREATE OR REPLACE, so this and its two
+-- callers (select_ping_tier, get_shared_view) must be dropped and recreated
+-- on every apply. Order matters: drop dependents before dependencies, so the
+-- callers are dropped first even though they're declared after this comment.
+DROP FUNCTION IF EXISTS select_ping_tier(UUID, TIMESTAMPTZ, TIMESTAMPTZ);
+DROP FUNCTION IF EXISTS select_ping_tier_for_team(UUID, UUID, TIMESTAMPTZ, TIMESTAMPTZ);
+
 CREATE OR REPLACE FUNCTION select_ping_tier_for_team(
   target_team_id UUID,
   target_monitor_id UUID,
@@ -400,7 +407,15 @@ RETURNS TABLE (
   p95_time_ms INTEGER,
   sample_count INTEGER,
   status_code INTEGER,
-  source_tier TEXT
+  source_tier TEXT,
+  -- Appended for the uptime/response-time tab split: isUp per bucket is
+  -- success_count / sample_count, exact on every tier. p50/p99 and
+  -- percentile_source ride along so rolled-up windows can chart real
+  -- percentiles instead of only p95.
+  success_count INTEGER,
+  p50_time_ms INTEGER,
+  p99_time_ms INTEGER,
+  percentile_source TEXT
 ) AS $$
 DECLARE
   now_ts TIMESTAMPTZ := NOW();
@@ -416,6 +431,10 @@ BEGIN
     r.response_time_ms,
     1,
     r.status_code,
+    'raw'::TEXT,
+    CASE WHEN r.status_code IS NOT NULL AND r.status_code < 400 THEN 1 ELSE 0 END,
+    r.response_time_ms,
+    r.response_time_ms,
     'raw'::TEXT
   FROM ping_logs_raw r
   WHERE r.monitor_id = target_monitor_id
@@ -433,7 +452,11 @@ BEGIN
     h.p95_response_time_ms,
     h.total_pings,
     NULL::INTEGER,
-    'hourly'::TEXT
+    'hourly'::TEXT,
+    h.successful_pings,
+    h.p50_response_time_ms,
+    h.p99_response_time_ms,
+    'raw'::TEXT
   FROM ping_logs_hourly h
   WHERE h.monitor_id = target_monitor_id
     AND h.team_id = target_team_id
@@ -451,7 +474,11 @@ BEGIN
     d.p95_response_time_ms,
     d.total_pings,
     NULL::INTEGER,
-    'daily'::TEXT
+    'daily'::TEXT,
+    d.successful_pings,
+    d.p50_response_time_ms,
+    d.p99_response_time_ms,
+    d.percentile_source
   FROM ping_logs_daily d
   WHERE d.monitor_id = target_monitor_id
     AND d.team_id = target_team_id
@@ -476,7 +503,11 @@ RETURNS TABLE (
   p95_time_ms INTEGER,
   sample_count INTEGER,
   status_code INTEGER,
-  source_tier TEXT
+  source_tier TEXT,
+  success_count INTEGER,
+  p50_time_ms INTEGER,
+  p99_time_ms INTEGER,
+  percentile_source TEXT
 ) AS $$
 BEGIN
   RETURN QUERY
@@ -492,6 +523,8 @@ $$ LANGUAGE plpgsql STABLE SET search_path = public;
 -- Deliberately narrow: one TEXT parameter, no dynamic SQL, pinned search_path,
 -- and monitors.url is never selected — the redaction is enforced here, in SQL,
 -- not in the React component that renders the result.
+DROP FUNCTION IF EXISTS get_shared_view(TEXT);
+
 CREATE OR REPLACE FUNCTION get_shared_view(token TEXT)
 RETURNS TABLE (
   view_name TEXT,
@@ -505,7 +538,11 @@ RETURNS TABLE (
   max_time_ms INTEGER,
   p95_time_ms INTEGER,
   sample_count INTEGER,
-  source_tier TEXT
+  source_tier TEXT,
+  success_count INTEGER,
+  p50_time_ms INTEGER,
+  p99_time_ms INTEGER,
+  percentile_source TEXT
 )
 LANGUAGE plpgsql
 STABLE
@@ -623,7 +660,11 @@ BEGIN
     t.max_time_ms,
     t.p95_time_ms,
     t.sample_count,
-    t.source_tier
+    t.source_tier,
+    t.success_count,
+    t.p50_time_ms,
+    t.p99_time_ms,
+    t.percentile_source
   FROM (SELECT 1) AS anchor
   LEFT JOIN LATERAL
     select_ping_tier_for_team(v.team_id, v.monitor_id, snap_from, snap_to) t ON TRUE;
