@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { percentile, summarize, bucketUptime } from '../lib/shared/stats';
+import { percentile, summarize, bucketUptime, coarsestTier } from '../lib/shared/stats';
 import type { PingMetric } from '../lib/shared/types';
 
 function point(overrides: Partial<PingMetric> = {}): PingMetric {
@@ -148,6 +148,28 @@ describe('summarize', () => {
   it('reports zero approxBuckets on the raw tier', () => {
     const metrics = [point(), point()];
     expect(summarize(metrics, 'raw')!.approxBuckets).toBe(0);
+  });
+});
+
+describe('coarsestTier', () => {
+  it('returns raw for an empty window', () => {
+    expect(coarsestTier([])).toBe('raw');
+  });
+
+  it('picks the coarsest tier present, regardless of row order', () => {
+    // 'daily' sits in the middle, not first or last, so a buggy "first row
+    // wins" or "last row wins" implementation would miss it.
+    const metrics = [
+      { sourceTier: 'raw' as const },
+      { sourceTier: 'daily' as const },
+      { sourceTier: 'hourly' as const },
+    ];
+    expect(coarsestTier(metrics)).toBe('daily');
+  });
+
+  it('returns raw when every row is raw', () => {
+    const metrics = [{ sourceTier: 'raw' as const }, { sourceTier: 'raw' as const }];
+    expect(coarsestTier(metrics)).toBe('raw');
   });
 });
 

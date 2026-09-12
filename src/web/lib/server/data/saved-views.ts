@@ -1,7 +1,8 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { MonitorStatus, SavedView, SharedView, SharedViewPoint } from '../../shared/types';
+import type { MonitorStatus, SavedView, SharedView, SharedViewPoint, Tier } from '../../shared/types';
 import { createSavedViewSchema } from '../../shared/validations/saved-view';
+import { coarsestTier } from '../../shared/stats';
 
 const VIEW_COLUMNS =
   'id, team_id, monitor_id, creator_id, name, configuration, share_token, revoked_at, created_at';
@@ -53,10 +54,6 @@ export interface SharedViewRow {
   percentile_source: string | null;
 }
 
-// Coarsest wins: if any point came from daily buckets, the whole chart is only
-// as trustworthy as daily buckets, and the page says so.
-const TIER_RANK: Record<string, number> = { raw: 0, hourly: 1, daily: 2 };
-
 /**
  * Folds the function's flat rows — which repeat the view header on every point —
  * into one object. Returns null for zero rows, which is what an unknown,
@@ -83,11 +80,13 @@ export function toSharedView(rows: SharedViewRow[]): SharedView | null {
   );
 
   // An empty window has no tier at all — '' matches no TIER_NOTE, so the page
-  // renders no tier label rather than a misleading one.
-  const sourceTier = series.reduce(
-    (worst, r) => ((TIER_RANK[r.source_tier] ?? 0) > (TIER_RANK[worst] ?? 0) ? r.source_tier : worst),
-    series[0]?.source_tier ?? ''
-  );
+  // renders no tier label rather than a misleading one. coarsestTier defaults
+  // an empty array to 'raw', which would be wrong here, so that case is
+  // short-circuited before it reaches the shared helper.
+  const sourceTier =
+    series.length === 0
+      ? ''
+      : coarsestTier(series.map((r) => ({ sourceTier: r.source_tier as Tier })));
 
   return {
     viewName: head.view_name,

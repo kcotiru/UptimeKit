@@ -5,7 +5,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Clock, ExternalLink, RefreshCw } from 'lucide-react';
 import { Monitor, PingMetric } from '@/lib/shared/types';
-import { summarize } from '@/lib/shared/stats';
+import { summarize, coarsestTier } from '@/lib/shared/stats';
 import { StatusWord } from './status-badge';
 import { StatRow } from './stat-row';
 import { TierNote } from './tier-note';
@@ -47,8 +47,9 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
   });
 
   // The tier is a property of the window the database chose to serve, so read
-  // it off the points rather than guessing from the preset.
-  const tier = metrics[0]?.sourceTier ?? 'raw';
+  // it off the points rather than guessing from the preset. Coarsest wins:
+  // rows are not guaranteed to arrive ordered by tier.
+  const tier = coarsestTier(metrics);
   const stats = summarize(metrics, tier);
 
   const handleSelectPreset = (

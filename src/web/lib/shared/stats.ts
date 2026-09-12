@@ -54,6 +54,22 @@ function peakOf(values: (number | null)[]): number | null {
   return present.length > 0 ? Math.max(...present) : null;
 }
 
+const TIER_RANK: Record<string, number> = { raw: 0, hourly: 1, daily: 2 };
+
+/**
+ * The coarsest tier among a window's points: if any point came from daily
+ * buckets, the whole window is only as trustworthy as daily buckets, and the
+ * UI should say so — not whichever tier happens to be on metrics[0]. Rows
+ * are not guaranteed to arrive ordered by tier, so this must reduce over all
+ * of them rather than read the first. Returns 'raw' for an empty array.
+ */
+export function coarsestTier(metrics: { sourceTier: Tier }[]): Tier {
+  return metrics.reduce<Tier>(
+    (worst, m) => (TIER_RANK[m.sourceTier] > TIER_RANK[worst] ? m.sourceTier : worst),
+    'raw'
+  );
+}
+
 /**
  * Reduces a window to the figures its tier can honestly support.
  *
