@@ -95,7 +95,7 @@ export function SaveViewButton({
               <button
                 type="submit"
                 disabled={saving}
-                className="w-full px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold rounded-lg disabled:opacity-50"
+                className="w-full px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50"
               >
                 {saving ? 'Saving…' : 'Create share link'}
               </button>

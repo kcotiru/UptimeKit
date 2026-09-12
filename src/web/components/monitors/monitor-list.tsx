@@ -68,7 +68,7 @@ export function MonitorList({ initialMonitors, metricsByMonitor }: MonitorListPr
 
         <Link
           href="/dashboard/monitors/new"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white font-semibold text-sm rounded-lg transition-all shrink-0"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm rounded-lg transition-all shrink-0"
         >
           <Plus className="h-4 w-4" /> Add monitor
         </Link>
@@ -91,7 +91,7 @@ export function MonitorList({ initialMonitors, metricsByMonitor }: MonitorListPr
           {!search && (
             <Link
               href="/dashboard/monitors/new"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold rounded-lg transition-all"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-lg transition-all"
             >
               <Plus className="h-4 w-4" /> Add your first monitor
             </Link>

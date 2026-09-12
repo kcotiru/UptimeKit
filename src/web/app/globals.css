@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-background text-slate-100 antialiased selection:bg-brand-600 selection:text-white;
+    @apply bg-background text-slate-100 antialiased selection:bg-brand-700 selection:text-white;
     /* cv02/03/04/11 are Inter's alternate glyph forms. tnum makes digits
        tabular, so latency columns align and a value going 99 -> 100 does not
        reflow its row. It is why this app needs no second, monospace family. */

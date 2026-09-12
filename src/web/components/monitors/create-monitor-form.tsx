@@ -169,7 +169,7 @@ export function CreateMonitorForm() {
             <button
               type="submit"
               disabled={submitting}
-              className="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white font-semibold text-sm rounded-lg flex items-center gap-2 transition-all"
+              className="px-6 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white font-semibold text-sm rounded-lg flex items-center gap-2 transition-all"
             >
               {submitting && <span className="inline-block animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />}
               Add monitor

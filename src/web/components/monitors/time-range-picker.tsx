@@ -105,7 +105,7 @@ export function TimeRangePicker({
               </button>
               <button
                 type="submit"
-                className="px-3 py-1 bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold rounded-lg"
+                className="px-3 py-1 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-lg"
               >
                 Apply
               </button>

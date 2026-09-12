@@ -60,6 +60,14 @@ describe('design tokens', () => {
     expect(contrast('#ffffff', colors.brand['600'])).toBeGreaterThanOrEqual(4.5);
   });
 
+  // brand-700 is the hover state for brand-600 fills. It must be a distinct,
+  // darker colour (lightening a saturated fill under a white label would
+  // push that label below 4.5:1) or the hover gives no visible feedback.
+  it('gives brand-600 a distinct, still-readable hover fill', () => {
+    expect(colors.brand['700']).not.toBe(colors.brand['600']);
+    expect(contrast('#ffffff', colors.brand['700'])).toBeGreaterThanOrEqual(4.5);
+  });
+
   it('keeps the primary out of the text palette', () => {
     expect(contrast(colors.brand['600'], bg)).toBeLessThan(4.5);
   });
