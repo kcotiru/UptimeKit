@@ -45,7 +45,7 @@ export function Sidebar() {
       <div>
         {/* Brand Header */}
         <div className="h-16 flex items-center px-6 border-b border-surface-border gap-3">
-          <div className="h-9 w-9 rounded-lg bg-brand-600/20 border border-brand-500/30 flex items-center justify-center text-brand-500">
+          <div className="h-9 w-9 rounded-lg bg-brand-600/20 border border-brand-500/30 flex items-center justify-center text-brand-400">
             <Activity className="h-5 w-5" />
           </div>
           <div>
