@@ -50,7 +50,6 @@ module.exports = {
           unknown: '#a0a0a0',
         },
         // Green is not in this palette; transient success takes the primary tint.
-        emerald: { 400: '#7ca3fe', 500: '#7ca3fe' },
         amber: { 400: '#ffd285', 500: '#ffd285' },
         red: { 400: '#ff6166', 500: '#ff6166' },
       },

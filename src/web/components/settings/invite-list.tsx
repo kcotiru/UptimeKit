@@ -168,7 +168,7 @@ export function InviteList({
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-hover hover:bg-brand-600/20 border border-surface-border text-slate-300 text-xs font-semibold rounded-lg transition-colors"
                   >
                     {copiedId === invite.id ? (
-                      <Check className="h-3.5 w-3.5 text-emerald-400" />
+                      <Check className="h-3.5 w-3.5 text-brand-400" />
                     ) : (
                       <Copy className="h-3.5 w-3.5" />
                     )}
