@@ -168,8 +168,7 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
 
       {/* Graph Filter & Chart Section */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-100">Response time</h3>
+        <div className="flex items-center justify-end">
           <div className="flex items-center gap-2">
             <SaveViewButton monitorId={monitor.id} from={window_.from} to={window_.to} />
             <TimeRangePicker selectedPreset={preset} onSelectPreset={handleSelectPreset} />
