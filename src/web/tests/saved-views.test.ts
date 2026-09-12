@@ -74,6 +74,8 @@ describe('toSharedView', () => {
     expect(shared?.monitorName).toBe('Checkout API');
     expect(shared?.points).toHaveLength(1);
     expect(shared?.points[0].responseTimeMs).toBe(412);
+    expect(shared?.points[0].minMs).toBe(400);
+    expect(shared?.points[0].maxMs).toBe(430);
   });
 
   it('reports the coarsest tier present, so the page can say the data is approximate', () => {

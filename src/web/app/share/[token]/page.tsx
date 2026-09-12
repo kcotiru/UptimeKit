@@ -4,6 +4,23 @@ import { supabaseAnon } from '@/lib/server/supabase';
 import { StatusBadge } from '@/components/monitors/status-badge';
 import { TimeSeriesChart } from '@/components/monitors/time-series-chart';
 import { formatDate } from '@/lib/shared/utils';
+import type { PingMetric, SharedViewPoint } from '@/lib/shared/types';
+
+/** A shared point carries no status code — get_shared_view never returns one —
+ *  so a public chart cannot distinguish up from down and does not try. */
+function toChartPoint(point: SharedViewPoint, tier: string): PingMetric {
+  return {
+    timestamp: point.timestamp,
+    responseTimeMs: point.responseTimeMs,
+    statusCode: null,
+    isUp: true,
+    minMs: point.minMs,
+    maxMs: point.maxMs,
+    p95Ms: point.p95Ms,
+    sampleCount: point.sampleCount,
+    sourceTier: tier as PingMetric['sourceTier'],
+  };
+}
 
 // Token-scoped and retention-sensitive — never prerender or cache.
 export const dynamic = 'force-dynamic';
@@ -30,12 +47,7 @@ export default async function SharedViewPage({ params }: { params: { token: stri
     notFound();
   }
 
-  const metrics = shared.points.map((point) => ({
-    timestamp: point.timestamp,
-    responseTimeMs: point.responseTimeMs,
-    statusCode: null,
-    isUp: true,
-  }));
+  const metrics = shared.points.map((p) => toChartPoint(p, shared.sourceTier));
 
   return (
     <div className="min-h-screen bg-background text-slate-100 p-8">

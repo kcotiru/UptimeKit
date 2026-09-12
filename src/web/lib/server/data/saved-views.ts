@@ -99,6 +99,8 @@ export function toSharedView(rows: SharedViewRow[]): SharedView | null {
       responseTimeMs: Math.round(Number(r.response_time_ms)),
       p95Ms: r.p95_time_ms,
       sampleCount: r.sample_count,
+      minMs: r.min_time_ms,
+      maxMs: r.max_time_ms,
     })),
   };
 }

@@ -111,6 +111,10 @@ export interface TierRow {
   /** Named `ts` in SQL — an output column named `timestamp` is a Postgres syntax error. */
   ts: string;
   response_time_ms: number;
+  min_time_ms: number | null;
+  max_time_ms: number | null;
+  p95_time_ms: number | null;
+  sample_count: number | null;
   status_code: number | null;
   source_tier: string;
 }
@@ -123,5 +127,10 @@ export function toPingMetric(row: TierRow): PingMetric {
     // Rolled-up tiers average away individual failures, so only raw rows can
     // report a point as down.
     isUp: row.source_tier !== 'raw' || (row.status_code !== null && row.status_code < 400),
+    minMs: row.min_time_ms,
+    maxMs: row.max_time_ms,
+    p95Ms: row.p95_time_ms,
+    sampleCount: row.sample_count ?? 1,
+    sourceTier: row.source_tier as PingMetric['sourceTier'],
   };
 }

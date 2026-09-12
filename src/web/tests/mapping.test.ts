@@ -29,7 +29,15 @@ describe('Supabase row mapping', () => {
   });
 
   it('marks a raw ping down only on a missing or error status code', () => {
-    const raw = { ts: '2026-01-01T00:00:00.000Z', response_time_ms: 12, source_tier: 'raw' };
+    const raw = {
+      ts: '2026-01-01T00:00:00.000Z',
+      response_time_ms: 12,
+      min_time_ms: null,
+      max_time_ms: null,
+      p95_time_ms: null,
+      sample_count: null,
+      source_tier: 'raw',
+    };
     expect(toPingMetric({ ...raw, status_code: 200 }).isUp).toBe(true);
     expect(toPingMetric({ ...raw, status_code: 500 }).isUp).toBe(false);
     expect(toPingMetric({ ...raw, status_code: null }).isUp).toBe(false);
@@ -39,10 +47,48 @@ describe('Supabase row mapping', () => {
     const metric = toPingMetric({
       ts: '2026-01-01T00:00:00.000Z',
       response_time_ms: 12.6,
+      min_time_ms: null,
+      max_time_ms: null,
+      p95_time_ms: null,
+      sample_count: null,
       status_code: null,
       source_tier: 'hourly',
     });
     expect(metric.isUp).toBe(true);
     expect(metric.responseTimeMs).toBe(13);
+  });
+
+  it('carries the statistics the tier function already returns', () => {
+    const metric = toPingMetric({
+      ts: '2026-09-12T00:00:00Z',
+      response_time_ms: 150,
+      min_time_ms: 90,
+      max_time_ms: 400,
+      p95_time_ms: 380,
+      sample_count: 12,
+      status_code: 200,
+      source_tier: 'hourly',
+    });
+
+    expect(metric.minMs).toBe(90);
+    expect(metric.maxMs).toBe(400);
+    expect(metric.p95Ms).toBe(380);
+    expect(metric.sampleCount).toBe(12);
+    expect(metric.sourceTier).toBe('hourly');
+  });
+
+  it('defaults sample count to one for a raw sample', () => {
+    const metric = toPingMetric({
+      ts: '2026-09-12T00:00:00Z',
+      response_time_ms: 150,
+      min_time_ms: null,
+      max_time_ms: null,
+      p95_time_ms: null,
+      sample_count: null,
+      status_code: 200,
+      source_tier: 'raw',
+    });
+
+    expect(metric.sampleCount).toBe(1);
   });
 });

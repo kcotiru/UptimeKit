@@ -49,18 +49,35 @@ export interface Monitor {
   createdAt: string;
 }
 
+/** Which rollup tier served a point. Raw rows are individual samples; the
+ *  other two are pre-aggregated buckets and cannot support a window
+ *  percentile. */
+export type Tier = 'raw' | 'hourly' | 'daily';
+
 /**
  * Single time-series ping performance metric entry.
  */
 export interface PingMetric {
   /** ISO 8601 timestamp of ping measurement */
   timestamp: string;
-  /** Response time in milliseconds */
+  /** Response time in milliseconds — the sample on `raw`, the mean otherwise */
   responseTimeMs: number;
   /** Returned HTTP status code (e.g. 200, 500, or null) */
   statusCode: number | null;
   /** Operational success status */
   isUp: boolean;
+  /** Fastest sample in this bucket; null on the raw tier */
+  minMs: number | null;
+  /** Slowest sample in this bucket; null on the raw tier */
+  maxMs: number | null;
+  /** This bucket's p95; null on the raw tier. Exact for hourly buckets;
+   *  on daily it may be a percentile of percentiles, and nothing in the
+   *  payload says which, so the UI never labels it a percentile. */
+  p95Ms: number | null;
+  /** How many raw samples this point stands for */
+  sampleCount: number;
+  /** Which tier served this point */
+  sourceTier: Tier;
 }
 
 /**
@@ -162,6 +179,9 @@ export interface SharedViewPoint {
   responseTimeMs: number;
   p95Ms: number;
   sampleCount: number;
+  /** get_shared_view returns these and toSharedView used to drop them. */
+  minMs: number | null;
+  maxMs: number | null;
 }
 
 /** What an anonymous visitor gets. Note the absence of a URL field: the SQL
