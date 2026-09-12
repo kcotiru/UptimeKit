@@ -83,7 +83,7 @@ export function WebhookList({ initialWebhooks }: { initialWebhooks: TeamWebhook[
                 {result?.id === webhook.id && (
                   <p
                     className={`inline-flex items-center gap-1.5 text-[11px] font-semibold ${
-                      result.ok ? 'text-emerald-400' : 'text-red-400'
+                      result.ok ? 'text-brand-400' : 'text-red-400'
                     }`}
                   >
                     {result.ok ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}

@@ -116,7 +116,7 @@ export function WebhookForm({ onCreated }: { onCreated?: () => void }) {
       <button
         type="submit"
         disabled={submitting}
-        className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors"
+        className="inline-flex items-center gap-2 px-4 py-2.5 bg-surface hover:bg-surface-hover border border-surface-border text-slate-100 disabled:opacity-50 text-xs font-semibold rounded-lg transition-colors"
       >
         <Plus className="h-4 w-4" />
         {submitting ? 'Adding…' : 'Add webhook'}

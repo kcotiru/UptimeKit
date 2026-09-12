@@ -111,7 +111,7 @@ export function InviteList({
           <button
             onClick={handleCreate}
             disabled={creating}
-            className="px-4 py-2.5 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-sm font-semibold rounded-lg inline-flex items-center gap-2 transition-all"
+            className="px-4 py-2.5 bg-surface hover:bg-surface-hover border border-surface-border text-slate-100 disabled:opacity-50 text-sm font-semibold rounded-lg inline-flex items-center gap-2 transition-all"
           >
             <UserPlus className="h-4 w-4" />
             {creating ? 'Creating…' : 'Create invite'}

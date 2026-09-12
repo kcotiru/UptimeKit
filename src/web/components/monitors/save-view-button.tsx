@@ -72,7 +72,7 @@ export function SaveViewButton({
                   aria-label="Copy share link"
                   className="p-2 text-slate-400 hover:text-brand-400 rounded-lg"
                 >
-                  {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                  {copied ? <Check className="h-4 w-4 text-brand-400" /> : <Copy className="h-4 w-4" />}
                 </button>
               </div>
               <p className="text-[11px] text-slate-500">

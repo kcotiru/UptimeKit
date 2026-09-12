@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, LayoutDashboard, PlusCircle, Bell, LogOut } from 'lucide-react';
+import { Activity, LayoutDashboard, PlusCircle, Settings, LogOut } from 'lucide-react';
 import { cn } from '@/lib/shared/utils';
 import { supabaseBrowser } from '@/lib/client/supabase';
 
@@ -28,7 +28,7 @@ export function Sidebar() {
     {
       name: 'Settings',
       href: '/dashboard/settings',
-      icon: Bell,
+      icon: Settings,
       active: pathname.startsWith('/dashboard/settings'),
     },
   ];
