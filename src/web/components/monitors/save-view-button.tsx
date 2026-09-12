@@ -57,7 +57,7 @@ export function SaveViewButton({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 z-30 w-80 bg-surface border border-surface-border rounded-xl p-4 shadow-2xl space-y-3">
+        <div className="absolute right-0 top-11 z-30 w-80 bg-surface border border-surface-border rounded-lg p-4 space-y-3">
           {shareUrl ? (
             <div className="space-y-2">
               <p className="text-xs font-bold text-slate-200">Anyone with this link can view it</p>
@@ -65,7 +65,7 @@ export function SaveViewButton({
                 <input
                   readOnly
                   value={shareUrl}
-                  className="flex-1 min-w-0 px-2.5 py-1.5 bg-background border border-surface-border rounded-lg text-[11px] text-slate-300 font-mono"
+                  className="flex-1 min-w-0 px-2.5 py-1.5 bg-background border border-surface-border rounded-lg text-[11px] text-slate-300"
                 />
                 <button
                   onClick={handleCopy}
@@ -76,7 +76,7 @@ export function SaveViewButton({
                 </button>
               </div>
               <p className="text-[11px] text-slate-500">
-                Revoke it any time from Notifications &rarr; Shared views.
+                Revoke it any time from Settings.
               </p>
             </div>
           ) : (

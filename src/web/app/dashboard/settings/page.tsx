@@ -43,10 +43,14 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6">
       <Header
-        title="Notifications"
+        title="Settings"
         subtitle={`Alert destinations for this team (${webhooks.length} configured)`}
       />
-      <WebhookList initialWebhooks={webhooks} />
+
+      <div className="space-y-4">
+        <h2 className="text-base font-bold text-slate-100">Alerts</h2>
+        <WebhookList initialWebhooks={webhooks} />
+      </div>
 
       <div className="space-y-4">
         <h2 className="text-base font-bold text-slate-100">Shared views</h2>

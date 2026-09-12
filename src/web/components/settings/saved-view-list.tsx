@@ -31,7 +31,7 @@ export function SavedViewList({ initialViews }: { initialViews: SavedView[] }) {
 
   if (initialViews.length === 0) {
     return (
-      <div className="bg-surface border border-surface-border border-dashed rounded-2xl p-10 text-center space-y-2">
+      <div className="bg-surface border border-surface-border border-dashed rounded-lg p-10 text-center space-y-2">
         <Share2 className="h-8 w-8 text-slate-600 mx-auto" />
         <p className="text-sm font-semibold text-slate-300">No shared views</p>
         <p className="text-xs text-slate-500 max-w-sm mx-auto">
@@ -43,19 +43,19 @@ export function SavedViewList({ initialViews }: { initialViews: SavedView[] }) {
   }
 
   return (
-    <div className="bg-surface border border-surface-border rounded-2xl divide-y divide-surface-border overflow-hidden">
+    <div className="bg-surface border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
       {initialViews.map((view) => (
         <div key={view.id} className="p-4 flex items-center justify-between gap-4">
           <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-slate-200 truncate">{view.name}</span>
               {view.revokedAt && (
-                <span className="px-2 py-0.5 rounded-md bg-red-500/15 border border-red-500/30 text-red-400 text-[11px] font-semibold">
+                <span className="px-2 py-0.5 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 text-[11px] font-semibold">
                   Revoked
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-slate-500 font-mono">
+            <p className="text-[11px] text-slate-500 tabular-nums">
               {formatDate(view.from)} — {formatDate(view.to)}
             </p>
           </div>

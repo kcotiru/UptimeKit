@@ -65,11 +65,11 @@ export function InviteList({
   return (
     <div className="space-y-4">
       {canInvite && (
-        <div className="bg-surface border border-surface-border rounded-2xl p-4 flex flex-wrap items-end gap-3">
+        <div className="bg-surface border border-surface-border rounded-lg p-4 flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[220px]">
             <label
               htmlFor="invite-role"
-              className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2"
+              className="block text-xs font-semibold text-slate-300 mb-2"
             >
               Role
             </label>
@@ -90,7 +90,7 @@ export function InviteList({
           <div className="w-32">
             <label
               htmlFor="invite-expiry"
-              className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2"
+              className="block text-xs font-semibold text-slate-300 mb-2"
             >
               Expires
             </label>
@@ -111,7 +111,7 @@ export function InviteList({
           <button
             onClick={handleCreate}
             disabled={creating}
-            className="px-4 py-2.5 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-sm font-semibold rounded-lg shadow-lg shadow-brand-600/30 inline-flex items-center gap-2 transition-all"
+            className="px-4 py-2.5 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-sm font-semibold rounded-lg inline-flex items-center gap-2 transition-all"
           >
             <UserPlus className="h-4 w-4" />
             {creating ? 'Creating…' : 'Create invite'}
@@ -126,7 +126,7 @@ export function InviteList({
       )}
 
       {initialInvites.length === 0 ? (
-        <div className="bg-surface border border-surface-border border-dashed rounded-2xl p-10 text-center space-y-2">
+        <div className="bg-surface border border-surface-border border-dashed rounded-lg p-10 text-center space-y-2">
           <UserPlus className="h-8 w-8 text-slate-600 mx-auto" />
           <p className="text-sm font-semibold text-slate-300">No invite links</p>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
@@ -136,7 +136,7 @@ export function InviteList({
           </p>
         </div>
       ) : (
-        <div className="bg-surface border border-surface-border rounded-2xl divide-y divide-surface-border overflow-hidden">
+        <div className="bg-surface border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
           {initialInvites.map((invite) => (
             <div key={invite.id} className="p-4 flex items-center justify-between gap-4">
               <div className="min-w-0 space-y-1">
@@ -145,18 +145,18 @@ export function InviteList({
                     {invite.role}
                   </span>
                   {invite.revokedAt ? (
-                    <span className="px-2 py-0.5 rounded-md bg-red-500/15 border border-red-500/30 text-red-400 text-[11px] font-semibold">
+                    <span className="px-2 py-0.5 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 text-[11px] font-semibold">
                       Revoked
                     </span>
                   ) : (
                     !isLive(invite) && (
-                      <span className="px-2 py-0.5 rounded-md bg-slate-500/15 border border-slate-500/30 text-slate-400 text-[11px] font-semibold">
+                      <span className="px-2 py-0.5 rounded-lg bg-slate-500/15 border border-slate-500/30 text-slate-400 text-[11px] font-semibold">
                         Expired
                       </span>
                     )
                   )}
                 </div>
-                <p className="text-[11px] text-slate-500 font-mono">
+                <p className="text-[11px] text-slate-500 tabular-nums">
                   Expires {formatDate(invite.expiresAt)}
                 </p>
               </div>

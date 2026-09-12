@@ -26,7 +26,7 @@ export function Sidebar() {
       active: pathname === '/dashboard/monitors/new',
     },
     {
-      name: 'Notifications',
+      name: 'Settings',
       href: '/dashboard/settings',
       icon: Bell,
       active: pathname.startsWith('/dashboard/settings'),
@@ -45,12 +45,11 @@ export function Sidebar() {
       <div>
         {/* Brand Header */}
         <div className="h-16 flex items-center px-6 border-b border-surface-border gap-3">
-          <div className="h-9 w-9 rounded-lg bg-brand-600/20 border border-brand-500/30 flex items-center justify-center text-brand-500 glow-brand">
+          <div className="h-9 w-9 rounded-lg bg-brand-600/20 border border-brand-500/30 flex items-center justify-center text-brand-500">
             <Activity className="h-5 w-5" />
           </div>
           <div>
             <h1 className="font-bold text-slate-50 tracking-tight leading-tight">UptimeKit</h1>
-            <p className="text-[11px] text-slate-400 font-medium">Status Dashboard</p>
           </div>
         </div>
 
@@ -65,7 +64,7 @@ export function Sidebar() {
                 className={cn(
                   'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
                   item.active
-                    ? 'bg-brand-600 text-white shadow-sm shadow-brand-500/20'
+                    ? 'bg-brand-600 text-white'
                     : 'text-slate-400 hover:text-slate-100 hover:bg-surface-hover'
                 )}
               >

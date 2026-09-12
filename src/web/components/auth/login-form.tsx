@@ -49,15 +49,15 @@ export function LoginForm() {
       router.push(redirect);
       router.refresh();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Network error. Unable to reach authentication server.');
+      setError(err instanceof Error ? err.message : 'Could not reach the server. Try again.');
       setLoading(false);
     }
   };
 
   return (
-    <div className="w-full max-w-md p-8 bg-surface/80 backdrop-blur-xl border border-surface-border rounded-2xl shadow-2xl space-y-6">
+    <div className="w-full max-w-md p-8 bg-surface/80 backdrop-blur-xl border border-surface-border rounded-lg space-y-6">
       <div className="text-center space-y-2">
-        <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600/20 border border-brand-500/30 text-brand-500 mb-2 glow-brand">
+        <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-brand-600/20 border border-brand-500/30 text-brand-500 mb-2">
           <Activity className="h-6 w-6" />
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-50">Welcome back</h1>
@@ -73,8 +73,8 @@ export function LoginForm() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-            Email Address
+          <label className="block text-xs font-semibold text-slate-300 mb-2">
+            Email
           </label>
           <div className="relative">
             <Mail className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
@@ -90,7 +90,7 @@ export function LoginForm() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+          <label className="block text-xs font-semibold text-slate-300 mb-2">
             Password
           </label>
           <div className="relative">
@@ -109,13 +109,13 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full mt-2 py-3 px-4 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-sm font-semibold rounded-lg shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 transition-all"
+          className="w-full mt-2 py-3 px-4 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-sm font-semibold rounded-lg flex items-center justify-center gap-2 transition-all"
         >
           {loading ? (
             <span className="inline-block animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
           ) : (
             <>
-              Sign In <ArrowRight className="h-4 w-4" />
+              Sign in <ArrowRight className="h-4 w-4" />
             </>
           )}
         </button>

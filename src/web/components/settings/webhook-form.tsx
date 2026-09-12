@@ -57,7 +57,7 @@ export function WebhookForm({ onCreated }: { onCreated?: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-surface border border-surface-border rounded-2xl p-6 shadow-xl space-y-4"
+      className="bg-surface border border-surface-border rounded-lg p-6 space-y-4"
     >
       <div>
         <h3 className="text-base font-bold text-slate-100">Add a webhook</h3>
@@ -67,14 +67,14 @@ export function WebhookForm({ onCreated }: { onCreated?: () => void }) {
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium">
+        <div className="flex items-start gap-2 p-3.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium">
           <AlertCircle className="h-4 w-4 shrink-0 mt-px" />
           <span>{error}</span>
         </div>
       )}
 
       <div className="space-y-1.5">
-        <label htmlFor="provider" className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
+        <label htmlFor="provider" className="text-[11px] text-slate-400 font-semibold">
           Provider
         </label>
         <div className="flex gap-2">
@@ -85,7 +85,7 @@ export function WebhookForm({ onCreated }: { onCreated?: () => void }) {
               onClick={() => setProvider(p.value)}
               className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${
                 provider === p.value
-                  ? 'bg-brand-600 text-white border-brand-500'
+                  ? 'border-brand-500 bg-surface-hover text-slate-100'
                   : 'bg-surface-hover text-slate-300 border-surface-border hover:text-slate-100'
               }`}
             >
@@ -96,8 +96,8 @@ export function WebhookForm({ onCreated }: { onCreated?: () => void }) {
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="url" className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
-          Destination URL
+        <label htmlFor="url" className="text-[11px] text-slate-400 font-semibold">
+          URL
         </label>
         <div className="relative">
           <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
@@ -107,7 +107,7 @@ export function WebhookForm({ onCreated }: { onCreated?: () => void }) {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://hooks.slack.com/services/..."
-            className="w-full pl-9 pr-3 py-2.5 bg-background border border-surface-border rounded-lg text-sm text-slate-100 font-mono placeholder:text-slate-600 focus:outline-none focus:border-brand-500"
+            className="w-full pl-9 pr-3 py-2.5 bg-background border border-surface-border rounded-lg text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-brand-500"
           />
         </div>
         <p className="text-[11px] text-slate-500">{activeHint}</p>

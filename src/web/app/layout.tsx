@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'UptimeKit Dashboard | High-Precision Health & Metric Monitoring',
-  description: 'Enterprise HTTP monitor management and time-series performance analytics dashboard.',
+  title: 'UptimeKit',
+  description: 'Watch your HTTP endpoints and get told when one breaks.',
 };
 
 export default function RootLayout({
