@@ -26,6 +26,26 @@ export interface TimeSeriesChartProps {
 }
 
 /**
+ * What the tooltip can honestly say about a point's outcome. `statusCode` is
+ * null for every rolled-up bucket and every point on the public share page —
+ * printing "HTTP 200" there would be a guess, not a fact. Falls back to the
+ * success ratio the bucket actually carries, and says nothing at all for the
+ * single-sample rolled-up case rather than dressing up one data point as a
+ * status code.
+ */
+function statusLabel(data: {
+  statusCode: number | null;
+  isUp: boolean;
+  successCount: number;
+  sampleCount: number;
+}): string | null {
+  if (data.statusCode !== null) return `HTTP ${data.statusCode}`;
+  if (!data.isUp) return 'no response';
+  if (data.sampleCount === 1) return null;
+  return `${data.successCount} of ${data.sampleCount} checks succeeded`;
+}
+
+/**
  * Recharts time-series performance graph visualizing response latency (ms) over time.
  */
 export function TimeSeriesChart({ metrics, height = 320 }: TimeSeriesChartProps) {
@@ -63,6 +83,8 @@ export function TimeSeriesChart({ metrics, height = 320 }: TimeSeriesChartProps)
     p95: m.p95Ms,
     isUp: m.isUp,
     statusCode: m.statusCode,
+    successCount: m.successCount,
+    sampleCount: m.sampleCount,
   }));
 
   // Contiguous runs of down samples, so an outage is visible on the time axis
@@ -126,12 +148,14 @@ export function TimeSeriesChart({ metrics, height = 320 }: TimeSeriesChartProps)
                           </span>
                         </div>
                       )}
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-300 font-medium">status</span>
-                        <span className={`font-semibold ${data.isUp ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {data.isUp ? `HTTP ${data.statusCode || 200}` : 'no response'}
-                        </span>
-                      </div>
+                      {statusLabel(data) && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-300 font-medium">status</span>
+                          <span className={`font-semibold ${data.isUp ? 'text-brand-400' : 'text-red-400'}`}>
+                            {statusLabel(data)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   );
                 }
