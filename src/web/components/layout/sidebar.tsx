@@ -12,24 +12,36 @@ import { supabaseBrowser } from '@/lib/client/supabase';
 export function Sidebar() {
   const pathname = usePathname();
 
+  // Adding a monitor happens inside the Monitors section, so it nests under it
+  // rather than sitting beside it as a peer destination. The parent keeps the
+  // fill for the section's own pages and yields it to the child on /new, so
+  // only one item ever reads as current.
+  const onNewMonitor = pathname === '/dashboard/monitors/new';
+
   const navItems = [
     {
       name: 'Monitors',
       href: '/dashboard/monitors',
       icon: LayoutDashboard,
-      active: pathname === '/dashboard' || pathname.startsWith('/dashboard/monitors'),
-    },
-    {
-      name: 'New Monitor',
-      href: '/dashboard/monitors/new',
-      icon: PlusCircle,
-      active: pathname === '/dashboard/monitors/new',
+      active:
+        (pathname === '/dashboard' || pathname.startsWith('/dashboard/monitors')) && !onNewMonitor,
+      inSection: pathname === '/dashboard' || pathname.startsWith('/dashboard/monitors'),
+      children: [
+        {
+          name: 'Add monitor',
+          href: '/dashboard/monitors/new',
+          icon: PlusCircle,
+          active: onNewMonitor,
+        },
+      ],
     },
     {
       name: 'Settings',
       href: '/dashboard/settings',
       icon: Settings,
       active: pathname.startsWith('/dashboard/settings'),
+      inSection: pathname.startsWith('/dashboard/settings'),
+      children: [],
     },
   ];
 
@@ -58,19 +70,50 @@ export function Sidebar() {
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
-                  item.active
-                    ? 'bg-brand-600 text-white'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-surface-hover'
+              <div key={item.name} className="space-y-1">
+                <Link
+                  href={item.href}
+                  aria-current={item.active ? 'page' : undefined}
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
+                    item.active
+                      ? 'bg-brand-600 text-white'
+                      : item.inSection
+                        ? 'text-slate-100 hover:bg-surface-hover'
+                        : 'text-slate-400 hover:text-slate-100 hover:bg-surface-hover'
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.name}
+                </Link>
+
+                {/* Children sit inside the section, indented and hung off a
+                    guide line so the nesting is visible without a disclosure
+                    control to operate. */}
+                {item.children.length > 0 && (
+                  <div className="ml-5 pl-3 border-l border-surface-border space-y-1">
+                    {item.children.map((child) => {
+                      const ChildIcon = child.icon;
+                      return (
+                        <Link
+                          key={child.name}
+                          href={child.href}
+                          aria-current={child.active ? 'page' : undefined}
+                          className={cn(
+                            'flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150',
+                            child.active
+                              ? 'bg-brand-600 text-white'
+                              : 'text-slate-400 hover:text-slate-100 hover:bg-surface-hover'
+                          )}
+                        >
+                          <ChildIcon className="h-3.5 w-3.5" />
+                          {child.name}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 )}
-              >
-                <Icon className="h-4 w-4" />
-                {item.name}
-              </Link>
+              </div>
             );
           })}
         </nav>

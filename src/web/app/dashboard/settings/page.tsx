@@ -42,10 +42,9 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <Header
-        title="Settings"
-        subtitle={`Alert destinations for this team (${webhooks.length} configured)`}
-      />
+      {/* The page grew past webhooks when shared views and team members moved
+          here, so the subtitle names all three rather than just the alerts. */}
+      <Header title="Settings" subtitle="Alerts, shared views and team members" />
 
       <div className="space-y-4">
         <h2 className="text-base font-bold text-slate-100">Alerts</h2>

@@ -64,54 +64,55 @@ export function InviteList({
 
   return (
     <div className="space-y-4">
+      {/* Same shape as the webhook form above it on this page: p-6, stacked
+          space-y-1.5 field groups, and the action on its own line. The two
+          selects share a row because both are short, but neither stretches —
+          a flex-1 Role select left the controls stranded apart on a wide
+          screen. */}
       {canInvite && (
-        <div className="bg-surface border border-surface-border rounded-lg p-4 flex flex-wrap items-end gap-3">
-          <div className="flex-1 min-w-[220px]">
-            <label
-              htmlFor="invite-role"
-              className="block text-xs font-semibold text-slate-300 mb-2"
-            >
-              Role
-            </label>
-            <select
-              id="invite-role"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full px-3 py-2.5 bg-background/80 border border-surface-border rounded-lg text-sm text-slate-100 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
-            >
-              {ROLES.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="bg-surface border border-surface-border rounded-lg p-6 space-y-4">
+          <div className="flex flex-wrap gap-4">
+            <div className="space-y-1.5 w-full sm:w-64">
+              <label htmlFor="invite-role" className="text-[11px] text-slate-400 font-semibold">
+                Role
+              </label>
+              <select
+                id="invite-role"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="w-full px-3 py-2.5 bg-background border border-surface-border rounded-lg text-sm text-slate-100 focus:outline-none focus:border-brand-500"
+              >
+                {ROLES.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div className="w-32">
-            <label
-              htmlFor="invite-expiry"
-              className="block text-xs font-semibold text-slate-300 mb-2"
-            >
-              Expires
-            </label>
-            <select
-              id="invite-expiry"
-              value={expiresInDays}
-              onChange={(e) => setExpiresInDays(Number(e.target.value))}
-              className="w-full px-3 py-2.5 bg-background/80 border border-surface-border rounded-lg text-sm text-slate-100 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
-            >
-              {[1, 7, 30].map((d) => (
-                <option key={d} value={d}>
-                  {d} {d === 1 ? 'day' : 'days'}
-                </option>
-              ))}
-            </select>
+            <div className="space-y-1.5 w-full sm:w-36">
+              <label htmlFor="invite-expiry" className="text-[11px] text-slate-400 font-semibold">
+                Expires
+              </label>
+              <select
+                id="invite-expiry"
+                value={expiresInDays}
+                onChange={(e) => setExpiresInDays(Number(e.target.value))}
+                className="w-full px-3 py-2.5 bg-background border border-surface-border rounded-lg text-sm text-slate-100 focus:outline-none focus:border-brand-500"
+              >
+                {[1, 7, 30].map((d) => (
+                  <option key={d} value={d}>
+                    {d} {d === 1 ? 'day' : 'days'}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <button
             onClick={handleCreate}
             disabled={creating}
-            className="px-4 py-2.5 bg-surface hover:bg-surface-hover border border-surface-border text-slate-100 disabled:opacity-50 text-sm font-semibold rounded-lg inline-flex items-center gap-2 transition-all"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-surface hover:bg-surface-hover border border-surface-border text-slate-100 disabled:opacity-50 text-xs font-semibold rounded-lg transition-colors"
           >
             <UserPlus className="h-4 w-4" />
             {creating ? 'Creating…' : 'Create invite'}
