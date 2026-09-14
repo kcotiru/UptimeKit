@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, Check, Copy, Link2Off, UserPlus } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, Copy, Link2Off, UserPlus } from 'lucide-react';
 import type { TeamInvite } from '@/lib/shared/types';
 import { formatDate } from '@/lib/shared/utils';
 import { createInviteAction, revokeInviteAction } from '@/lib/server/actions/invites';
@@ -73,18 +73,25 @@ export function InviteList({
             >
               Role
             </label>
-            <select
-              id="invite-role"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full pl-3 pr-6 py-2.5 bg-background/80 border border-surface-border rounded-lg text-sm text-slate-100 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
-            >
-              {ROLES.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
+            {/* appearance-none, then our own chevron. Chromium paints a native
+                select's arrow at the border-box edge and ignores padding-right,
+                so the arrow is only positionable once the native one is off.
+                Same icon-inside-a-control pattern as webhook-form's URL field. */}
+            <div className="relative">
+              <select
+                id="invite-role"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="w-full appearance-none pl-3 pr-8 py-2.5 bg-background/80 border border-surface-border rounded-lg text-sm text-slate-100 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
+              >
+                {ROLES.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            </div>
           </div>
 
           <div className="w-32">
@@ -94,18 +101,21 @@ export function InviteList({
             >
               Expires
             </label>
-            <select
-              id="invite-expiry"
-              value={expiresInDays}
-              onChange={(e) => setExpiresInDays(Number(e.target.value))}
-              className="w-full pl-3 pr-6 py-2.5 bg-background/80 border border-surface-border rounded-lg text-sm text-slate-100 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
-            >
-              {[1, 7, 30].map((d) => (
-                <option key={d} value={d}>
-                  {d} {d === 1 ? 'day' : 'days'}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                id="invite-expiry"
+                value={expiresInDays}
+                onChange={(e) => setExpiresInDays(Number(e.target.value))}
+                className="w-full appearance-none pl-3 pr-8 py-2.5 bg-background/80 border border-surface-border rounded-lg text-sm text-slate-100 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
+              >
+                {[1, 7, 30].map((d) => (
+                  <option key={d} value={d}>
+                    {d} {d === 1 ? 'day' : 'days'}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            </div>
           </div>
 
           <button
