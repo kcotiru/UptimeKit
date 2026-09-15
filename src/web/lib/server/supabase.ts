@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
@@ -57,8 +58,12 @@ export function supabaseAnon() {
  * not already reach, because row level security authorizes every query —
  * and the role that gates admin actions is read from the database row, not
  * the token, so a downgraded role takes effect immediately.
+ *
+ * Wrapped in React's cache() so repeated calls within one request (layout,
+ * then a page's own canInvite check) dedupe to a single round trip. cache()
+ * dedupes only within a request, so there is no cross-request staleness risk.
  */
-export async function getSessionUser() {
+export const getSessionUser = cache(async () => {
   const supabase = supabaseServer();
   const { data } = await supabase.auth.getClaims();
   const claims = data?.claims;
@@ -78,4 +83,4 @@ export async function getSessionUser() {
     // re-issuing on every role change, and user_metadata is client-writable.
     role: profile?.role ?? 'viewer',
   };
-}
+});
