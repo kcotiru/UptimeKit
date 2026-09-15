@@ -23,8 +23,8 @@ describe('design tokens', () => {
   const bg = colors.background;
 
   it('uses the design system surface colour', () => {
-    expect(bg).toBe('#1c1c1c');
-    expect(colors.surface.DEFAULT).toBe('#2a2a2a');
+    expect(bg).toBe('#121212');
+    expect(colors.surface.DEFAULT).toBe('#242424');
   });
 
   // The card must be legible by fill AND by border, per docs/design-system.md.

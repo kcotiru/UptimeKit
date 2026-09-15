@@ -104,20 +104,20 @@ export function TimeSeriesChart({ metrics, height = 320 }: TimeSeriesChartProps)
           <AreaChart data={formattedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="latencyGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#2665fd" stopOpacity={0.4} />
-                <stop offset="95%" stopColor="#2665fd" stopOpacity={0.0} />
+                <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#3e3e3e" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#333333" vertical={false} />
             <XAxis
               dataKey="time"
-              stroke="#a0a0a0"
+              stroke="#a1a1a1"
               fontSize={11}
               tickLine={false}
-              axisLine={{ stroke: '#3e3e3e' }}
+              axisLine={{ stroke: '#333333' }}
             />
             <YAxis
-              stroke="#a0a0a0"
+              stroke="#a1a1a1"
               fontSize={11}
               tickLine={false}
               axisLine={false}
@@ -176,23 +176,23 @@ export function TimeSeriesChart({ metrics, height = 320 }: TimeSeriesChartProps)
               type="monotone"
               dataKey="band"
               stroke="none"
-              fill="#2665fd"
+              fill="#4f46e5"
               fillOpacity={0.12}
               isAnimationActive={false}
             />
             <Area
               type="monotone"
               dataKey="latency"
-              stroke="#2665fd"
+              stroke="#4f46e5"
               strokeWidth={2}
               fillOpacity={1}
               fill="url(#latencyGradient)"
-              activeDot={{ r: 4, fill: '#2665fd', stroke: '#7ca3fe', strokeWidth: 2 }}
+              activeDot={{ r: 4, fill: '#4f46e5', stroke: '#a5b4fc', strokeWidth: 2 }}
             />
             <Line
               type="monotone"
               dataKey="p95"
-              stroke="#7ca3fe"
+              stroke="#a5b4fc"
               strokeWidth={1}
               strokeDasharray="3 3"
               dot={false}

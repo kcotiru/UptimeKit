@@ -71,21 +71,21 @@ export function UptimeChart({ metrics, height = 320 }: UptimeChartProps) {
           <AreaChart data={formattedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="uptimeGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#2665fd" stopOpacity={0.4} />
-                <stop offset="95%" stopColor="#2665fd" stopOpacity={0.0} />
+                <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#3e3e3e" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#333333" vertical={false} />
             <XAxis
               dataKey="time"
-              stroke="#a0a0a0"
+              stroke="#a1a1a1"
               fontSize={11}
               tickLine={false}
-              axisLine={{ stroke: '#3e3e3e' }}
+              axisLine={{ stroke: '#333333' }}
             />
             <YAxis
               domain={[0, 100]}
-              stroke="#a0a0a0"
+              stroke="#a1a1a1"
               fontSize={11}
               tickLine={false}
               axisLine={false}
@@ -119,11 +119,11 @@ export function UptimeChart({ metrics, height = 320 }: UptimeChartProps) {
             <Area
               type="monotone"
               dataKey="uptime"
-              stroke="#2665fd"
+              stroke="#4f46e5"
               strokeWidth={2}
               fillOpacity={1}
               fill="url(#uptimeGradient)"
-              activeDot={{ r: 4, fill: '#2665fd', stroke: '#7ca3fe', strokeWidth: 2 }}
+              activeDot={{ r: 4, fill: '#4f46e5', stroke: '#a5b4fc', strokeWidth: 2 }}
             />
           </AreaChart>
         </ResponsiveContainer>
