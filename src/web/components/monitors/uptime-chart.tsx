@@ -75,13 +75,13 @@ export function UptimeChart({ metrics, height = 320 }: UptimeChartProps) {
                 <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#333333" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#383838" vertical={false} />
             <XAxis
               dataKey="time"
               stroke="#a1a1a1"
               fontSize={11}
               tickLine={false}
-              axisLine={{ stroke: '#333333' }}
+              axisLine={{ stroke: '#383838' }}
             />
             <YAxis
               domain={[0, 100]}

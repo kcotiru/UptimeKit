@@ -18,7 +18,7 @@ module.exports = {
         surface: {
           DEFAULT: '#242424', // card / input fill, 1.21 step off the ground
           hover: '#2e2e2e',
-          border: '#333333',
+          border: '#383838', // 1.60:1 vs background, clears the hairline guard
           // The alarm surface: a down row is a dark red block, not a pale
           // outline. Bright red text sits on it at 5.34:1.
           alarm: '#401518',
@@ -39,7 +39,7 @@ module.exports = {
           400: '#a1a1a1', // secondary, 7.25:1
           500: '#a1a1a1',
           600: '#a1a1a1',
-          700: '#333333', // borders
+          700: '#383838', // borders
           800: '#242424', // chips
         },
         // `up` is colourless on purpose: healthy is not an event.
