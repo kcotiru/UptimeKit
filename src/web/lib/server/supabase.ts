@@ -46,21 +46,33 @@ export function supabaseAnon() {
   });
 }
 
-/** Current user plus their team, or null when unauthenticated. */
+/**
+ * Current user plus their team, or null when unauthenticated.
+ *
+ * Uses getClaims() rather than getUser(): getClaims() verifies the JWT
+ * signature locally against the project's JWKS, so — like middleware.ts —
+ * this costs no network round trip to Supabase's auth API, unlike getUser()
+ * (~120ms). Trade-off: a session revoked mid-token-lifetime stays valid here
+ * until the token expires. That window grants no data a valid token would
+ * not already reach, because row level security authorizes every query —
+ * and the role that gates admin actions is read from the database row, not
+ * the token, so a downgraded role takes effect immediately.
+ */
 export async function getSessionUser() {
   const supabase = supabaseServer();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) return null;
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  if (!claims?.sub) return null;
 
   const { data: profile } = await supabase
     .from('users')
     .select('team_id, role')
-    .eq('id', data.user.id)
+    .eq('id', claims.sub)
     .single();
 
   return {
-    id: data.user.id,
-    email: data.user.email ?? '',
+    id: claims.sub,
+    email: typeof claims.email === 'string' ? claims.email : '',
     teamId: profile?.team_id ?? '',
     // Read from the profile row, never from the JWT: app_metadata would need
     // re-issuing on every role change, and user_metadata is client-writable.
