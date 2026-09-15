@@ -57,7 +57,7 @@ export function SaveViewButton({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 z-30 w-80 bg-surface border border-surface-border rounded-lg p-4 space-y-3">
+        <div className="absolute right-0 top-11 z-30 w-80 bg-surface border border-surface-border rounded-lg p-4 space-y-4">
           {shareUrl ? (
             <div className="space-y-2">
               <p className="text-xs font-bold text-slate-200">Anyone with this link can view it</p>
@@ -80,7 +80,7 @@ export function SaveViewButton({
               </p>
             </div>
           ) : (
-            <form onSubmit={handleSave} className="space-y-3">
+            <form onSubmit={handleSave} className="space-y-4">
               <label className="block text-[11px] font-medium text-slate-400">
                 Name this window
                 <input

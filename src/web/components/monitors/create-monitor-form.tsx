@@ -86,7 +86,7 @@ export function CreateMonitorForm() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-2">
               Name

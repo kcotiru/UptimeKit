@@ -76,7 +76,7 @@ export function MonitorList({ initialMonitors, metricsByMonitor }: MonitorListPr
 
       {/* Monitor List */}
       {filteredMonitors.length === 0 ? (
-        <div className="bg-surface border border-surface-border border-dashed rounded-lg p-12 text-center space-y-4">
+        <div className="bg-surface border border-surface-border border-dashed rounded-lg p-8 text-center space-y-4">
           <div className="h-12 w-12 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center mx-auto text-slate-400">
             <Activity className="h-6 w-6" />
           </div>

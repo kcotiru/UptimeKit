@@ -43,7 +43,7 @@ export function TimeRangePicker({
   };
 
   return (
-    <div className="inline-flex items-center gap-1 p-1 bg-surface border border-surface-border rounded-lg relative">
+    <div className="inline-flex items-center gap-1 p-2 bg-surface border border-surface-border rounded-lg relative">
       <Calendar className="h-3.5 w-3.5 text-slate-500 ml-1.5" />
 
       {presets.map((preset) => (
@@ -76,9 +76,9 @@ export function TimeRangePicker({
       </button>
 
       {showCustomModal && (
-        <div className="absolute right-0 top-12 z-30 w-72 bg-surface border border-surface-border rounded-lg p-4 space-y-3 animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute right-0 top-12 z-30 w-72 bg-surface border border-surface-border rounded-lg p-4 space-y-4 animate-in fade-in zoom-in-95 duration-150">
           <h4 className="text-xs font-bold text-slate-200">Custom range</h4>
-          <form onSubmit={handleApplyCustom} className="space-y-3">
+          <form onSubmit={handleApplyCustom} className="space-y-4">
             <div>
               <label className="block text-[11px] font-medium text-slate-400 mb-1">From</label>
               <input

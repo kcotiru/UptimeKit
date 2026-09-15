@@ -73,7 +73,7 @@ export function WebhookForm({ onCreated }: { onCreated?: () => void }) {
         </div>
       )}
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <label htmlFor="provider" className="text-[11px] text-slate-400 font-semibold">
           Provider
         </label>
@@ -95,7 +95,7 @@ export function WebhookForm({ onCreated }: { onCreated?: () => void }) {
         </div>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <label htmlFor="url" className="text-[11px] text-slate-400 font-semibold">
           URL
         </label>

@@ -41,7 +41,7 @@ export function DeleteMonitorModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-surface border border-surface-border rounded-lg p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+      <div className="w-full max-w-md bg-surface border border-surface-border rounded-lg p-6 space-y-6 animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400">

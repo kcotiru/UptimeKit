@@ -22,7 +22,7 @@ export function MetricTabs({ metrics }: { metrics: PingMetric[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="inline-flex items-center gap-1 rounded-lg border border-surface-border p-1">
+      <div className="inline-flex items-center gap-1 rounded-lg border border-surface-border p-2">
         {TABS.map(({ id, label }) => (
           <button
             key={id}

@@ -128,7 +128,7 @@ export function TimeSeriesChart({ metrics, height = 320 }: TimeSeriesChartProps)
                 if (active && payload && payload.length) {
                   const data = payload[0].payload;
                   return (
-                    <div className="bg-surface/95 border border-surface-border backdrop-blur-md p-3 rounded-lg text-xs space-y-1.5 font-sans">
+                    <div className="bg-surface/95 border border-surface-border backdrop-blur-md p-3 rounded-lg text-xs space-y-2 font-sans">
                       <p className="text-slate-400 text-[11px]">{data.fullTime}</p>
                       <div className="flex items-center gap-2">
                         <span className="text-slate-300 font-medium">latency</span>

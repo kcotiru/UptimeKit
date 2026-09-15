@@ -31,7 +31,7 @@ export function SavedViewList({ initialViews }: { initialViews: SavedView[] }) {
 
   if (initialViews.length === 0) {
     return (
-      <div className="bg-surface border border-surface-border border-dashed rounded-lg p-10 text-center space-y-2">
+      <div className="bg-surface border border-surface-border border-dashed rounded-lg p-8 text-center space-y-2">
         <Share2 className="h-8 w-8 text-slate-600 mx-auto" />
         <p className="text-sm font-semibold text-slate-300">No shared views</p>
         <p className="text-xs text-slate-500 max-w-sm mx-auto">

@@ -11,7 +11,7 @@ export default function DashboardError({
 }) {
   return (
     <div className="min-h-[400px] flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-surface border border-surface-border rounded-lg p-8 text-center space-y-5">
+      <div className="max-w-md w-full bg-surface border border-surface-border rounded-lg p-8 text-center space-y-6">
         <div className="h-12 w-12 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 mx-auto">
           <AlertOctagon className="h-6 w-6" />
         </div>

@@ -56,7 +56,7 @@ export default async function SharedViewPage({ params }: { params: { token: stri
   return (
     <div className="min-h-screen bg-background text-slate-100 p-8">
       <div className="max-w-4xl mx-auto space-y-6">
-        <div className="bg-surface border border-surface-border rounded-lg p-6 space-y-3">
+        <div className="bg-surface border border-surface-border rounded-lg p-6 space-y-4">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-slate-50 tracking-tight">
               {shared.monitorName}

@@ -58,7 +58,7 @@ export function WebhookList({ initialWebhooks }: { initialWebhooks: TeamWebhook[
       <WebhookForm />
 
       {initialWebhooks.length === 0 ? (
-        <div className="bg-surface border border-surface-border border-dashed rounded-lg p-10 text-center space-y-2">
+        <div className="bg-surface border border-surface-border border-dashed rounded-lg p-8 text-center space-y-2">
           <BellOff className="h-8 w-8 text-slate-600 mx-auto" />
           <p className="text-sm font-semibold text-slate-300">No webhooks configured</p>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
