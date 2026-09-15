@@ -17,20 +17,35 @@ export default async function MonitorsPage() {
   let recentMetrics: Map<string, PingMetric[]> = new Map();
   let loadFailed = false;
 
-  try {
-    monitors = await listMonitors(supabaseServer());
-  } catch (error: unknown) {
-    console.error('Failed to fetch monitors list:', error instanceof Error ? error.message : error);
+  // allSettled, not all: a metrics failure must not blank the monitors list,
+  // and a monitors failure must not suppress the metrics fetch either — each
+  // outcome is handled independently, exactly as it was when they ran in
+  // series with their own try/catch.
+  const [monitorsResult, metricsResult] = await Promise.allSettled([
+    listMonitors(supabaseServer()),
+    listRecentMetrics(
+      supabaseServer(),
+      new Date(Date.now() - RECENT_WINDOW_HOURS * 3600 * 1000).toISOString()
+    ),
+  ]);
+
+  if (monitorsResult.status === 'fulfilled') {
+    monitors = monitorsResult.value;
+  } else {
+    console.error(
+      'Failed to fetch monitors list:',
+      monitorsResult.reason instanceof Error ? monitorsResult.reason.message : monitorsResult.reason
+    );
     loadFailed = true;
   }
 
-  try {
-    recentMetrics = await listRecentMetrics(
-      supabaseServer(),
-      new Date(Date.now() - RECENT_WINDOW_HOURS * 3600 * 1000).toISOString()
+  if (metricsResult.status === 'fulfilled') {
+    recentMetrics = metricsResult.value;
+  } else {
+    console.error(
+      'Failed to fetch recent metrics:',
+      metricsResult.reason instanceof Error ? metricsResult.reason.message : metricsResult.reason
     );
-  } catch (error: unknown) {
-    console.error('Failed to fetch recent metrics:', error instanceof Error ? error.message : error);
   }
 
   // A row alarms on anything other than 'up' (degraded counts too), so the

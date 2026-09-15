@@ -15,30 +15,51 @@ export const dynamic = 'force-dynamic';
  */
 export default async function SettingsPage() {
   let webhooks: Awaited<ReturnType<typeof listWebhooks>> = [];
-
-  try {
-    webhooks = await listWebhooks(supabaseServer());
-  } catch (error: unknown) {
-    console.error('Failed to fetch webhooks:', error instanceof Error ? error.message : error);
-  }
-
   let views: Awaited<ReturnType<typeof listSavedViews>> = [];
-  try {
-    views = await listSavedViews(supabaseServer());
-  } catch (error: unknown) {
-    console.error('Failed to fetch saved views:', error instanceof Error ? error.message : error);
+  let invites: Awaited<ReturnType<typeof listInvites>> = [];
+
+  // allSettled, not all: each fetch keeps its own fallback and console.error,
+  // exactly as when they ran in series — one rejecting must not blank the
+  // others. getSessionUser() joins the group for free: it's cache()d per
+  // request, so this is its second call, not a second round trip.
+  const [webhooksResult, viewsResult, invitesResult, sessionUserResult] = await Promise.allSettled([
+    listWebhooks(supabaseServer()),
+    listSavedViews(supabaseServer()),
+    listInvites(supabaseServer()),
+    getSessionUser(),
+  ]);
+
+  if (webhooksResult.status === 'fulfilled') {
+    webhooks = webhooksResult.value;
+  } else {
+    console.error(
+      'Failed to fetch webhooks:',
+      webhooksResult.reason instanceof Error ? webhooksResult.reason.message : webhooksResult.reason
+    );
   }
 
-  let invites: Awaited<ReturnType<typeof listInvites>> = [];
-  try {
-    invites = await listInvites(supabaseServer());
-  } catch (error: unknown) {
-    console.error('Failed to fetch invites:', error instanceof Error ? error.message : error);
+  if (viewsResult.status === 'fulfilled') {
+    views = viewsResult.value;
+  } else {
+    console.error(
+      'Failed to fetch saved views:',
+      viewsResult.reason instanceof Error ? viewsResult.reason.message : viewsResult.reason
+    );
+  }
+
+  if (invitesResult.status === 'fulfilled') {
+    invites = invitesResult.value;
+  } else {
+    console.error(
+      'Failed to fetch invites:',
+      invitesResult.reason instanceof Error ? invitesResult.reason.message : invitesResult.reason
+    );
   }
 
   // Hides the create form for non-admins. Cosmetic only — createInviteAction
   // re-checks the role, because a hidden button stops nobody.
-  const canInvite = (await getSessionUser())?.role === 'admin';
+  const canInvite =
+    sessionUserResult.status === 'fulfilled' && sessionUserResult.value?.role === 'admin';
 
   return (
     <div className="space-y-6">
