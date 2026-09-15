@@ -10,7 +10,8 @@ export default function DashboardLayout({
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <main className="flex-1 p-8 overflow-y-auto">
-          {children}
+          {/* Cap line length so a monitor row's name and timestamp stay readably close on wide displays. */}
+          <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>
       </div>
     </div>
