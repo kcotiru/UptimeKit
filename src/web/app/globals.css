@@ -27,7 +27,8 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333333;
+  /* Tracks surface.border — the thumb is a structural line like any other. */
+  background: #383838;
   border-radius: 8px;
 }
 
