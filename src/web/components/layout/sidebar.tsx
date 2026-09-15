@@ -6,10 +6,17 @@ import { Activity, LayoutDashboard, PlusCircle, Settings, LogOut } from 'lucide-
 import { cn } from '@/lib/shared/utils';
 import { supabaseBrowser } from '@/lib/client/supabase';
 
+export interface SidebarProps {
+  /** Signed-in user's email, shown in the footer for orientation. */
+  email?: string;
+  /** Signed-in user's role, shown beneath the email. */
+  role?: string;
+}
+
 /**
  * Persistent sidebar navigation bar providing branding, menu items, and logout action.
  */
-export function Sidebar() {
+export function Sidebar({ email, role }: SidebarProps) {
   const pathname = usePathname();
 
   // Adding a monitor happens inside the Monitors section, so it nests under it
@@ -121,6 +128,14 @@ export function Sidebar() {
 
       {/* Footer / Logout */}
       <div className="p-4 border-t border-surface-border">
+        {email && (
+          <div className="px-3 pb-2">
+            <p className="text-xs text-slate-400 truncate" title={email}>
+              {email}
+            </p>
+            {role && <p className="text-[11px] text-slate-500 capitalize">{role}</p>}
+          </div>
+        )}
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
