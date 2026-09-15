@@ -107,15 +107,76 @@ export async function getMetrics(db: SupabaseClient, id: string, from: string, t
   return (data ?? []).map(toPingMetric);
 }
 
+/**
+ * Recent raw samples for every monitor on the team, keyed by monitor id.
+ *
+ * One query rather than one per monitor: the `tenant_isolation_raw` policy on
+ * ping_logs_raw already scopes reads to the caller's team, so a single read is
+ * both correct and cheap.
+ *
+ * ponytail: fixed short window, thinned in JS. A team with hundreds of monitors
+ * on 30s intervals would want a bucketed SQL query instead.
+ */
+export async function listRecentMetrics(
+  db: SupabaseClient,
+  sinceISO: string
+): Promise<Map<string, PingMetric[]>> {
+  const { data, error } = await db
+    .from('ping_logs_raw')
+    .select('monitor_id, timestamp, response_time_ms, status_code')
+    .gte('timestamp', sinceISO)
+    .order('timestamp', { ascending: true });
+
+  if (error) throw new Error(error.message);
+
+  const byMonitor = new Map<string, PingMetric[]>();
+  for (const row of data ?? []) {
+    const list = byMonitor.get(row.monitor_id) ?? [];
+    const isUp = row.status_code !== null && row.status_code < 400;
+    list.push({
+      timestamp: row.timestamp,
+      responseTimeMs: Math.round(Number(row.response_time_ms)),
+      statusCode: row.status_code,
+      isUp,
+      minMs: null,
+      maxMs: null,
+      p95Ms: null,
+      sampleCount: 1,
+      sourceTier: 'raw',
+      successCount: isUp ? 1 : 0,
+      p50Ms: Math.round(Number(row.response_time_ms)),
+      p99Ms: Math.round(Number(row.response_time_ms)),
+      percentileSource: 'raw',
+    });
+    byMonitor.set(row.monitor_id, list);
+  }
+
+  return byMonitor;
+}
+
 export interface TierRow {
   /** Named `ts` in SQL — an output column named `timestamp` is a Postgres syntax error. */
   ts: string;
   response_time_ms: number;
+  min_time_ms: number | null;
+  max_time_ms: number | null;
+  p95_time_ms: number | null;
+  sample_count: number | null;
   status_code: number | null;
   source_tier: string;
+  success_count: number | null;
+  p50_time_ms: number | null;
+  p99_time_ms: number | null;
+  percentile_source: string | null;
 }
 
 export function toPingMetric(row: TierRow): PingMetric {
+  // The raw branch of select_ping_tier echoes the single sample into
+  // min/max/p95/p50/p99 (min = max = p95 = ... = the one response time).
+  // A single sample has no range and no percentile, so those five fields are
+  // forced null here rather than passed through — matching listRecentMetrics
+  // and the null-on-raw contract documented on PingMetric in types.ts.
+  const isRaw = row.source_tier === 'raw';
   return {
     timestamp: row.ts,
     responseTimeMs: Math.round(Number(row.response_time_ms)),
@@ -123,5 +184,17 @@ export function toPingMetric(row: TierRow): PingMetric {
     // Rolled-up tiers average away individual failures, so only raw rows can
     // report a point as down.
     isUp: row.source_tier !== 'raw' || (row.status_code !== null && row.status_code < 400),
+    minMs: isRaw ? null : row.min_time_ms,
+    maxMs: isRaw ? null : row.max_time_ms,
+    p95Ms: isRaw ? null : row.p95_time_ms,
+    sampleCount: row.sample_count ?? 1,
+    sourceTier: row.source_tier as PingMetric['sourceTier'],
+    successCount: row.success_count ?? 0,
+    p50Ms: isRaw ? null : row.p50_time_ms,
+    p99Ms: isRaw ? null : row.p99_time_ms,
+    // The DB column is TEXT; narrowed here at the boundary where it enters
+    // TypeScript. select_ping_tier(_for_team) only ever emits 'raw' or
+    // 'hourly_approx' (or null), so this cast makes no untrue claim.
+    percentileSource: row.percentile_source as PingMetric['percentileSource'],
   };
 }

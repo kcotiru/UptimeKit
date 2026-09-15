@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import type { TimeRangePreset } from './types';
+import type { Monitor, MonitorStatus, TimeRangePreset } from './types';
 
 /**
  * Combines Tailwind CSS class names with automatic conflict resolution.
@@ -10,6 +10,9 @@ import type { TimeRangePreset } from './types';
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
+
+/** How far back the monitors list looks for its per-row figures. */
+export const RECENT_WINDOW_HOURS = 3;
 
 /**
  * Formats an ISO date string into a localized, human-readable date string.
@@ -26,6 +29,74 @@ export function formatDate(isoString: string | null): string {
     minute: '2-digit',
     second: '2-digit',
   }).format(date);
+}
+
+/**
+ * Renders a timestamp as elapsed time. A dashboard reader wants "12s ago",
+ * not an absolute clock time they have to subtract from.
+ * @param isoString ISO 8601 timestamp or null
+ */
+export function formatRelative(isoString: string | null): string {
+  if (!isoString) return 'never';
+
+  const seconds = Math.max(0, Math.floor((Date.now() - new Date(isoString).getTime()) / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+/** Elapsed time with no suffix, for phrases like "down for 4m".
+ * @param now injectable current time, defaulting to `Date.now()`. */
+export function formatDuration(isoString: string, now: number = Date.now()): string {
+  const seconds = Math.max(0, Math.floor((now - new Date(isoString).getTime()) / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
+}
+
+/**
+ * How long a monitor has been failing, as far as the window can actually show.
+ *
+ * With no successful sample in the window we do not know when it went down —
+ * except that a monitor younger than the window cannot have been down longer
+ * than it has existed. `now` is injectable so this is testable without clocks.
+ *
+ * @param createdAt        ISO 8601 creation timestamp of the monitor
+ * @param lastUpTimestamp  ISO 8601 of the most recent successful sample, or null
+ * @param windowHours      how far back the caller fetched
+ * @returns a bare duration such as "4m", or "over Xh" when it cannot be bounded
+ */
+export function downSinceLabel(
+  createdAt: string,
+  lastUpTimestamp: string | null,
+  windowHours: number,
+  now: number = Date.now()
+): string {
+  if (lastUpTimestamp) return `down for ${formatDuration(lastUpTimestamp, now)}`;
+
+  const windowStartMs = now - windowHours * 3600 * 1000;
+  const createdMs = new Date(createdAt).getTime();
+  if (createdMs > windowStartMs) return `down for ${formatDuration(createdAt, now)}`;
+
+  return `down for over ${windowHours}h`;
+}
+
+/** Lower sorts first. Anything needing attention outranks anything healthy. */
+const URGENCY: Record<MonitorStatus, number> = {
+  down: 0,
+  degraded: 1,
+  unknown: 2,
+  up: 3,
+};
+
+/**
+ * Orders monitors by how much they need a human, then by name so the list does
+ * not reshuffle between renders.
+ */
+export function byUrgency(a: Monitor, b: Monitor): number {
+  return URGENCY[a.status] - URGENCY[b.status] || a.name.localeCompare(b.name);
 }
 
 /**

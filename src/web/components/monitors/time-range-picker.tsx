@@ -28,10 +28,10 @@ export function TimeRangePicker({
   const [customTo, setCustomTo] = useState('');
 
   const presets: { id: TimeRangePreset; label: string }[] = [
-    { id: '1h', label: 'Last 1 Hour' },
-    { id: '24h', label: 'Last 24 Hours' },
-    { id: '7d', label: 'Last 7 Days' },
-    { id: '30d', label: 'Last 30 Days' },
+    { id: '1h', label: '1h' },
+    { id: '24h', label: '24h' },
+    { id: '7d', label: '7d' },
+    { id: '30d', label: '30d' },
   ];
 
   const handleApplyCustom = (e: React.FormEvent) => {
@@ -43,20 +43,19 @@ export function TimeRangePicker({
   };
 
   return (
-    <div className="inline-flex items-center gap-1 p-1 bg-surface border border-surface-border rounded-xl relative">
-      <div className="flex items-center gap-1.5 px-2.5 py-1 text-slate-500 text-xs font-semibold">
-        <Calendar className="h-3.5 w-3.5" />
-        Time Range:
-      </div>
+    <div className="inline-flex items-center gap-1 p-2 bg-surface border border-surface-border rounded-lg relative">
+      <Calendar className="h-3.5 w-3.5 text-slate-500 ml-1.5" />
 
       {presets.map((preset) => (
         <button
           key={preset.id}
+          type="button"
+          aria-pressed={selectedPreset === preset.id}
           onClick={() => onSelectPreset(preset.id)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
             selectedPreset === preset.id
-              ? 'bg-brand-600 text-white shadow-sm shadow-brand-500/30 font-semibold'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-surface-hover'
+              ? 'bg-surface-hover text-slate-100'
+              : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           {preset.label}
@@ -64,22 +63,24 @@ export function TimeRangePicker({
       ))}
 
       <button
+        type="button"
+        aria-pressed={selectedPreset === 'custom'}
         onClick={() => setShowCustomModal(true)}
-        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
           selectedPreset === 'custom'
-            ? 'bg-brand-600 text-white shadow-sm shadow-brand-500/30 font-semibold'
-            : 'text-slate-400 hover:text-slate-200 hover:bg-surface-hover'
+            ? 'bg-surface-hover text-slate-100'
+            : 'text-slate-400 hover:text-slate-200'
         }`}
       >
         Custom
       </button>
 
       {showCustomModal && (
-        <div className="absolute right-0 top-12 z-30 w-72 bg-surface border border-surface-border rounded-xl p-4 shadow-2xl space-y-3 animate-in fade-in zoom-in-95 duration-150">
-          <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Custom Timeframe</h4>
-          <form onSubmit={handleApplyCustom} className="space-y-3">
+        <div className="absolute right-0 top-12 z-30 w-72 bg-surface border border-surface-border rounded-lg p-4 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+          <h4 className="text-xs font-bold text-slate-200">Custom range</h4>
+          <form onSubmit={handleApplyCustom} className="space-y-4">
             <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">Start (From)</label>
+              <label className="block text-[11px] font-medium text-slate-400 mb-1">From</label>
               <input
                 type="datetime-local"
                 value={customFrom}
@@ -89,7 +90,7 @@ export function TimeRangePicker({
               />
             </div>
             <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">End (To)</label>
+              <label className="block text-[11px] font-medium text-slate-400 mb-1">To</label>
               <input
                 type="datetime-local"
                 value={customTo}
@@ -108,9 +109,9 @@ export function TimeRangePicker({
               </button>
               <button
                 type="submit"
-                className="px-3 py-1 bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold rounded-md shadow-sm"
+                className="px-3 py-1 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-lg"
               >
-                Apply Range
+                Apply
               </button>
             </div>
           </form>

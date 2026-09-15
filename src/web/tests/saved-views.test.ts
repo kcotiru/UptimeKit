@@ -63,8 +63,12 @@ describe('toSharedView', () => {
       min_time_ms: 400,
       max_time_ms: 430,
       p95_time_ms: 428,
-      sample_count: 1,
-      source_tier: 'raw',
+      sample_count: 12,
+      source_tier: 'hourly',
+      success_count: 1,
+      p50_time_ms: 412,
+      p99_time_ms: 430,
+      percentile_source: 'raw',
     },
   ];
 
@@ -74,6 +78,8 @@ describe('toSharedView', () => {
     expect(shared?.monitorName).toBe('Checkout API');
     expect(shared?.points).toHaveLength(1);
     expect(shared?.points[0].responseTimeMs).toBe(412);
+    expect(shared?.points[0].minMs).toBe(400);
+    expect(shared?.points[0].maxMs).toBe(430);
   });
 
   it('reports the coarsest tier present, so the page can say the data is approximate', () => {
@@ -85,6 +91,25 @@ describe('toSharedView', () => {
       { ...rows[0], source_tier: 'hourly' },
     ];
     expect(toSharedView(mixed)?.sourceTier).toBe('daily');
+  });
+
+  it('nulls min/max/p95/p50/p99 on a raw row, since a single sample has no range or percentile', () => {
+    const raw = { ...rows[0], source_tier: 'raw', sample_count: 1 };
+    const point = toSharedView([raw])?.points[0];
+    expect(point?.minMs).toBeNull();
+    expect(point?.maxMs).toBeNull();
+    expect(point?.p95Ms).toBeNull();
+    expect(point?.p50Ms).toBeNull();
+    expect(point?.p99Ms).toBeNull();
+  });
+
+  it('keeps min/max/p95/p50/p99 on an hourly row', () => {
+    const point = toSharedView(rows)?.points[0];
+    expect(point?.minMs).toBe(400);
+    expect(point?.maxMs).toBe(430);
+    expect(point?.p95Ms).toBe(428);
+    expect(point?.p50Ms).toBe(412);
+    expect(point?.p99Ms).toBe(430);
   });
 
   it('returns null for an unknown or revoked token, which yields zero rows', () => {
@@ -106,6 +131,10 @@ describe('toSharedView', () => {
         p95_time_ms: null,
         sample_count: null,
         source_tier: null,
+        success_count: null,
+        p50_time_ms: null,
+        p99_time_ms: null,
+        percentile_source: null,
       },
     ]);
 

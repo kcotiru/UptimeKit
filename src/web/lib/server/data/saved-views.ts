@@ -1,7 +1,8 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { MonitorStatus, SavedView, SharedView } from '../../shared/types';
+import type { MonitorStatus, SavedView, SharedView, SharedViewPoint, Tier } from '../../shared/types';
 import { createSavedViewSchema } from '../../shared/validations/saved-view';
+import { coarsestTier } from '../../shared/stats';
 
 const VIEW_COLUMNS =
   'id, team_id, monitor_id, creator_id, name, configuration, share_token, revoked_at, created_at';
@@ -47,11 +48,11 @@ export interface SharedViewRow {
   p95_time_ms: number | null;
   sample_count: number | null;
   source_tier: string | null;
+  success_count: number | null;
+  p50_time_ms: number | null;
+  p99_time_ms: number | null;
+  percentile_source: string | null;
 }
-
-// Coarsest wins: if any point came from daily buckets, the whole chart is only
-// as trustworthy as daily buckets, and the page says so.
-const TIER_RANK: Record<string, number> = { raw: 0, hourly: 1, daily: 2 };
 
 /**
  * Folds the function's flat rows — which repeat the view header on every point —
@@ -79,11 +80,13 @@ export function toSharedView(rows: SharedViewRow[]): SharedView | null {
   );
 
   // An empty window has no tier at all — '' matches no TIER_NOTE, so the page
-  // renders no tier label rather than a misleading one.
-  const sourceTier = series.reduce(
-    (worst, r) => ((TIER_RANK[r.source_tier] ?? 0) > (TIER_RANK[worst] ?? 0) ? r.source_tier : worst),
-    series[0]?.source_tier ?? ''
-  );
+  // renders no tier label rather than a misleading one. coarsestTier defaults
+  // an empty array to 'raw', which would be wrong here, so that case is
+  // short-circuited before it reaches the shared helper.
+  const sourceTier =
+    series.length === 0
+      ? ''
+      : coarsestTier(series.map((r) => ({ sourceTier: r.source_tier as Tier })));
 
   return {
     viewName: head.view_name,
@@ -94,12 +97,28 @@ export function toSharedView(rows: SharedViewRow[]): SharedView | null {
     from: head.window_from,
     to: head.window_to,
     sourceTier,
-    points: series.map((r) => ({
-      timestamp: r.ts,
-      responseTimeMs: Math.round(Number(r.response_time_ms)),
-      p95Ms: r.p95_time_ms,
-      sampleCount: r.sample_count,
-    })),
+    // get_shared_view's raw branch echoes the single sample into
+    // min/max/p95/p50/p99 (min = max = p95 = ... = the one response time).
+    // A single sample has no range and no percentile, so those five fields
+    // are forced null on raw points rather than passed through.
+    points: series.map((r) => {
+      const isRaw = r.source_tier === 'raw';
+      return {
+        timestamp: r.ts,
+        responseTimeMs: Math.round(Number(r.response_time_ms)),
+        p95Ms: isRaw ? null : r.p95_time_ms,
+        sampleCount: r.sample_count,
+        minMs: isRaw ? null : r.min_time_ms,
+        maxMs: isRaw ? null : r.max_time_ms,
+        successCount: r.success_count ?? 0,
+        p50Ms: isRaw ? null : r.p50_time_ms,
+        p99Ms: isRaw ? null : r.p99_time_ms,
+        // The DB column is TEXT; narrowed here at the boundary where it enters
+        // TypeScript. get_shared_view only ever emits 'raw' or 'hourly_approx'
+        // (or null), so this cast makes no untrue claim.
+        percentileSource: r.percentile_source as SharedViewPoint['percentileSource'],
+      };
+    }),
   };
 }
 

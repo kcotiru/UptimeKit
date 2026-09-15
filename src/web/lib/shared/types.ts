@@ -49,18 +49,44 @@ export interface Monitor {
   createdAt: string;
 }
 
+/** Which rollup tier served a point. Raw rows are individual samples; the
+ *  other two are pre-aggregated buckets and cannot support a window
+ *  percentile. */
+export type Tier = 'raw' | 'hourly' | 'daily';
+
 /**
  * Single time-series ping performance metric entry.
  */
 export interface PingMetric {
   /** ISO 8601 timestamp of ping measurement */
   timestamp: string;
-  /** Response time in milliseconds */
+  /** Response time in milliseconds — the sample on `raw`, the mean otherwise */
   responseTimeMs: number;
   /** Returned HTTP status code (e.g. 200, 500, or null) */
   statusCode: number | null;
   /** Operational success status */
   isUp: boolean;
+  /** Fastest sample in this bucket; null on the raw tier */
+  minMs: number | null;
+  /** Slowest sample in this bucket; null on the raw tier */
+  maxMs: number | null;
+  /** This bucket's p95; null on the raw tier. Exact for hourly buckets;
+   *  on daily it may be a percentile of percentiles, and nothing in the
+   *  payload says which, so the UI never labels it a percentile. */
+  p95Ms: number | null;
+  /** How many raw samples this point stands for */
+  sampleCount: number;
+  /** Which tier served this point */
+  sourceTier: Tier;
+  /** Samples in this bucket that succeeded. 1 or 0 on the raw tier. */
+  successCount: number;
+  /** This bucket's p50; null on the raw tier. A single sample has no percentile. */
+  p50Ms: number | null;
+  /** This bucket's p99; null on the raw tier. A single sample has no percentile. */
+  p99Ms: number | null;
+  /** 'raw' when this bucket's percentiles came from real samples;
+   *  'hourly_approx' when they are percentiles of percentiles. */
+  percentileSource: 'raw' | 'hourly_approx' | null;
 }
 
 /**
@@ -115,6 +141,22 @@ export type TimeRangePreset = '1h' | '24h' | '7d' | '30d' | 'custom';
  *  message without a try/catch around every call. */
 export type ActionResult<T = void> = { ok: true; data: T } | { ok: false; error: string };
 
+/** A bearer link that lets its holder register straight into a team. */
+export interface TeamInvite {
+  /** Unique invite identifier (UUID v4) */
+  id: string;
+  /** 43-char base64url token embedded in the /register?invite= URL */
+  token: string;
+  /** Role the holder joins as — 'admin' | 'member' | 'viewer' */
+  role: string;
+  /** ISO 8601 expiry; a link with no end date is a permanent key to the team */
+  expiresAt: string;
+  /** Set once revoked; the link stops working but members who joined keep their seat */
+  revokedAt: string | null;
+  /** ISO 8601 creation timestamp */
+  createdAt: string;
+}
+
 /** A pinned, absolute time window on one monitor, shareable by token. */
 export interface SavedView {
   /** Unique saved view identifier (UUID v4) */
@@ -144,8 +186,20 @@ export interface SavedView {
 export interface SharedViewPoint {
   timestamp: string;
   responseTimeMs: number;
-  p95Ms: number;
+  /** Null on the raw tier — a single sample has no percentile. */
+  p95Ms: number | null;
   sampleCount: number;
+  /** Fastest/slowest sample in this bucket; null on the raw tier. */
+  minMs: number | null;
+  maxMs: number | null;
+  /** Samples in this bucket that succeeded. 1 or 0 on the raw tier. */
+  successCount: number;
+  /** This bucket's p50/p99; null on the raw tier. A single sample has no percentile. */
+  p50Ms: number | null;
+  p99Ms: number | null;
+  /** 'raw' when this bucket's percentiles came from real samples;
+   *  'hourly_approx' when they are percentiles of percentiles. */
+  percentileSource: 'raw' | 'hourly_approx' | null;
 }
 
 /** What an anonymous visitor gets. Note the absence of a URL field: the SQL

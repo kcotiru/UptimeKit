@@ -4,39 +4,47 @@
 
 @layer base {
   body {
-    @apply bg-background text-slate-100 antialiased selection:bg-brand-500 selection:text-white;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    @apply bg-background text-slate-100 antialiased selection:bg-brand-700 selection:text-white;
+    /* cv02/03/04/11 are Inter's alternate glyph forms. tnum makes digits
+       tabular, so latency columns align and a value going 99 -> 100 does not
+       reflow its row. It is why this app needs no second, monospace family. */
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
+  }
+
+  /* One visible focus style for everything, per the design system's 8px rule. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-background;
   }
 }
 
-/* Custom subtle scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0B0F17;
+  background: #121212;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1F2937;
-  border-radius: 3px;
+  /* Tracks surface.border — the thumb is a structural line like any other. */
+  background: #383838;
+  border-radius: 8px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #374151;
+  background: #4a4a4a;
 }
 
-/* Ambient glow utility */
-.glow-emerald {
-  box-shadow: 0 0 20px -5px rgba(16, 185, 129, 0.3);
-}
+/* The design system forbids elevation, so .glow-emerald, .glow-red and
+   .glow-brand are gone. Separation comes from fill and border alone. */
 
-.glow-red {
-  box-shadow: 0 0 20px -5px rgba(239, 68, 68, 0.3);
-}
-
-.glow-brand {
-  box-shadow: 0 0 25px -5px rgba(59, 130, 246, 0.3);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

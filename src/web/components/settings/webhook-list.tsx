@@ -58,7 +58,7 @@ export function WebhookList({ initialWebhooks }: { initialWebhooks: TeamWebhook[
       <WebhookForm />
 
       {initialWebhooks.length === 0 ? (
-        <div className="bg-surface border border-surface-border border-dashed rounded-2xl p-10 text-center space-y-2">
+        <div className="bg-surface border border-surface-border border-dashed rounded-lg p-8 text-center space-y-2">
           <BellOff className="h-8 w-8 text-slate-600 mx-auto" />
           <p className="text-sm font-semibold text-slate-300">No webhooks configured</p>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
@@ -67,23 +67,23 @@ export function WebhookList({ initialWebhooks }: { initialWebhooks: TeamWebhook[
           </p>
         </div>
       ) : (
-        <div className="bg-surface border border-surface-border rounded-2xl divide-y divide-surface-border overflow-hidden">
+        <div className="bg-surface border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
           {initialWebhooks.map((webhook) => (
             <div key={webhook.id} className="p-4 flex items-center justify-between gap-4">
               <div className="min-w-0 space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-md bg-brand-600/15 border border-brand-500/30 text-brand-400 text-[11px] font-semibold">
+                  <span className="px-2 py-0.5 rounded-lg bg-brand-600/15 border border-brand-500/30 text-brand-400 text-[11px] font-semibold">
                     {PROVIDER_LABEL[webhook.provider]}
                   </span>
                   <span className="text-[11px] text-slate-500">
                     Added {formatDate(webhook.createdAt)}
                   </span>
                 </div>
-                <p className="text-xs text-slate-300 font-mono truncate">{webhook.url}</p>
+                <p className="text-xs text-slate-300 truncate">{webhook.url}</p>
                 {result?.id === webhook.id && (
                   <p
                     className={`inline-flex items-center gap-1.5 text-[11px] font-semibold ${
-                      result.ok ? 'text-emerald-400' : 'text-red-400'
+                      result.ok ? 'text-brand-400' : 'text-red-400'
                     }`}
                   >
                     {result.ok ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}

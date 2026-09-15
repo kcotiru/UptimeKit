@@ -3,13 +3,16 @@
 import { useState } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Clock, ExternalLink, RefreshCw } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Clock, ExternalLink, RefreshCw } from 'lucide-react';
 import { Monitor, PingMetric } from '@/lib/shared/types';
-import { StatusBadge } from './status-badge';
+import { summarize, coarsestTier } from '@/lib/shared/stats';
+import { StatusWord } from './status-badge';
+import { StatRow } from './stat-row';
+import { TierNote } from './tier-note';
 import { TimeRangePicker, TimeRangePreset } from './time-range-picker';
-import { TimeSeriesChart } from './time-series-chart';
+import { MetricTabs } from './metric-tabs';
 import { SaveViewButton } from './save-view-button';
-import { formatDate, calculateTimestamps } from '@/lib/shared/utils';
+import { formatRelative, calculateTimestamps } from '@/lib/shared/utils';
 import { fetchMetricsAction } from '@/lib/server/actions/monitors';
 
 /**
@@ -42,6 +45,12 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
     from: searchParams.get('from') ?? initialBounds.from,
     to: searchParams.get('to') ?? initialBounds.to,
   });
+
+  // The tier is a property of the window the database chose to serve, so read
+  // it off the points rather than guessing from the preset. Coarsest wins:
+  // rows are not guaranteed to arrive ordered by tier.
+  const tier = coarsestTier(metrics);
+  const stats = summarize(metrics, tier);
 
   const handleSelectPreset = (
     newPreset: TimeRangePreset,
@@ -85,7 +94,7 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
         setError(outcome.error);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Network error while fetching metrics';
+      const msg = err instanceof Error ? err.message : 'Could not load those metrics. Try again.';
       setError(msg);
       console.error('Error fetching metrics:', err);
     } finally {
@@ -101,7 +110,7 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
           href="/dashboard/monitors"
           className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to Monitors
+          <ArrowLeft className="h-4 w-4" /> All monitors
         </Link>
         <button
           onClick={() => {
@@ -110,29 +119,30 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
           }}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-surface-hover border border-surface-border text-slate-300 text-xs font-semibold rounded-lg transition-colors"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh Metrics
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
         </button>
       </div>
 
       {error && (
-        <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium">
-          {error}
+        <div className="p-3.5 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-3 text-red-400 text-sm">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <span>{error}</span>
         </div>
       )}
 
       {/* Monitor Header Overview */}
-      <div className="bg-surface border border-surface-border rounded-2xl p-6 shadow-xl space-y-4">
+      <div className="bg-surface border border-surface-border rounded-lg p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-slate-50 tracking-tight">{monitor.name}</h1>
-              <StatusBadge status={monitor.status} />
+              <StatusWord status={monitor.status} />
             </div>
             <a
               href={monitor.url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-brand-400 font-mono transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-brand-400 transition-colors"
             >
               {monitor.url} <ExternalLink className="h-3.5 w-3.5" />
             </a>
@@ -140,18 +150,18 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
 
           <div className="flex items-center gap-6 text-xs text-slate-400 border-t sm:border-t-0 sm:border-l border-surface-border pt-3 sm:pt-0 sm:pl-6">
             <div>
-              <p className="text-[11px] text-slate-500 uppercase tracking-wider">Interval</p>
-              <p className="font-semibold text-slate-200 font-mono flex items-center gap-1 mt-0.5">
+              <p className="text-[11px] text-slate-500">interval</p>
+              <p className="font-semibold text-slate-200 flex items-center gap-1 mt-0.5">
                 <Clock className="h-3.5 w-3.5 text-slate-400" /> {monitor.intervalSeconds}s
               </p>
             </div>
             <div>
-              <p className="text-[11px] text-slate-500 uppercase tracking-wider">Timeout</p>
-              <p className="font-semibold text-slate-200 font-mono mt-0.5">{monitor.timeoutMs}ms</p>
+              <p className="text-[11px] text-slate-500">timeout</p>
+              <p className="font-semibold text-slate-200 mt-0.5">{monitor.timeoutMs}ms</p>
             </div>
             <div>
-              <p className="text-[11px] text-slate-500 uppercase tracking-wider">Last Check</p>
-              <p className="font-semibold text-slate-200 font-mono mt-0.5">{formatDate(monitor.lastCheckedAt)}</p>
+              <p className="text-[11px] text-slate-500">last check</p>
+              <p className="font-semibold text-slate-200 mt-0.5">{formatRelative(monitor.lastCheckedAt)}</p>
             </div>
           </div>
         </div>
@@ -159,15 +169,19 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
 
       {/* Graph Filter & Chart Section */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-100">Performance History</h3>
+        <div className="flex items-center justify-end">
           <div className="flex items-center gap-2">
             <SaveViewButton monitorId={monitor.id} from={window_.from} to={window_.to} />
             <TimeRangePicker selectedPreset={preset} onSelectPreset={handleSelectPreset} />
           </div>
         </div>
 
-        <TimeSeriesChart metrics={metrics} />
+        <div className="space-y-2">
+          {stats && <StatRow stats={stats} />}
+          <TierNote tier={tier} />
+        </div>
+
+        <MetricTabs metrics={metrics} />
       </div>
     </div>
   );

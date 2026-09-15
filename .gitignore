@@ -145,6 +145,8 @@ diff_utf8.txt
 .specify
 .serena
 graphify-out
-specs
+# Anchored: this is the root spec-kit directory, not any nested docs/**/specs.
+/specs
 venv
 .devswarm-temp/
+.claude/context/SAVE-STATE.md

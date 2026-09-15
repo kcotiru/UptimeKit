@@ -41,15 +41,14 @@ export function DeleteMonitorModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-surface border border-surface-border rounded-2xl p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+      <div className="w-full max-w-md bg-surface border border-surface-border rounded-lg p-6 space-y-6 animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400">
+            <div className="h-10 w-10 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400">
               <AlertTriangle className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-100 text-lg">Delete Monitor</h3>
-              <p className="text-xs text-slate-400">This action cannot be undone</p>
+              <h3 className="font-bold text-slate-100 text-lg">Delete this monitor?</h3>
             </div>
           </div>
           <button
@@ -75,10 +74,10 @@ export function DeleteMonitorModal({
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-lg shadow-lg shadow-red-600/30 transition-colors flex items-center gap-2"
+            className="px-4 py-2 text-sm font-semibold border border-status-down/40 bg-status-down/10 text-status-down hover:bg-status-down/20 disabled:opacity-50 rounded-lg transition-colors flex items-center gap-2"
           >
-            {deleting && <span className="inline-block animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full" />}
-            Confirm Deletion
+            {deleting && <span className="inline-block animate-spin h-3.5 w-3.5 border-2 border-status-down border-t-transparent rounded-full" />}
+            Delete monitor
           </button>
         </div>
       </div>

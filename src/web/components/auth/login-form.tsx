@@ -4,17 +4,13 @@ import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Activity, Lock, Mail, AlertCircle, ArrowRight } from 'lucide-react';
+import { supabaseBrowser } from '@/lib/client/supabase';
+import { safeRedirect } from '@/lib/shared/validations/redirect';
 
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // Only same-origin paths. `//evil.com` and absolute URLs would make this an
-  // open redirect: sign in on the real site, land on an attacker's page.
-  const requested = searchParams.get('redirect');
-  const redirect =
-    requested && requested.startsWith('/') && !requested.startsWith('//')
-      ? requested
-      : '/dashboard/monitors';
+  const redirect = safeRedirect(searchParams.get('redirect'));
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,16 +29,19 @@ export function LoginForm() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+      const { error: signInError } = await supabaseBrowser().auth.signInWithPassword({
+        email,
+        password,
       });
 
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        setError(data.error || 'Invalid credentials. Please check your details and try again.');
+      if (signInError) {
+        // Supabase returns this for an unconfirmed address; the generic
+        // "invalid credentials" text would send people hunting for a typo.
+        setError(
+          signInError.message.toLowerCase().includes('not confirmed')
+            ? 'Please confirm your email address first — check your inbox for the link.'
+            : 'Invalid credentials. Please check your details and try again.'
+        );
         setLoading(false);
         return;
       }
@@ -50,15 +49,15 @@ export function LoginForm() {
       router.push(redirect);
       router.refresh();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Network error. Unable to reach authentication server.');
+      setError(err instanceof Error ? err.message : 'Could not reach the server. Try again.');
       setLoading(false);
     }
   };
 
   return (
-    <div className="w-full max-w-md p-8 bg-surface/80 backdrop-blur-xl border border-surface-border rounded-2xl shadow-2xl space-y-6">
+    <div className="w-full max-w-md p-8 bg-surface border border-surface-border rounded-lg space-y-6">
       <div className="text-center space-y-2">
-        <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600/20 border border-brand-500/30 text-brand-500 mb-2 glow-brand">
+        <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-brand-600/20 border border-brand-500/30 text-brand-400 mb-2">
           <Activity className="h-6 w-6" />
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-50">Welcome back</h1>
@@ -74,8 +73,8 @@ export function LoginForm() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-            Email Address
+          <label className="block text-xs font-semibold text-slate-300 mb-2">
+            Email
           </label>
           <div className="relative">
             <Mail className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
@@ -91,7 +90,7 @@ export function LoginForm() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+          <label className="block text-xs font-semibold text-slate-300 mb-2">
             Password
           </label>
           <div className="relative">
@@ -110,19 +109,24 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full mt-2 py-3 px-4 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-sm font-semibold rounded-lg shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 transition-all"
+          className="w-full mt-2 py-3 px-4 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg flex items-center justify-center gap-2 transition-all"
         >
           {loading ? (
             <span className="inline-block animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
           ) : (
             <>
-              Sign In <ArrowRight className="h-4 w-4" />
+              Sign in <ArrowRight className="h-4 w-4" />
             </>
           )}
         </button>
       </form>
 
-      <div className="text-center pt-2 border-t border-surface-border/50">
+      <div className="text-center pt-2 border-t border-surface-border/50 space-y-2">
+        <p className="text-xs text-slate-400">
+          <Link href="/forgot-password" className="text-slate-400 hover:text-slate-200 hover:underline">
+            Forgot your password?
+          </Link>
+        </p>
         <p className="text-xs text-slate-400">
           Don&apos;t have an account?{' '}
           <Link href="/register" className="text-brand-400 font-semibold hover:underline">

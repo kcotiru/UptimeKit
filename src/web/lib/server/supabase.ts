@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
@@ -29,22 +30,16 @@ export function supabaseServer() {
 }
 
 /**
- * Service-role client. Bypasses row level security — only for signup, where the
- * team row has to exist before the user has a session. Never expose to the browser.
- */
-export function supabaseAdmin() {
-  return createClient(SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
-/**
  * Session-free client using the public anon key. For pages served to visitors
  * with no account — currently only /share/[token], where authorization is the
  * token itself, checked inside get_shared_view. Carries no elevated privilege:
  * every RLS policy still applies, which is exactly why the share path needs a
- * SECURITY DEFINER function rather than a direct table read. Do not confuse
- * this with supabaseAdmin(), which uses the service-role key and bypasses RLS.
+ * SECURITY DEFINER function rather than a direct table read.
+ *
+ * There is deliberately no service-role client anywhere in this app. Signup used
+ * to need one to create the team before the user had a session; the
+ * handle_new_user() trigger does that inside the database now, so the
+ * RLS-bypassing key never reaches a request path.
  */
 export function supabaseAnon() {
   return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -52,21 +47,40 @@ export function supabaseAnon() {
   });
 }
 
-/** Current user plus their team, or null when unauthenticated. */
-export async function getSessionUser() {
+/**
+ * Current user plus their team, or null when unauthenticated.
+ *
+ * Uses getClaims() rather than getUser(): getClaims() verifies the JWT
+ * signature locally against the project's JWKS, so — like middleware.ts —
+ * this costs no network round trip to Supabase's auth API, unlike getUser()
+ * (~120ms). Trade-off: a session revoked mid-token-lifetime stays valid here
+ * until the token expires. That window grants no data a valid token would
+ * not already reach, because row level security authorizes every query —
+ * and the role that gates admin actions is read from the database row, not
+ * the token, so a downgraded role takes effect immediately.
+ *
+ * Wrapped in React's cache() so repeated calls within one request (layout,
+ * then a page's own canInvite check) dedupe to a single round trip. cache()
+ * dedupes only within a request, so there is no cross-request staleness risk.
+ */
+export const getSessionUser = cache(async () => {
   const supabase = supabaseServer();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) return null;
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  if (!claims?.sub) return null;
 
   const { data: profile } = await supabase
     .from('users')
-    .select('team_id')
-    .eq('id', data.user.id)
+    .select('team_id, role')
+    .eq('id', claims.sub)
     .single();
 
   return {
-    id: data.user.id,
-    email: data.user.email ?? '',
+    id: claims.sub,
+    email: typeof claims.email === 'string' ? claims.email : '',
     teamId: profile?.team_id ?? '',
+    // Read from the profile row, never from the JWT: app_metadata would need
+    // re-issuing on every role change, and user_metadata is client-writable.
+    role: profile?.role ?? 'viewer',
   };
-}
+});

@@ -2,6 +2,14 @@
 -- Paste this whole file into the Supabase SQL editor and run it once.
 -- Auth (signup/login/sessions/password hashing) is handled by Supabase Auth;
 -- `public.users` only maps an auth user to a team + role.
+--
+-- Production apply: wrap this file's contents in an explicit BEGIN / COMMIT.
+-- Several functions below are DROPped and CREATEd tens to hundreds of lines
+-- apart (e.g. select_ping_tier), and a plain `psql -f` run is not
+-- transactional on its own — there is a real window where a dropped function
+-- doesn't exist yet, and a live RPC call hits it. After COMMIT, run
+-- `NOTIFY pgrst, 'reload schema';` so PostgREST picks up the new function
+-- OIDs instead of returning PGRST202.
 
 -- ---------------------------------------------------------------------------
 -- Tenancy
@@ -384,6 +392,13 @@ END $$;
 -- that is the whole point of the split. pg_temp is pinned below even though
 -- this function is INVOKER, not DEFINER: it runs inside get_shared_view's
 -- definer context, so its search_path is part of that same boundary.
+-- RETURNS TABLE cannot be widened by CREATE OR REPLACE, so this and its two
+-- callers (select_ping_tier, get_shared_view) must be dropped and recreated
+-- on every apply. Order matters: drop dependents before dependencies, so the
+-- callers are dropped first even though they're declared after this comment.
+DROP FUNCTION IF EXISTS select_ping_tier(UUID, TIMESTAMPTZ, TIMESTAMPTZ);
+DROP FUNCTION IF EXISTS select_ping_tier_for_team(UUID, UUID, TIMESTAMPTZ, TIMESTAMPTZ);
+
 CREATE OR REPLACE FUNCTION select_ping_tier_for_team(
   target_team_id UUID,
   target_monitor_id UUID,
@@ -400,7 +415,15 @@ RETURNS TABLE (
   p95_time_ms INTEGER,
   sample_count INTEGER,
   status_code INTEGER,
-  source_tier TEXT
+  source_tier TEXT,
+  -- Appended for the uptime/response-time tab split: isUp per bucket is
+  -- success_count / sample_count, exact on every tier. p50/p99 and
+  -- percentile_source ride along so rolled-up windows can chart real
+  -- percentiles instead of only p95.
+  success_count INTEGER,
+  p50_time_ms INTEGER,
+  p99_time_ms INTEGER,
+  percentile_source TEXT
 ) AS $$
 DECLARE
   now_ts TIMESTAMPTZ := NOW();
@@ -416,6 +439,10 @@ BEGIN
     r.response_time_ms,
     1,
     r.status_code,
+    'raw'::TEXT,
+    CASE WHEN r.status_code IS NOT NULL AND r.status_code < 400 THEN 1 ELSE 0 END,
+    r.response_time_ms,
+    r.response_time_ms,
     'raw'::TEXT
   FROM ping_logs_raw r
   WHERE r.monitor_id = target_monitor_id
@@ -433,7 +460,11 @@ BEGIN
     h.p95_response_time_ms,
     h.total_pings,
     NULL::INTEGER,
-    'hourly'::TEXT
+    'hourly'::TEXT,
+    h.successful_pings,
+    h.p50_response_time_ms,
+    h.p99_response_time_ms,
+    'raw'::TEXT
   FROM ping_logs_hourly h
   WHERE h.monitor_id = target_monitor_id
     AND h.team_id = target_team_id
@@ -451,7 +482,11 @@ BEGIN
     d.p95_response_time_ms,
     d.total_pings,
     NULL::INTEGER,
-    'daily'::TEXT
+    'daily'::TEXT,
+    d.successful_pings,
+    d.p50_response_time_ms,
+    d.p99_response_time_ms,
+    d.percentile_source
   FROM ping_logs_daily d
   WHERE d.monitor_id = target_monitor_id
     AND d.team_id = target_team_id
@@ -476,7 +511,11 @@ RETURNS TABLE (
   p95_time_ms INTEGER,
   sample_count INTEGER,
   status_code INTEGER,
-  source_tier TEXT
+  source_tier TEXT,
+  success_count INTEGER,
+  p50_time_ms INTEGER,
+  p99_time_ms INTEGER,
+  percentile_source TEXT
 ) AS $$
 BEGIN
   RETURN QUERY
@@ -492,6 +531,8 @@ $$ LANGUAGE plpgsql STABLE SET search_path = public;
 -- Deliberately narrow: one TEXT parameter, no dynamic SQL, pinned search_path,
 -- and monitors.url is never selected — the redaction is enforced here, in SQL,
 -- not in the React component that renders the result.
+DROP FUNCTION IF EXISTS get_shared_view(TEXT);
+
 CREATE OR REPLACE FUNCTION get_shared_view(token TEXT)
 RETURNS TABLE (
   view_name TEXT,
@@ -505,7 +546,11 @@ RETURNS TABLE (
   max_time_ms INTEGER,
   p95_time_ms INTEGER,
   sample_count INTEGER,
-  source_tier TEXT
+  source_tier TEXT,
+  success_count INTEGER,
+  p50_time_ms INTEGER,
+  p99_time_ms INTEGER,
+  percentile_source TEXT
 )
 LANGUAGE plpgsql
 STABLE
@@ -623,7 +668,11 @@ BEGIN
     t.max_time_ms,
     t.p95_time_ms,
     t.sample_count,
-    t.source_tier
+    t.source_tier,
+    t.success_count,
+    t.p50_time_ms,
+    t.p99_time_ms,
+    t.percentile_source
   FROM (SELECT 1) AS anchor
   LEFT JOIN LATERAL
     select_ping_tier_for_team(v.team_id, v.monitor_id, snap_from, snap_to) t ON TRUE;
@@ -693,6 +742,131 @@ CREATE POLICY tenant_isolation_daily ON ping_logs_daily
 DROP POLICY IF EXISTS tenant_isolation_views ON saved_views;
 CREATE POLICY tenant_isolation_views ON saved_views
   FOR ALL TO authenticated USING (team_id = current_team_id());
+
+-- ---------------------------------------------------------------------------
+-- Signup: team invites and the auth.users trigger
+--
+-- Last of the table definitions rather than up with the others, because its
+-- token DEFAULT needs gen_share_token() and its policy needs current_team_id().
+-- ---------------------------------------------------------------------------
+
+-- An invite is a capability: whoever holds the link joins this team at this
+-- role. Same shape as saved_views.share_token — 256 bits from gen_share_token,
+-- revocable without deletion so a leaked link dies without losing the record.
+CREATE TABLE IF NOT EXISTS team_invites (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id UUID NOT NULL REFERENCES teams(id),
+  -- Nullable for the same reason as saved_views.creator_id: an invite must
+  -- outlive the admin who sent it.
+  creator_id UUID REFERENCES users(id),
+  token VARCHAR(255) NOT NULL UNIQUE DEFAULT gen_share_token(),
+  role VARCHAR(50) NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member', 'viewer')),
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_team_invites_token ON team_invites(token);
+CREATE INDEX IF NOT EXISTS idx_team_invites_team_id ON team_invites(team_id);
+
+ALTER TABLE team_invites ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation_invites ON team_invites;
+CREATE POLICY tenant_isolation_invites ON team_invites
+  FOR ALL TO authenticated
+  USING (team_id = current_team_id())
+  WITH CHECK (team_id = current_team_id());
+
+-- Creates the team and profile rows for a brand new auth user.
+--
+-- TRUST BOUNDARY. NEW.raw_user_meta_data is whatever the client passed to
+-- signUp({ options: { data } }) — entirely attacker-controlled. Only two keys
+-- are read, and neither can be abused:
+--   team_name    names a team the caller is about to own anyway;
+--   invite_token must match a live row in team_invites to have any effect.
+-- The role is taken from THE INVITE ROW, never from the metadata. Do not add a
+-- branch that reads a role or a team_id out of the metadata: a client that
+-- could name its own team_id would join any team on the system, and one that
+-- could name its own role would join as admin.
+--
+-- Raising here rolls back the auth.users INSERT, so a rejected signup leaves no
+-- orphaned auth user behind. That is what replaces the hand-written rollback in
+-- the old /api/auth/register route.
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_token   TEXT := NULLIF(NEW.raw_user_meta_data->>'invite_token', '');
+  v_team_id UUID;
+  v_role    TEXT;
+BEGIN
+  IF v_token IS NOT NULL THEN
+    SELECT team_id, role INTO v_team_id, v_role
+      FROM team_invites
+     WHERE token = v_token
+       AND revoked_at IS NULL
+       AND expires_at > NOW();
+
+    IF v_team_id IS NULL THEN
+      RAISE EXCEPTION 'invite is invalid, revoked or expired';
+    END IF;
+  ELSE
+    INSERT INTO teams (name)
+    VALUES (COALESCE(
+      NULLIF(NEW.raw_user_meta_data->>'team_name', ''),
+      split_part(COALESCE(NEW.email, 'new'), '@', 1) || '''s team'
+    ))
+    RETURNING id INTO v_team_id;
+
+    -- First member of a new team owns it.
+    v_role := 'admin';
+  END IF;
+
+  INSERT INTO users (id, team_id, email, role)
+  VALUES (NEW.id, v_team_id, NEW.email, v_role);
+
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+-- PostgREST exposes every public function as an RPC endpoint. This one is a
+-- trigger function, not an API: drop the PUBLIC grant. The trigger keeps
+-- firing — EXECUTE is checked when the trigger is created, not when it fires.
+REVOKE EXECUTE ON FUNCTION handle_new_user() FROM PUBLIC, anon, authenticated;
+
+-- Lets an anonymous visitor holding an invite link see whose team they are
+-- about to join, before they have any account at all. SECURITY DEFINER because
+-- team_invites is behind RLS and the caller has no team yet.
+--
+-- Returns the team name and role for a live invite, and ZERO ROWS for unknown,
+-- revoked or expired ones — the caller cannot tell those three apart. It leaks
+-- nothing else off the row: not the creator, not the expiry, not the team id.
+--
+-- Same token-validity oracle as get_shared_view, accepted for the same reason:
+-- the token is 43 base64url characters over 256 bits, so an attacker has no way
+-- to produce a candidate to ask about, and the legitimate holder learns only
+-- whether their own link is still good.
+CREATE OR REPLACE FUNCTION describe_invite(p_token TEXT)
+RETURNS TABLE (team_name TEXT, invite_role TEXT)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  SELECT t.name::TEXT, i.role::TEXT
+    FROM team_invites i
+    JOIN teams t ON t.id = i.team_id
+   WHERE i.token = p_token
+     AND i.revoked_at IS NULL
+     AND i.expires_at > NOW()
+$$;
 
 -- @local-test:strip-start (pg_cron)
 -- ---------------------------------------------------------------------------

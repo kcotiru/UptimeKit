@@ -1,63 +1,37 @@
 import { MonitorStatus } from '@/lib/shared/types';
 import { cn } from '@/lib/shared/utils';
 
-/**
- * Props for the StatusBadge component.
- */
-export interface StatusBadgeProps {
-  /** Target monitor operational status enum */
+export interface StatusWordProps {
   status: MonitorStatus;
-  /** Optional additional CSS class names */
   className?: string;
 }
 
 /**
- * StatusBadge component presenting monitor operational status with colored glowing indicators.
+ * The monitor's state, as a word.
+ *
+ * Colour is carried by the text and never by a fill, a pill or a dot: a
+ * healthy board stays near-monochrome so the one unhealthy row is impossible
+ * to miss. The word is always present, which is also what makes this readable
+ * without colour vision.
  */
-export function StatusBadge({ status, className }: StatusBadgeProps) {
-  const configs: Record<MonitorStatus, { label: string; bg: string; text: string; dot: string; glow?: string }> = {
-    up: {
-      label: 'Operational',
-      bg: 'bg-emerald-500/10 border-emerald-500/30',
-      text: 'text-emerald-400',
-      dot: 'bg-emerald-500',
-      glow: 'glow-emerald',
-    },
-    down: {
-      label: 'Offline',
-      bg: 'bg-red-500/10 border-red-500/30',
-      text: 'text-red-400',
-      dot: 'bg-red-500',
-      glow: 'glow-red',
-    },
-    degraded: {
-      label: 'Degraded',
-      bg: 'bg-amber-500/10 border-amber-500/30',
-      text: 'text-amber-400',
-      dot: 'bg-amber-500',
-    },
-    unknown: {
-      label: 'Pending Check',
-      bg: 'bg-slate-500/10 border-slate-500/30',
-      text: 'text-slate-400',
-      dot: 'bg-slate-500',
-    },
+export function StatusWord({ status, className }: StatusWordProps) {
+  const labels: Record<MonitorStatus, string> = {
+    up: 'up',
+    down: 'down',
+    degraded: 'degraded',
+    unknown: 'not checked yet',
   };
 
-  const config = configs[status] || configs.unknown;
+  const tones: Record<MonitorStatus, string> = {
+    up: 'text-status-up',
+    down: 'text-status-down',
+    degraded: 'text-status-degraded',
+    unknown: 'text-slate-400',
+  };
 
   return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border transition-all',
-        config.bg,
-        config.text,
-        config.glow,
-        className
-      )}
-    >
-      <span className={cn('h-2 w-2 rounded-full', config.dot)} />
-      {config.label}
+    <span className={cn('text-sm font-medium', tones[status], className)}>
+      {labels[status] ?? labels.unknown}
     </span>
   );
 }
