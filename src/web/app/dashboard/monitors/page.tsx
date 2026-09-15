@@ -3,7 +3,7 @@ import { listMonitors, listRecentMetrics } from '@/lib/server/data/monitors';
 import { Header } from '@/components/layout/header';
 import { MonitorList } from '@/components/monitors/monitor-list';
 import { supabaseServer } from '@/lib/server/supabase';
-import { RECENT_WINDOW_HOURS } from '@/lib/shared/utils';
+import { RECENT_WINDOW_HOURS, formatRelative } from '@/lib/shared/utils';
 import type { PingMetric } from '@/lib/shared/types';
 
 // Per-user data behind a session cookie — never prerender.
@@ -37,6 +37,13 @@ export default async function MonitorsPage() {
   // header count must match that, not just 'down'.
   const alarming = monitors.filter((m) => m.status !== 'up').length;
 
+  // The Header's right slot exists for exactly this: one true, current fact.
+  const lastChecked = monitors
+    .map((m) => m.lastCheckedAt)
+    .filter((t): t is string => Boolean(t))
+    .sort()
+    .at(-1);
+
   return (
     <div className="space-y-6">
       <Header
@@ -48,6 +55,7 @@ export default async function MonitorsPage() {
               ? 'Nothing being checked yet'
               : `${monitors.length} endpoint${monitors.length === 1 ? '' : 's'}, ${alarming} down`
         }
+        meta={lastChecked ? `checked ${formatRelative(lastChecked)}` : undefined}
       />
       {loadFailed ? (
         <div className="p-3.5 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-3 text-red-400 text-sm">
