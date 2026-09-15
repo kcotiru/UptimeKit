@@ -82,7 +82,7 @@ export function RegisterForm() {
 
   if (sent) {
     return (
-      <div className="w-full max-w-md p-8 bg-surface/80 backdrop-blur-xl border border-surface-border rounded-lg space-y-6 text-center">
+      <div className="w-full max-w-md p-8 bg-surface border border-surface-border rounded-lg space-y-6 text-center">
         <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-brand-600/20 border border-brand-500/30 text-brand-400">
           <MailCheck className="h-6 w-6" />
         </div>
@@ -105,7 +105,7 @@ export function RegisterForm() {
   }
 
   return (
-    <div className="w-full max-w-md p-8 bg-surface/80 backdrop-blur-xl border border-surface-border rounded-lg space-y-6">
+    <div className="w-full max-w-md p-8 bg-surface border border-surface-border rounded-lg space-y-6">
       <div className="text-center space-y-2">
         <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-brand-600/20 border border-brand-500/30 text-brand-400 mb-2">
           <Activity className="h-6 w-6" />
