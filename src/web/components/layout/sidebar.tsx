@@ -209,40 +209,50 @@ export function Sidebar({ initialMode }: SidebarProps) {
             {tooltips && !open && <Tooltip>Sidebar</Tooltip>}
           </button>
 
-          {open && (
-            <div
-              ref={menuRef}
-              role="menu"
-              aria-label="Sidebar behaviour"
-              // Opens beside the rail, not inside it: at 56px there is nowhere
-              // for a readable menu to go, and the panel clips its overflow.
-              className="fixed bottom-4 left-16 z-40 w-60 overflow-hidden rounded-lg border border-surface-border bg-surface py-1"
-            >
-              {MODES.map(({ id, label: name, icon: Icon, hint }) => (
-                <button
-                  key={id}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={mode === id}
-                  onClick={() => choose(id)}
-                  className={cn(
-                    'flex w-full items-start gap-3 px-4 py-2 text-left transition-colors',
-                    mode === id
-                      ? 'bg-surface-hover text-slate-100'
-                      : 'text-slate-400 hover:bg-surface-hover hover:text-slate-100'
-                  )}
-                >
-                  <Icon className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span className="min-w-0">
-                    <span className="block text-sm">{name}</span>
-                    <span className="block text-[11px] text-slate-500">{hint}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       </div>
+
+      {open && (
+          <div
+            ref={menuRef}
+            role="menu"
+            aria-label="Sidebar behaviour"
+            // Opens beside the rail, not inside it: at 56px there is nowhere
+            // for a readable menu to go, and the panel clips its overflow.
+            // Rendered outside the panel on purpose: the panel sets
+            // `contain: layout paint` in the animating modes, which makes it
+            // the containing block for fixed descendants AND clips them, so a
+            // menu nested inside it is cut off exactly when the rail is wide.
+            className={cn(
+              'fixed bottom-4 z-40 w-60 overflow-hidden rounded-lg border border-surface-border bg-surface py-1',
+              // Clear whatever width the rail actually has while the menu is
+              // open — in hover mode the pointer is on the rail, so it is wide.
+              mode === 'collapsed' ? 'left-16' : 'left-52'
+            )}
+          >
+            {MODES.map(({ id, label: name, icon: Icon, hint }) => (
+              <button
+                key={id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={mode === id}
+                onClick={() => choose(id)}
+                className={cn(
+                  'flex w-full items-start gap-3 px-4 py-2 text-left transition-colors',
+                  mode === id
+                    ? 'bg-surface-hover text-slate-100'
+                    : 'text-slate-400 hover:bg-surface-hover hover:text-slate-100'
+                )}
+              >
+                <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-sm">{name}</span>
+                  <span className="block text-[11px] text-slate-500">{hint}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+      )}
     </aside>
   );
 }
