@@ -223,12 +223,12 @@ export function Sidebar({ initialMode }: SidebarProps) {
             // `contain: layout paint` in the animating modes, which makes it
             // the containing block for fixed descendants AND clips them, so a
             // menu nested inside it is cut off exactly when the rail is wide.
-            className={cn(
-              'fixed bottom-4 z-40 w-60 overflow-hidden rounded-lg border border-surface-border bg-surface py-1',
-              // Clear whatever width the rail actually has while the menu is
-              // open — in hover mode the pointer is on the rail, so it is wide.
-              mode === 'collapsed' ? 'left-16' : 'left-52'
-            )}
+            // Sits directly above its trigger rather than beside the rail. The
+            // button spans 16–56px from the viewport foot (py-4 footer padding
+            // plus a 40px button), so bottom-16 clears it by 8px, and left-2
+            // lines the menu up with the rail's own px-2 gutter. Both are fixed
+            // offsets, so the menu does not move when the rail changes width.
+            className="fixed bottom-16 left-2 z-40 w-56 overflow-hidden rounded-lg border border-surface-border bg-surface py-1"
           >
             {MODES.map(({ id, label: name, icon: Icon, hint }) => (
               <button
