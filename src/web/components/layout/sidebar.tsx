@@ -17,7 +17,7 @@ export interface SidebarProps {
  *  tree and a screen reader still announces the full nav item name while the
  *  rail is collapsed. `hidden` would delete them from it. */
 const LABEL =
-  'whitespace-nowrap opacity-0 transition-opacity duration-200 ' +
+  'whitespace-nowrap opacity-0 transition-opacity duration-150 ' +
   'group-hover:opacity-100 group-focus-within:opacity-100';
 
 /**
@@ -84,7 +84,12 @@ export function Sidebar({ email, role }: SidebarProps) {
         className={cn(
           'group fixed inset-y-0 left-0 z-30 flex h-screen w-14 flex-col justify-between',
           'overflow-hidden border-r border-surface-border bg-surface',
-          'transition-[width] duration-200 ease-out hover:w-64 focus-within:w-64'
+          // Width is the only layout property animated anywhere in here, and
+          // `contain` scopes the per-frame relayout to this panel's own dozen
+          // nodes so it can never reach the page. Everything else either fades
+          // (opacity is compositor-only) or snaps.
+          '[contain:layout_paint] transition-[width] duration-150 ease-out',
+          'hover:w-64 focus-within:w-64'
         )}
       >
         <div>
@@ -127,7 +132,7 @@ export function Sidebar({ email, role }: SidebarProps) {
                   {item.children.length > 0 && (
                     <div
                       className={cn(
-                        'space-y-1 border-l border-transparent pl-0 transition-all duration-200',
+                        'space-y-1 border-l border-transparent pl-0',
                         'group-hover:ml-5 group-hover:border-surface-border group-hover:pl-3',
                         'group-focus-within:ml-5 group-focus-within:border-surface-border group-focus-within:pl-3'
                       )}
@@ -165,7 +170,7 @@ export function Sidebar({ email, role }: SidebarProps) {
             // has no unexplained gap above Log Out.
             <div
               className={cn(
-                'max-h-0 overflow-hidden px-3 transition-all duration-200',
+                'max-h-0 overflow-hidden px-3',
                 'group-hover:max-h-16 group-hover:pb-2',
                 'group-focus-within:max-h-16 group-focus-within:pb-2'
               )}
