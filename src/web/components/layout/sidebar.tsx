@@ -111,6 +111,9 @@ export function Sidebar({ initialMode }: SidebarProps) {
         ? 'whitespace-nowrap opacity-0'
         : 'whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100';
 
+  // Only a rail that can never widen needs its icons named on hover.
+  const tooltips = mode === 'collapsed';
+
   const indent =
     mode === 'expanded'
       ? 'ml-5 border-l border-surface-border pl-3'
@@ -124,11 +127,14 @@ export function Sidebar({ initialMode }: SidebarProps) {
       <div
         className={cn(
           'group fixed bottom-0 left-0 top-16 z-30 flex flex-col justify-between',
-          'overflow-hidden border-r border-surface-border bg-surface',
-          // Width is the only layout property animated anywhere in here, and
-          // `contain` scopes the per-frame relayout to this panel's own nodes
-          // so it can never reach the page.
-          '[contain:layout_paint] transition-[width] duration-150 ease-out',
+          'border-r border-surface-border bg-surface',
+          // Clipping and containment exist only to scope the width animation's
+          // per-frame relayout. Pinned shut there is no animation to scope, and
+          // both would cut off the hover tooltips — `contain: paint` clips even
+          // position:fixed descendants — so neither applies in that mode.
+          mode === 'collapsed'
+            ? ''
+            : 'overflow-hidden [contain:layout_paint] transition-[width] duration-150 ease-out',
           panelWidth
         )}
       >
@@ -141,7 +147,7 @@ export function Sidebar({ initialMode }: SidebarProps) {
                   href={item.href}
                   aria-current={item.active ? 'page' : undefined}
                   className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150',
+                    'group/item relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150',
                     item.active
                       ? 'bg-brand-600 text-white'
                       : item.inSection
@@ -151,6 +157,7 @@ export function Sidebar({ initialMode }: SidebarProps) {
                 >
                   <Icon className="h-4 w-4 shrink-0" />
                   <span className={label}>{item.name}</span>
+                  {tooltips && <Tooltip>{item.name}</Tooltip>}
                 </Link>
 
                 {item.children.length > 0 && (
@@ -163,7 +170,7 @@ export function Sidebar({ initialMode }: SidebarProps) {
                           href={child.href}
                           aria-current={child.active ? 'page' : undefined}
                           className={cn(
-                            'flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors duration-150',
+                            'group/item relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors duration-150',
                             child.active
                               ? 'bg-brand-600 text-white'
                               : 'text-slate-400 hover:bg-surface-hover hover:text-slate-100'
@@ -171,6 +178,7 @@ export function Sidebar({ initialMode }: SidebarProps) {
                         >
                           <ChildIcon className="h-4 w-4 shrink-0" />
                           <span className={label}>{child.name}</span>
+                          {tooltips && <Tooltip>{child.name}</Tooltip>}
                         </Link>
                       );
                     })}
@@ -190,7 +198,7 @@ export function Sidebar({ initialMode }: SidebarProps) {
             aria-expanded={open}
             aria-label="Sidebar behaviour"
             className={cn(
-              'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+              'group/item relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
               open
                 ? 'bg-surface-hover text-slate-100'
                 : 'text-slate-400 hover:bg-surface-hover hover:text-slate-100'
@@ -198,6 +206,7 @@ export function Sidebar({ initialMode }: SidebarProps) {
           >
             <SidebarIcon className="h-4 w-4 shrink-0" />
             <span className={label}>Sidebar</span>
+            {tooltips && !open && <Tooltip>Sidebar</Tooltip>}
           </button>
 
           {open && (
@@ -235,5 +244,28 @@ export function Sidebar({ initialMode }: SidebarProps) {
         </div>
       </div>
     </aside>
+  );
+}
+
+/**
+ * Floating name for a rail icon, used only while the rail is pinned shut.
+ *
+ * aria-hidden: the link already carries its label as text, clipped but present
+ * in the accessibility tree, so announcing this too would say everything twice.
+ */
+function Tooltip({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2',
+        'whitespace-nowrap rounded-lg border border-surface-border bg-surface',
+        'px-2 py-1 text-xs font-medium text-slate-100',
+        'opacity-0 transition-opacity duration-100',
+        'group-hover/item:opacity-100 group-focus-visible/item:opacity-100'
+      )}
+    >
+      {children}
+    </span>
   );
 }
