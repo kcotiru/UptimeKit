@@ -17,12 +17,14 @@ export interface MonitorListProps {
   initialMonitors: Monitor[];
   /** Recent raw samples per monitor id, for the sparkline and stats on each row */
   metricsByMonitor: Record<string, PingMetric[]>;
+  /** Clock captured once on the server, so relative times survive hydration. */
+  renderedAt: number;
 }
 
 /**
  * Client Component for searching, displaying, and managing the team's HTTP monitors list.
  */
-export function MonitorList({ initialMonitors, metricsByMonitor }: MonitorListProps) {
+export function MonitorList({ initialMonitors, metricsByMonitor, renderedAt }: MonitorListProps) {
   const [monitors, setMonitors] = useState<Monitor[]>(initialMonitors);
   const [search, setSearch] = useState('');
   const [deletingMonitor, setDeletingMonitor] = useState<Monitor | null>(null);
@@ -103,6 +105,7 @@ export function MonitorList({ initialMonitors, metricsByMonitor }: MonitorListPr
             <MonitorRow
               key={monitor.id}
               monitor={monitor}
+              renderedAt={renderedAt}
               metrics={metricsByMonitor[monitor.id] ?? []}
               onDeleteRequest={setDeletingMonitor}
             />
