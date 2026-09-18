@@ -10,7 +10,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { PingMetric } from '@/lib/shared/types';
-import { bucketUptime, chartLabel, spansMoreThanADay } from '@/lib/shared/stats';
+import { CHART_Y_AXIS_WIDTH, bucketUptime, chartLabel, spansMoreThanADay } from '@/lib/shared/stats';
 import { Activity } from 'lucide-react';
 
 /**
@@ -68,7 +68,7 @@ export function UptimeChart({ metrics, height = 320 }: UptimeChartProps) {
 
       <div style={{ width: '100%', height }}>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={formattedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+          <AreaChart data={formattedData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="uptimeGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
@@ -84,6 +84,7 @@ export function UptimeChart({ metrics, height = 320 }: UptimeChartProps) {
               axisLine={{ stroke: '#383838' }}
             />
             <YAxis
+              width={CHART_Y_AXIS_WIDTH}
               domain={[0, 100]}
               stroke="#a1a1a1"
               fontSize={11}
