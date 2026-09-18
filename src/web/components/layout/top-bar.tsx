@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Activity, Globe, LogOut, Palette, User } from 'lucide-react';
 import { cn } from '@/lib/shared/utils';
 import { supabaseBrowser } from '@/lib/client/supabase';
+import { useDismissable } from '@/lib/client/use-dismissable';
 
 export interface TopBarProps {
   /** Signed-in user's email. */
@@ -28,32 +29,8 @@ export function TopBar({ email, role }: TopBarProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
-  // A menu that only closes by clicking its own trigger is a trap: it stays
-  // open behind whatever the user does next. Dismiss on outside press and on
-  // Escape, and hand focus back to the trigger so the keyboard path returns
-  // where it started.
-  useEffect(() => {
-    if (!open) return;
-
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (menuRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setOpen(false);
-      triggerRef.current?.focus();
-    };
-
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
+  const close = useCallback(() => setOpen(false), []);
+  useDismissable(open, close, { menu: menuRef, trigger: triggerRef });
 
   const handleLogout = async () => {
     await supabaseBrowser().auth.signOut();
