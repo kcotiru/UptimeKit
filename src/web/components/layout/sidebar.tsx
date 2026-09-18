@@ -24,6 +24,12 @@ const LABEL =
  * Collapsed icon rail that widens on hover, the way Supabase's dashboard nav
  * behaves.
  *
+ * 192px expanded, not more: the widest row is the indented "Add monitor" child
+ * at a measured 175.3px, so 192 clears it with 17px to spare. Every pixel past
+ * that is empty panel laid over the page, and the panel overlays rather than
+ * pushes — so width here is a direct tax on how much content is covered while
+ * the rail is open.
+ *
  * The <aside> keeps a constant 56px footprint while the panel inside it is
  * fixed and overlays the page when it expands — if the panel itself sat in
  * flow, every hover would reflow the whole dashboard sideways.
@@ -89,7 +95,7 @@ export function Sidebar({ email, role }: SidebarProps) {
           // nodes so it can never reach the page. Everything else either fades
           // (opacity is compositor-only) or snaps.
           '[contain:layout_paint] transition-[width] duration-150 ease-out',
-          'hover:w-64 focus-within:w-64'
+          'hover:w-48 focus-within:w-48'
         )}
       >
         <div>
