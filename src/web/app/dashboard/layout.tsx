@@ -1,4 +1,5 @@
 import { Sidebar } from '@/components/layout/sidebar';
+import { TopBar } from '@/components/layout/top-bar';
 import { getSessionUser } from '@/lib/server/supabase';
 
 export default async function DashboardLayout({
@@ -9,10 +10,14 @@ export default async function DashboardLayout({
   const user = await getSessionUser();
 
   return (
-    <div className="flex min-h-screen bg-background text-slate-100">
-      <Sidebar email={user?.email} role={user?.role} />
-      <div className="flex-1 flex flex-col min-w-0">
-        <main className="flex-1 p-8 overflow-y-auto">
+    <div className="min-h-screen bg-background text-slate-100">
+      <TopBar email={user?.email} role={user?.role} />
+
+      {/* pt-16 clears the fixed bar. The bar and the rail are both fixed, so
+          nothing below them reflows when the rail expands on hover. */}
+      <div className="flex pt-16">
+        <Sidebar />
+        <main className="min-w-0 flex-1 p-8">
           {/* Cap line length so a monitor row's name and timestamp stay readably close on wide displays. */}
           <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>

@@ -2,16 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, LayoutDashboard, PlusCircle, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, Settings } from 'lucide-react';
 import { cn } from '@/lib/shared/utils';
-import { supabaseBrowser } from '@/lib/client/supabase';
-
-export interface SidebarProps {
-  /** Signed-in user's email, shown in the footer for orientation. */
-  email?: string;
-  /** Signed-in user's role, shown beneath the email. */
-  role?: string;
-}
 
 /** Labels are clipped rather than removed, so they stay in the accessibility
  *  tree and a screen reader still announces the full nav item name while the
@@ -41,7 +33,7 @@ const LABEL =
  * It also expands on `focus-within`, so tabbing through the nav reveals the
  * labels — hover alone would leave keyboard users reading unlabelled icons.
  */
-export function Sidebar({ email, role }: SidebarProps) {
+export function Sidebar() {
   const pathname = usePathname();
 
   // Adding a monitor happens inside the Monitors section, so it nests under it
@@ -77,18 +69,11 @@ export function Sidebar({ email, role }: SidebarProps) {
     },
   ];
 
-  const handleLogout = async () => {
-    await supabaseBrowser().auth.signOut();
-    // Hard navigation, not router.push: it drops every cached Server Component
-    // payload rendered for the signed-in user.
-    window.location.href = '/login';
-  };
-
   return (
     <aside className="w-14 shrink-0">
       <div
         className={cn(
-          'group fixed inset-y-0 left-0 z-30 flex h-screen w-14 flex-col justify-between',
+          'group fixed bottom-0 left-0 top-16 z-30 flex w-14 flex-col',
           'overflow-hidden border-r border-surface-border bg-surface',
           // Width is the only layout property animated anywhere in here, and
           // `contain` scopes the per-frame relayout to this panel's own dozen
@@ -99,16 +84,6 @@ export function Sidebar({ email, role }: SidebarProps) {
         )}
       >
         <div>
-          {/* Brand. The mark is 36px in a 56px rail, so px-2.5 centres it. */}
-          <div className="flex h-16 items-center gap-3 border-b border-surface-border px-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-brand-500/30 bg-brand-600/20 text-brand-400">
-              <Activity className="h-5 w-5" />
-            </div>
-            <h1 className={cn('font-bold leading-tight tracking-tight text-slate-50', LABEL)}>
-              UptimeKit
-            </h1>
-          </div>
-
           <nav className="space-y-1 px-2 py-4">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -170,31 +145,6 @@ export function Sidebar({ email, role }: SidebarProps) {
           </nav>
         </div>
 
-        <div className="border-t border-surface-border px-2 py-4">
-          {email && (
-            // Collapses to zero height rather than sitting clipped, so the rail
-            // has no unexplained gap above Log Out.
-            <div
-              className={cn(
-                'max-h-0 overflow-hidden px-3',
-                'group-hover:max-h-16 group-hover:pb-2',
-                'group-focus-within:max-h-16 group-focus-within:pb-2'
-              )}
-            >
-              <p className="truncate text-xs text-slate-400" title={email}>
-                {email}
-              </p>
-              {role && <p className="text-[11px] capitalize text-slate-500">{role}</p>}
-            </div>
-          )}
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-red-500/10 hover:text-red-400"
-          >
-            <LogOut className="h-4 w-4 shrink-0" />
-            <span className={LABEL}>Log Out</span>
-          </button>
-        </div>
       </div>
     </aside>
   );
