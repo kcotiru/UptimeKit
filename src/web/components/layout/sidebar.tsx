@@ -13,8 +13,27 @@ export interface SidebarProps {
   role?: string;
 }
 
+/** Labels are clipped rather than removed, so they stay in the accessibility
+ *  tree and a screen reader still announces the full nav item name while the
+ *  rail is collapsed. `hidden` would delete them from it. */
+const LABEL =
+  'whitespace-nowrap opacity-0 transition-opacity duration-200 ' +
+  'group-hover:opacity-100 group-focus-within:opacity-100';
+
 /**
- * Persistent sidebar navigation bar providing branding, menu items, and logout action.
+ * Collapsed icon rail that widens on hover, the way Supabase's dashboard nav
+ * behaves.
+ *
+ * The <aside> keeps a constant 56px footprint while the panel inside it is
+ * fixed and overlays the page when it expands — if the panel itself sat in
+ * flow, every hover would reflow the whole dashboard sideways.
+ *
+ * Horizontal padding is tuned so an icon's centre lands at 28px, the middle of
+ * the collapsed rail, and does not move when the panel widens: only the labels
+ * fade in beside it.
+ *
+ * It also expands on `focus-within`, so tabbing through the nav reveals the
+ * labels — hover alone would leave keyboard users reading unlabelled icons.
  */
 export function Sidebar({ email, role }: SidebarProps) {
   const pathname = usePathname();
@@ -60,89 +79,111 @@ export function Sidebar({ email, role }: SidebarProps) {
   };
 
   return (
-    <aside className="w-64 border-r border-surface-border bg-surface flex flex-col justify-between h-screen sticky top-0">
-      <div>
-        {/* Brand Header */}
-        <div className="h-16 flex items-center px-6 border-b border-surface-border gap-3">
-          <div className="h-9 w-9 rounded-lg bg-brand-600/20 border border-brand-500/30 flex items-center justify-center text-brand-400">
-            <Activity className="h-5 w-5" />
+    <aside className="w-14 shrink-0">
+      <div
+        className={cn(
+          'group fixed inset-y-0 left-0 z-30 flex h-screen w-14 flex-col justify-between',
+          'overflow-hidden border-r border-surface-border bg-surface',
+          'transition-[width] duration-200 ease-out hover:w-64 focus-within:w-64'
+        )}
+      >
+        <div>
+          {/* Brand. The mark is 36px in a 56px rail, so px-2.5 centres it. */}
+          <div className="flex h-16 items-center gap-3 border-b border-surface-border px-2.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-brand-500/30 bg-brand-600/20 text-brand-400">
+              <Activity className="h-5 w-5" />
+            </div>
+            <h1 className={cn('font-bold leading-tight tracking-tight text-slate-50', LABEL)}>
+              UptimeKit
+            </h1>
           </div>
-          <div>
-            <h1 className="font-bold text-slate-50 tracking-tight leading-tight">UptimeKit</h1>
-          </div>
+
+          <nav className="space-y-1 px-2 py-4">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.name} className="space-y-1">
+                  <Link
+                    href={item.href}
+                    aria-current={item.active ? 'page' : undefined}
+                    className={cn(
+                      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150',
+                      item.active
+                        ? 'bg-brand-600 text-white'
+                        : item.inSection
+                          ? 'text-slate-100 hover:bg-surface-hover'
+                          : 'text-slate-400 hover:bg-surface-hover hover:text-slate-100'
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className={LABEL}>{item.name}</span>
+                  </Link>
+
+                  {/* Children hang off a guide line when the rail is open. While
+                      it is collapsed the indent would push their icons past the
+                      56px edge, so the offset and the line only appear on
+                      expand — the border stays present but transparent so the
+                      1px never shifts anything. */}
+                  {item.children.length > 0 && (
+                    <div
+                      className={cn(
+                        'space-y-1 border-l border-transparent pl-0 transition-all duration-200',
+                        'group-hover:ml-5 group-hover:border-surface-border group-hover:pl-3',
+                        'group-focus-within:ml-5 group-focus-within:border-surface-border group-focus-within:pl-3'
+                      )}
+                    >
+                      {item.children.map((child) => {
+                        const ChildIcon = child.icon;
+                        return (
+                          <Link
+                            key={child.name}
+                            href={child.href}
+                            aria-current={child.active ? 'page' : undefined}
+                            className={cn(
+                              'flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors duration-150',
+                              child.active
+                                ? 'bg-brand-600 text-white'
+                                : 'text-slate-400 hover:bg-surface-hover hover:text-slate-100'
+                            )}
+                          >
+                            <ChildIcon className="h-4 w-4 shrink-0" />
+                            <span className={LABEL}>{child.name}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </nav>
         </div>
 
-        {/* Navigation */}
-        <nav className="p-4 space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <div key={item.name} className="space-y-1">
-                <Link
-                  href={item.href}
-                  aria-current={item.active ? 'page' : undefined}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
-                    item.active
-                      ? 'bg-brand-600 text-white'
-                      : item.inSection
-                        ? 'text-slate-100 hover:bg-surface-hover'
-                        : 'text-slate-400 hover:text-slate-100 hover:bg-surface-hover'
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.name}
-                </Link>
-
-                {/* Children sit inside the section, indented and hung off a
-                    guide line so the nesting is visible without a disclosure
-                    control to operate. */}
-                {item.children.length > 0 && (
-                  <div className="ml-5 pl-3 border-l border-surface-border space-y-1">
-                    {item.children.map((child) => {
-                      const ChildIcon = child.icon;
-                      return (
-                        <Link
-                          key={child.name}
-                          href={child.href}
-                          aria-current={child.active ? 'page' : undefined}
-                          className={cn(
-                            'flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150',
-                            child.active
-                              ? 'bg-brand-600 text-white'
-                              : 'text-slate-400 hover:text-slate-100 hover:bg-surface-hover'
-                          )}
-                        >
-                          <ChildIcon className="h-3.5 w-3.5" />
-                          {child.name}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* Footer / Logout */}
-      <div className="p-4 border-t border-surface-border">
-        {email && (
-          <div className="px-3 pb-2">
-            <p className="text-xs text-slate-400 truncate" title={email}>
-              {email}
-            </p>
-            {role && <p className="text-[11px] text-slate-500 capitalize">{role}</p>}
-          </div>
-        )}
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-        >
-          <LogOut className="h-4 w-4" />
-          Log Out
-        </button>
+        <div className="border-t border-surface-border px-2 py-4">
+          {email && (
+            // Collapses to zero height rather than sitting clipped, so the rail
+            // has no unexplained gap above Log Out.
+            <div
+              className={cn(
+                'max-h-0 overflow-hidden px-3 transition-all duration-200',
+                'group-hover:max-h-16 group-hover:pb-2',
+                'group-focus-within:max-h-16 group-focus-within:pb-2'
+              )}
+            >
+              <p className="truncate text-xs text-slate-400" title={email}>
+                {email}
+              </p>
+              {role && <p className="text-[11px] capitalize text-slate-500">{role}</p>}
+            </div>
+          )}
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-red-500/10 hover:text-red-400"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span className={LABEL}>Log Out</span>
+          </button>
+        </div>
       </div>
     </aside>
   );
