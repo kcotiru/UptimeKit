@@ -4,12 +4,22 @@ HTTP uptime monitoring with time-series performance analytics. Teams register
 endpoints; a background worker pings them on a schedule and records latency,
 status changes, and outages into Postgres.
 
-- [Quick start](#quick-start)
-- [Architecture](#architecture)
-- [Configuration](#configuration)
-- [Running](#running)
-- [Deploying schema changes](#deploying-schema-changes)
-- [Tests](#tests)
+## Architecture
+
+Two runnable pieces, plus Supabase:
+
+1. **Web Dashboard (`src/web`)** — Next.js 14 App Router (React, Tailwind, Recharts). Its Route Handlers and Server Components talk to **Supabase** directly: Supabase Auth for signup/login/sessions, Postgres with row level security for team isolation. There is no separate API server.
+2. **Worker Engine (`src/worker`)** — BullMQ + Redis background service that schedules and executes health checks, then writes time-series results straight into Supabase's Postgres over the direct connection string.
+
+Row level security scopes every table by `team_id`. The web app queries as the signed-in user, so isolation is enforced by the database. The worker connects as `postgres` and bypasses RLS by design — it is a trusted backend process.
+
+---
+
+## Prerequisites
+
+- **Node.js** v22+
+- A **Supabase** project (free tier is fine)
+- **Redis** on port 6379 — only needed to run the worker (see below; Docker is enough)
 
 ---
 
