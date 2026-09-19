@@ -1,197 +1,317 @@
 # UptimeKit
 
-HTTP uptime monitoring with time-series performance analytics. Teams register
-endpoints; a background worker pings them on a schedule and records latency,
-status changes, and outages into Postgres.
+**Is my website up? And how fast was it, really?**
 
-## Architecture
+UptimeKit answers both. You give it a list of web addresses to watch. It checks
+each one on a schedule, around the clock, and keeps a permanent record: when it
+went down, how long it stayed down, and how quickly it responded on every check
+in between. When something breaks it messages your team on Slack or Discord
+within seconds.
 
-Two runnable pieces, plus Supabase:
-
-1. **Web Dashboard (`src/web`)** — Next.js 14 App Router (React, Tailwind, Recharts). Its Route Handlers and Server Components talk to **Supabase** directly: Supabase Auth for signup/login/sessions, Postgres with row level security for team isolation. There is no separate API server.
-2. **Worker Engine (`src/worker`)** — BullMQ + Redis background service that schedules and executes health checks, then writes time-series results straight into Supabase's Postgres over the direct connection string.
-
-Row level security scopes every table by `team_id`. The web app queries as the signed-in user, so isolation is enforced by the database. The worker connects as `postgres` and bypasses RLS by design — it is a trusted backend process.
+It is the same idea as Pingdom or UptimeRobot, built from scratch.
 
 ---
 
-## Prerequisites
+## Screenshots
 
-- **Node.js** v22+
-- A **Supabase** project (free tier is fine)
-- **Redis** on port 6379 — only needed to run the worker (see below; Docker is enough)
+<!-- Drop the PNGs into docs/images/ and delete this comment to publish them.
+<p align="center">
+  <img src="docs/images/monitors.png" alt="The monitors list" width="800">
+  <br><em>The monitors list — anything broken sorts to the top.</em>
+</p>
+<p align="center">
+  <img src="docs/images/detail.png" alt="A single monitor's response-time chart" width="800">
+  <br><em>One monitor: response time over 24 hours, outages shaded in red.</em>
+</p>
+-->
+
+> _Screenshots pending — see `docs/images/`._
 
 ---
 
-## Quick start
+## What it does
 
-**You need:** Node 20+, a Supabase project (free tier is fine), and Redis on
-6379 — the last one only if you want the worker.
+|  | |
+| --- | --- |
+| **Watches endpoints** | Any public URL, checked as often as every 30 seconds |
+| **Tracks speed, not just up/down** | Median, 95th and 99th percentile response times, charted over time |
+| **Records outages** | Start, end, duration, and the HTTP error behind it |
+| **Alerts your team** | Slack, Discord, or a plain JSON webhook, fired the moment status flips |
+| **Shares a read-only link** | Send a graph to someone without giving them an account |
+| **Keeps teams separate** | Invite teammates as admin or viewer; each team sees only its own data |
 
-```bash
-# 1. schema — paste supabase/schema.sql into the Supabase SQL Editor and run it
-# 2. config
-cp .env.example .env                                  # worker
-cp src/web/.env.local.example src/web/.env.local      # web
-# 3. install
-npm install && (cd src/web && npm install)
-# 4. run
-cd src/web && npm run dev                             # http://localhost:3001
+---
+
+## Why I built it
+
+<!-- Replace this section with your own story — why you picked this project,
+     what you wanted to learn. The paragraph below is a placeholder. -->
+
+Uptime monitoring looks trivial until you try to store the data. A single
+endpoint checked every 30 seconds produces about a million rows a year. Ten
+endpoints produce ten million, and "show me last year's response times" stops
+being a query and starts being a design problem.
+
+That was the interesting part. UptimeKit keeps three tiers of the same data —
+every individual check for the recent past, hourly summaries behind that, daily
+summaries behind that — and the chart silently picks whichever tier can answer
+the question being asked. Old detail is rolled up and discarded on a schedule,
+so storage stays flat instead of growing forever.
+
+The second interesting part was making it multi-tenant without trusting the
+application code to get it right. Every table is scoped by team inside the
+database itself using Postgres row level security, so a bug in a query cannot
+leak one team's monitors to another — the database refuses to return the rows.
+
+---
+
+## How it works
+
+```
+                  ┌──────────────┐
+   you ──────────▶│ Web dashboard│──────┐
+                  │  (Next.js)   │      │
+                  └──────────────┘      ▼
+                                   ┌──────────┐
+                                   │ Supabase │  ← auth + Postgres + RLS
+                                   │ Postgres │
+                                   └──────────┘
+   the internet ◀──┌──────────────┐      ▲
+   (your URLs)     │    Worker    │──────┘
+                   │ (BullMQ+Redis)│
+                   └──────────────┘
 ```
 
-`schema.sql` is idempotent — re-running it is safe.
+Two runnable programs, one database, no API server between them.
 
-The dashboard works on its own: register, confirm your address, log in, add
-monitors. They sit at `unknown` until the worker pings them.
-
----
-
-## Architecture
-
-Two runnable pieces, plus Supabase. There is no separate API server.
-
-| Piece | Stack | Talks to |
+| | Stack | Job |
 | --- | --- | --- |
-| **Web dashboard** (`src/web`) | Next.js 14 App Router, React, Tailwind, Recharts | Supabase directly — Auth for sessions, Postgres via Server Components and Route Handlers |
-| **Worker engine** (`src/worker`) | BullMQ + Redis | Postgres over the direct connection string |
+| **`src/web`** | Next.js 14, React, Tailwind, Recharts | The dashboard. Talks to Postgres directly from Server Components |
+| **`src/worker`** | Node, BullMQ, Redis | Pings the URLs, writes results, rolls up old data, sends alerts |
 
-**Isolation is the database's job.** Row level security scopes every table by
-`team_id`, and the web app queries as the signed-in user. The worker connects
-as `postgres` and bypasses RLS by design — it is a trusted backend process.
+The web app queries **as the signed-in user**, so row level security enforces
+team isolation. The worker connects as `postgres` and bypasses it on purpose —
+it is a trusted backend process with no user input in its query path.
 
 ---
 
-## Configuration
+## Run it locally
 
-### Web app — `src/web/.env.local`
+**You need:** [Node 22+](https://nodejs.org), a free
+[Supabase](https://supabase.com) project, and [Docker](https://docker.com) (for
+Redis — only if you want the worker).
 
-From **Supabase → Project Settings → API**:
+### 1. Clone and install
+
+```bash
+git clone https://github.com/kcotiru/UptimeKit.git
+cd UptimeKit
+
+npm install              # worker
+cd src/web && npm install && cd ../..
+```
+
+### 2. Create the database
+
+Open your Supabase project → **SQL Editor** → **New query**. Paste the entire
+contents of [`supabase/schema.sql`](supabase/schema.sql) and hit **Run**.
+
+It is idempotent, so re-running it later is always safe.
+
+### 3. Turn on email confirmation
+
+Supabase project → **Authentication → Providers → Email** → switch
+**Confirm email** to **on**.
+
+Skip this and verification means nothing — `signUp()` hands back a working
+session immediately, so any unverified address can sign straight in.
+
+### 4. Fill in four values
+
+Two files, two variables each. Nothing else is required, and no paths need
+editing.
+
+```bash
+cp .env.example .env                                # worker
+cp src/web/.env.local.example src/web/.env.local    # web
+```
+
+**`src/web/.env.local`** — from Supabase → **Project Settings → API**:
 
 | Variable | Value |
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | The `anon` / publishable key |
 
-No `service_role` key is needed. Signup used to require one to create the team
-before the user had a session; the `handle_new_user()` trigger does that inside
-the database now, so the RLS-bypassing key never reaches a request path.
-
-### Worker — `.env` (repo root)
+**`.env`** — from Supabase → **Project Settings → Database**:
 
 | Variable | Value |
 | --- | --- |
-| `DATABASE_URL` | The **Session pooler** URI from Project Settings → Database |
+| `DATABASE_URL` | The **Session pooler** connection string |
 | `REDIS_URL` | `redis://localhost:6379` |
 
-> **Use the pooler, not *Direct connection*.** `db.<ref>.supabase.co` resolves
-> to IPv6 only, so on an IPv4-only network the worker hangs and then fails with
+> ⚠️ Pick **Session pooler**, not *Direct connection*. `db.<ref>.supabase.co`
+> is IPv6-only, so on an IPv4 network the worker hangs and then dies with
 > `ENOTFOUND`.
 
-### Supabase dashboard settings
-
-**Turn "Confirm email" ON** under Authentication → Providers → Email. Without
-it verification means nothing: `signUp()` returns a usable session immediately
-and unverified addresses can sign straight in.
-
-Confirmation and password-reset mail goes through Supabase's built-in sender,
-which is capped at a few messages an hour and only delivers to members of the
-project. Fine for local use and demos; real delivery is custom SMTP under
-Authentication → Emails, which is dashboard configuration, no code change.
-
----
-
-## Running
-
-### Web dashboard
-
-```bash
-cd src/web
-npm run dev            # http://localhost:3001
-```
-
-### Worker engine
-
-The worker needs Redis for its job queues; Supabase does not provide one.
-Docker is the shortest path:
-
-```bash
-docker run -d --name uptimekit-redis -p 6379:6379 redis:7-alpine
-npm run worker         # second terminal, repo root
-```
-
-The container persists — `docker start uptimekit-redis` brings it back later.
-
-The worker syncs monitors every 30 seconds, pings each on its own interval,
-flips monitor status, and fills the time-series charts. To pause a monitor
-without deleting it, set `is_paused = true` on its row; the scheduler skips it.
-
-### What to do in the app
-
-1. **Register** at `/register`, then open the confirmation link before signing in.
-   `signUp()` creates the Auth user and the `handle_new_user()` trigger creates
-   the team and profile row in the same transaction — if it raises, the auth
-   user rolls back too.
-2. **Add a monitor** with any public endpoint (e.g. `https://google.com`).
-   Minimum interval is 30 seconds.
-3. **Start the worker**, then open a monitor for its time-series graph.
-4. **Settings → Alerts** — add a Slack, Discord, or generic JSON webhook. Use
-   **Test** to confirm the destination without waiting for an outage. Without
-   one the worker still records incidents but has nowhere to send them.
-5. **Settings → Team members** — mint an invite link. Anyone holding it
-   registers straight into the team at the role you picked, so share it like a
-   password. Admins only. Forgot a password? `/forgot-password` emails a reset.
-
----
-
-## Deploying schema changes
-
-`supabase/schema.sql` is applied by hand — no migration runner enforces order.
-
-> **Apply the schema first, then deploy code.**
-
-Old code against a new schema is fine: unknown columns and tables are simply
-ignored. It is **new code against an old schema** that breaks, and mostly
-silently:
+No `service_role` key is needed anywhere. Signup used to require one to create
+a team before the user had a session; a database trigger does that now, so the
+RLS-bypassing key never touches a request path.
 
 <details>
-<summary>The five failure modes, if you deploy in the wrong order</summary>
+<summary>Optional worker settings and their defaults</summary>
 
-| Missing in the schema | What breaks |
-| --- | --- |
-| `monitors.timeout_ms` | `monitor-scheduler.ts`'s `SELECT` throws, `syncMonitors()` rejects, and **zero monitors get scheduled** — a silent monitoring outage, not a visible error |
-| `get_shared_view` RPC, `saved_views` | Creating or viewing a shared graph link fails |
-| `team_webhooks` | The Alerts settings page fails to load or save webhooks |
-| `percentile_source` | Every `hourly_to_daily` rollup run throws, `rollup_logs` rows sit at `'failed'`, and daily buckets go missing for the gap — recoverable only via `scripts/backfill-daily-rollups.ts` |
-| `handle_new_user()` trigger, `team_invites`, `describe_invite()` | `signUp()` creates an auth user with **no team and no profile row**. It can confirm and sign in, then hit an empty `current_team_id()` and see nothing, forever. Invite links 404 at the same time |
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `WORKER_CONCURRENCY` | `50` | Simultaneous in-flight pings |
+| `DEGRADED_THRESHOLD_MS` | `5000` | Slower than this and a monitor reads `degraded`, not `up` |
+| `SSRF_ALLOWLIST` | empty | Comma-separated hosts exempt from the private-IP block |
+| `DATABASE_TEST_URL` | empty | A throwaway Postgres for the database-backed tests |
 
 </details>
 
-### Verifying partition maintenance
+### 5. Start the dashboard
 
-`schema.sql` raises an exception if the `uptimekit-partitions` job fails to
-register, so a successful apply proves it registered in a database pg_cron
-polls. To check later that it is still scheduled and running:
-
-```sql
-SELECT jobname, schedule, active FROM cron.job WHERE jobname = 'uptimekit-partitions';
-
-SELECT status, start_time, return_message
-  FROM cron.job_run_details
- WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'uptimekit-partitions')
- ORDER BY start_time DESC
- LIMIT 5;
+```bash
+cd src/web
+npm run dev
 ```
 
-No rows from the first query means partition maintenance is not scheduled:
-`ping_logs_raw` will start rejecting every insert once the pre-created
-partitions run out, and monitoring stops without a visible error. Re-apply
-`supabase/schema.sql`.
+Open **http://localhost:3001**, register, click the confirmation email, log in.
+
+That alone is a working app — you can add monitors right away. They sit at
+`unknown` until something actually pings them, which is step 6.
+
+### 6. Start the worker
+
+The worker needs Redis. Supabase does not provide one, so:
+
+```bash
+docker run -d --name uptimekit-redis -p 6379:6379 redis:7-alpine
+```
+
+Then in a **second terminal**, from the repo root:
+
+```bash
+npm run worker
+```
+
+The container survives reboots — `docker start uptimekit-redis` brings it back.
+
+Within about 30 seconds your monitors flip from `unknown` to `up` and the
+charts start filling in.
+
+### 7. Try the rest
+
+- **Settings → Alerts** — add a Slack, Discord, or JSON webhook, then hit
+  **Test** to confirm it works without waiting for a real outage.
+- **Settings → Team members** — mint an invite link. Anyone holding it joins
+  your team at the role you chose, so treat it like a password. Admins only.
+- **Any monitor → Share** — a read-only public link to that graph.
 
 ---
 
 ## Tests
 
 ```bash
-npm test                 # worker + schema assertions
-cd src/web && npm test   # validation and row-mapping
+npm test                 # worker: 61 tests
+cd src/web && npm test   # web: 135 tests
+```
+
+Both pass from a clean clone with no database configured. 35 of the worker
+tests are database-backed and skip themselves unless you point
+`DATABASE_TEST_URL` at a local Postgres:
+
+```bash
+createdb uptimekit_test
+echo 'DATABASE_TEST_URL=postgresql://postgres:postgres@127.0.0.1:5432/uptimekit_test' >> .env
+npm test                 # now 96 tests
+```
+
+> ⚠️ Use a throwaway database. These tests apply the schema and write fixtures.
+> `DATABASE_URL` is deliberately **not** used as a fallback, so a test missing
+> its skip guard fails loudly instead of writing to your real project.
+
+Want realistic data to look at without waiting hours for pings to accumulate?
+
+```bash
+SEED_CONFIRM=uptimekit_test npx ts-node scripts/seed-dev.ts
+```
+
+---
+
+## Known issues & to-do
+
+### Bugs
+
+- **Three components disagree on what "success" means.** The worker flips a
+  monitor to `down` when the status code is anything other than the expected
+  one (default `200`); the hourly rollup counts `200–399` as a success; the
+  dashboard counts anything `< 400`. A permanent redirect would therefore show
+  a red `down` badge next to `uptime 100%`. Latent today because everything
+  being monitored returns `200`. Fix: have the worker record its own verdict
+  as a column, and read that everywhere.
+- **Recent-metrics reporting on the live tier.** For monitors young enough to
+  be served from raw pings, the list view reports the single most recent sample
+  where it labels p50 and p99. Correct as a number, mislabelled as a statistic.
+
+### Unfinished
+
+- [ ] **Theme and Timezone** in the account menu are visible but disabled —
+      wired up in a later pass.
+- [ ] **No migration runner.** `supabase/schema.sql` is applied by hand. It is
+      idempotent, but nothing enforces apply order (see below).
+- [ ] **No landing page.** `/` redirects straight to the dashboard.
+- [ ] **Email is Supabase's built-in sender** — a few messages an hour, and
+      only to addresses attached to the Supabase project. Fine for a demo.
+      Real delivery is custom SMTP under Authentication → Emails, which is
+      dashboard configuration, not a code change.
+
+---
+
+## Deploying schema changes
+
+> **Apply `supabase/schema.sql` first, then deploy code.**
+
+Old code against a new schema is harmless — unknown columns and tables are
+ignored. It is **new code against an old schema** that breaks, usually without
+an error anyone sees.
+
+<details>
+<summary>What breaks, if you deploy in the wrong order</summary>
+
+| Missing from the schema | Symptom |
+| --- | --- |
+| `monitors.timeout_ms` | `syncMonitors()` throws and **zero monitors get scheduled** — a silent monitoring outage |
+| `saved_views`, `get_shared_view` | Creating or opening a shared graph link fails |
+| `team_webhooks` | The Alerts settings page won't load or save |
+| `percentile_source` | Every `hourly_to_daily` rollup throws; daily buckets go missing for the gap. Recover with `scripts/backfill-daily-rollups.ts` |
+| `handle_new_user()`, `team_invites`, `describe_invite()` | `signUp()` creates an auth user with **no team**. It can sign in and then see nothing, forever. Invite links 404 too |
+
+</details>
+
+### Checking that partition maintenance is alive
+
+The schema raises an exception if the `uptimekit-partitions` cron job fails to
+register, so a clean apply proves it worked. To re-check later:
+
+```sql
+SELECT jobname, schedule, active FROM cron.job WHERE jobname = 'uptimekit-partitions';
+```
+
+No rows means it is not scheduled — `ping_logs_raw` will start rejecting every
+insert once the pre-created partitions run out, and monitoring stops silently.
+Re-apply `supabase/schema.sql`.
+
+---
+
+## Repo layout
+
+```
+src/web/          Next.js dashboard
+src/worker/       Ping scheduler, rollups, alerting
+supabase/         schema.sql — tables, RLS policies, functions, cron
+scripts/          Dev seeding and rollup backfill
+tests/            Worker suite
+docs/             Design system and specs
 ```
