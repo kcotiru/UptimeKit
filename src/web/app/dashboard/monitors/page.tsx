@@ -48,6 +48,11 @@ export default async function MonitorsPage() {
     );
   }
 
+  // One clock for the whole render. Every relative time below — the header's
+  // and each row's — is derived from it, so the server HTML and the hydration
+  // pass produce byte-identical strings instead of a mismatch.
+  const renderedAt = Date.now();
+
   // A row alarms on anything other than 'up' (degraded counts too), so the
   // header count must match that, not just 'down'.
   const alarming = monitors.filter((m) => m.status !== 'up').length;
@@ -70,7 +75,7 @@ export default async function MonitorsPage() {
               ? 'Nothing being checked yet'
               : `${monitors.length} endpoint${monitors.length === 1 ? '' : 's'}, ${alarming} down`
         }
-        meta={lastChecked ? `checked ${formatRelative(lastChecked)}` : undefined}
+        meta={lastChecked ? `checked ${formatRelative(lastChecked, renderedAt)}` : undefined}
       />
       {loadFailed ? (
         <div className="p-3.5 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-3 text-red-400 text-sm">
@@ -81,6 +86,7 @@ export default async function MonitorsPage() {
         <MonitorList
           initialMonitors={monitors}
           metricsByMonitor={Object.fromEntries(recentMetrics)}
+          renderedAt={renderedAt}
         />
       )}
     </div>

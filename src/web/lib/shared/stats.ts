@@ -137,6 +137,21 @@ export function bucketUptime(metric: PingMetric): number | null {
  * two different points could share a label and shade/tooltip the wrong one.
  * Shared by every chart keyed on `metrics` so the two never drift apart.
  */
+/**
+ * Width reserved for a chart's y-axis labels, in pixels.
+ *
+ * Sized for the widest label the data can produce. `monitors.timeout_ms` is
+ * capped at 30000 by a CHECK constraint, so the longest is `30000ms`, measured
+ * at 50.0px in 11px Inter with tabular figures, 55.0px once Recharts' 5px tick
+ * offset is added. 56 would fit it by a single pixel — one font fallback away
+ * from clipping again — so this leaves real headroom instead.
+ *
+ * Shared, not per-chart: the response-time and uptime charts swap in the same
+ * tab slot, and different axis widths would shift the plot sideways every time
+ * the tab changes.
+ */
+export const CHART_Y_AXIS_WIDTH = 64;
+
 export function chartLabel(iso: string, spansDays: boolean): string {
   const d = new Date(iso);
   const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

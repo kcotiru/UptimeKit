@@ -1,23 +1,66 @@
 'use client';
 
+import { useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, LayoutDashboard, PlusCircle, Settings, LogOut } from 'lucide-react';
+import {
+  ChevronsLeft,
+  ChevronsRight,
+  LayoutDashboard,
+  MousePointer,
+  PlusCircle,
+  Settings,
+  Sidebar as SidebarIcon,
+} from 'lucide-react';
 import { cn } from '@/lib/shared/utils';
-import { supabaseBrowser } from '@/lib/client/supabase';
+import { useDismissable } from '@/lib/client/use-dismissable';
+import { SIDEBAR_MODE_COOKIE, type SidebarMode } from '@/lib/shared/sidebar-mode';
 
 export interface SidebarProps {
-  /** Signed-in user's email, shown in the footer for orientation. */
-  email?: string;
-  /** Signed-in user's role, shown beneath the email. */
-  role?: string;
+  /** Mode read from the cookie on the server, so the first paint is correct. */
+  initialMode: SidebarMode;
 }
 
+const MODES: { id: SidebarMode; label: string; icon: typeof MousePointer; hint: string }[] = [
+  { id: 'hover', label: 'Expand on hover', icon: MousePointer, hint: 'Opens while pointing at it' },
+  { id: 'expanded', label: 'Always expanded', icon: ChevronsRight, hint: 'Pinned open beside the page' },
+  { id: 'collapsed', label: 'Always collapsed', icon: ChevronsLeft, hint: 'Icons only, never widens' },
+];
+
 /**
- * Persistent sidebar navigation bar providing branding, menu items, and logout action.
+ * Nav rail with three widths, chosen by the control at its foot.
+ *
+ * - `hover` (default) stays 56px and widens to 192px while pointed at. The
+ *   panel is fixed, so it overlays rather than reflowing the page.
+ * - `expanded` is pinned at 192px and the <aside> reserves that width, so
+ *   content sits beside the rail instead of underneath it — a permanently
+ *   open rail that covered content would be unusable.
+ * - `collapsed` is pinned at 56px and never widens, on hover or on focus. The
+ *   icons still navigate; only the labels are withheld.
+ *
+ * The choice rides in a cookie the server reads, so the first paint is already
+ * the chosen width — see lib/shared/sidebar-mode.ts for why not localStorage.
+ *
+ * Labels are clipped rather than removed, so they stay in the accessibility
+ * tree and a screen reader still announces each item while the rail is narrow.
  */
-export function Sidebar({ email, role }: SidebarProps) {
+export function Sidebar({ initialMode }: SidebarProps) {
   const pathname = usePathname();
+  const [mode, setMode] = useState<SidebarMode>(initialMode);
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const close = useCallback(() => setOpen(false), []);
+  useDismissable(open, close, { menu: menuRef, trigger: triggerRef });
+
+  const choose = (next: SidebarMode) => {
+    setMode(next);
+    setOpen(false);
+    // A year, path-wide, Lax: a nav preference is not worth a round trip to
+    // store, and the server must be able to read it on the next request.
+    document.cookie = `${SIDEBAR_MODE_COOKIE}=${next}; path=/; max-age=31536000; samesite=lax`;
+  };
 
   // Adding a monitor happens inside the Monitors section, so it nests under it
   // rather than sitting beside it as a peer destination. The parent keeps the
@@ -52,28 +95,50 @@ export function Sidebar({ email, role }: SidebarProps) {
     },
   ];
 
-  const handleLogout = async () => {
-    await supabaseBrowser().auth.signOut();
-    // Hard navigation, not router.push: it drops every cached Server Component
-    // payload rendered for the signed-in user.
-    window.location.href = '/login';
-  };
+  // Tailwind only emits classes it can see spelled out, so these are literal
+  // strings per mode rather than anything interpolated.
+  const panelWidth =
+    mode === 'expanded'
+      ? 'w-48'
+      : mode === 'collapsed'
+        ? 'w-14'
+        : 'w-14 hover:w-48 focus-within:w-48';
+
+  const label =
+    mode === 'expanded'
+      ? 'whitespace-nowrap opacity-100'
+      : mode === 'collapsed'
+        ? 'whitespace-nowrap opacity-0'
+        : 'whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100';
+
+  // Only a rail that can never widen needs its icons named on hover.
+  const tooltips = mode === 'collapsed';
+
+  const indent =
+    mode === 'expanded'
+      ? 'ml-5 border-l border-surface-border pl-3'
+      : mode === 'collapsed'
+        ? 'border-l border-transparent pl-0'
+        : 'border-l border-transparent pl-0 group-hover:ml-5 group-hover:border-surface-border group-hover:pl-3 group-focus-within:ml-5 group-focus-within:border-surface-border group-focus-within:pl-3';
 
   return (
-    <aside className="w-64 border-r border-surface-border bg-surface flex flex-col justify-between h-screen sticky top-0">
-      <div>
-        {/* Brand Header */}
-        <div className="h-16 flex items-center px-6 border-b border-surface-border gap-3">
-          <div className="h-9 w-9 rounded-lg bg-brand-600/20 border border-brand-500/30 flex items-center justify-center text-brand-400">
-            <Activity className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="font-bold text-slate-50 tracking-tight leading-tight">UptimeKit</h1>
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <nav className="p-4 space-y-1">
+    // Only the pinned-open rail occupies layout space; the other two overlay.
+    <aside className={cn('shrink-0', mode === 'expanded' ? 'w-48' : 'w-14')}>
+      <div
+        className={cn(
+          'group fixed bottom-0 left-0 top-16 z-30 flex flex-col justify-between',
+          'border-r border-surface-border bg-surface',
+          // Clipping and containment exist only to scope the width animation's
+          // per-frame relayout. Pinned shut there is no animation to scope, and
+          // both would cut off the hover tooltips — `contain: paint` clips even
+          // position:fixed descendants — so neither applies in that mode.
+          mode === 'collapsed'
+            ? ''
+            : 'overflow-hidden [contain:layout_paint] transition-[width] duration-150 ease-out',
+          panelWidth
+        )}
+      >
+        <nav className="space-y-1 px-2 py-4">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -82,23 +147,21 @@ export function Sidebar({ email, role }: SidebarProps) {
                   href={item.href}
                   aria-current={item.active ? 'page' : undefined}
                   className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
+                    'group/item relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150',
                     item.active
                       ? 'bg-brand-600 text-white'
                       : item.inSection
                         ? 'text-slate-100 hover:bg-surface-hover'
-                        : 'text-slate-400 hover:text-slate-100 hover:bg-surface-hover'
+                        : 'text-slate-400 hover:bg-surface-hover hover:text-slate-100'
                   )}
                 >
-                  <Icon className="h-4 w-4" />
-                  {item.name}
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className={label}>{item.name}</span>
+                  {tooltips && <Tooltip>{item.name}</Tooltip>}
                 </Link>
 
-                {/* Children sit inside the section, indented and hung off a
-                    guide line so the nesting is visible without a disclosure
-                    control to operate. */}
                 {item.children.length > 0 && (
-                  <div className="ml-5 pl-3 border-l border-surface-border space-y-1">
+                  <div className={cn('space-y-1', indent)}>
                     {item.children.map((child) => {
                       const ChildIcon = child.icon;
                       return (
@@ -107,14 +170,15 @@ export function Sidebar({ email, role }: SidebarProps) {
                           href={child.href}
                           aria-current={child.active ? 'page' : undefined}
                           className={cn(
-                            'flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150',
+                            'group/item relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors duration-150',
                             child.active
                               ? 'bg-brand-600 text-white'
-                              : 'text-slate-400 hover:text-slate-100 hover:bg-surface-hover'
+                              : 'text-slate-400 hover:bg-surface-hover hover:text-slate-100'
                           )}
                         >
-                          <ChildIcon className="h-3.5 w-3.5" />
-                          {child.name}
+                          <ChildIcon className="h-4 w-4 shrink-0" />
+                          <span className={label}>{child.name}</span>
+                          {tooltips && <Tooltip>{child.name}</Tooltip>}
                         </Link>
                       );
                     })}
@@ -124,26 +188,94 @@ export function Sidebar({ email, role }: SidebarProps) {
             );
           })}
         </nav>
+
+        <div className="relative border-t border-surface-border px-2 py-4">
+          <button
+            ref={triggerRef}
+            type="button"
+            onClick={() => setOpen((wasOpen) => !wasOpen)}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            aria-label="Sidebar behaviour"
+            className={cn(
+              'group/item relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+              open
+                ? 'bg-surface-hover text-slate-100'
+                : 'text-slate-400 hover:bg-surface-hover hover:text-slate-100'
+            )}
+          >
+            <SidebarIcon className="h-4 w-4 shrink-0" />
+            <span className={label}>Sidebar</span>
+            {tooltips && !open && <Tooltip>Sidebar</Tooltip>}
+          </button>
+
+        </div>
       </div>
 
-      {/* Footer / Logout */}
-      <div className="p-4 border-t border-surface-border">
-        {email && (
-          <div className="px-3 pb-2">
-            <p className="text-xs text-slate-400 truncate" title={email}>
-              {email}
-            </p>
-            {role && <p className="text-[11px] text-slate-500 capitalize">{role}</p>}
+      {open && (
+          <div
+            ref={menuRef}
+            role="menu"
+            aria-label="Sidebar behaviour"
+            // Opens beside the rail, not inside it: at 56px there is nowhere
+            // for a readable menu to go, and the panel clips its overflow.
+            // Rendered outside the panel on purpose: the panel sets
+            // `contain: layout paint` in the animating modes, which makes it
+            // the containing block for fixed descendants AND clips them, so a
+            // menu nested inside it is cut off exactly when the rail is wide.
+            // Sits directly above its trigger rather than beside the rail. The
+            // button spans 16–56px from the viewport foot (py-4 footer padding
+            // plus a 40px button), so bottom-16 clears it by 8px, and left-2
+            // lines the menu up with the rail's own px-2 gutter. Both are fixed
+            // offsets, so the menu does not move when the rail changes width.
+            className="fixed bottom-16 left-2 z-40 w-56 overflow-hidden rounded-lg border border-surface-border bg-surface py-1"
+          >
+            {MODES.map(({ id, label: name, icon: Icon, hint }) => (
+              <button
+                key={id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={mode === id}
+                onClick={() => choose(id)}
+                className={cn(
+                  'flex w-full items-start gap-3 px-4 py-2 text-left transition-colors',
+                  mode === id
+                    ? 'bg-surface-hover text-slate-100'
+                    : 'text-slate-400 hover:bg-surface-hover hover:text-slate-100'
+                )}
+              >
+                <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-sm">{name}</span>
+                  <span className="block text-[11px] text-slate-500">{hint}</span>
+                </span>
+              </button>
+            ))}
           </div>
-        )}
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-        >
-          <LogOut className="h-4 w-4" />
-          Log Out
-        </button>
-      </div>
+      )}
     </aside>
+  );
+}
+
+/**
+ * Floating name for a rail icon, used only while the rail is pinned shut.
+ *
+ * aria-hidden: the link already carries its label as text, clipped but present
+ * in the accessibility tree, so announcing this too would say everything twice.
+ */
+function Tooltip({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2',
+        'whitespace-nowrap rounded-lg border border-surface-border bg-surface',
+        'px-2 py-1 text-xs font-medium text-slate-100',
+        'opacity-0 transition-opacity duration-100',
+        'group-hover/item:opacity-100 group-focus-visible/item:opacity-100'
+      )}
+    >
+      {children}
+    </span>
   );
 }

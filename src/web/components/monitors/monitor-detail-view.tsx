@@ -23,12 +23,14 @@ export interface MonitorDetailViewProps {
   monitor: Monitor;
   /** Initial time-series metrics data pre-fetched on the server via RSC */
   initialMetrics: PingMetric[];
+  /** Clock captured once on the server, so relative times survive hydration. */
+  renderedAt: number;
 }
 
 /**
  * MonitorDetailView component managing Recharts graph state and URL search param synchronization.
  */
-export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailViewProps) {
+export function MonitorDetailView({ monitor, initialMetrics, renderedAt }: MonitorDetailViewProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -161,7 +163,7 @@ export function MonitorDetailView({ monitor, initialMetrics }: MonitorDetailView
             </div>
             <div>
               <p className="text-[11px] text-slate-500">last check</p>
-              <p className="font-semibold text-slate-200 mt-0.5">{formatRelative(monitor.lastCheckedAt)}</p>
+              <p className="font-semibold text-slate-200 mt-0.5">{formatRelative(monitor.lastCheckedAt, renderedAt)}</p>
             </div>
           </div>
         </div>

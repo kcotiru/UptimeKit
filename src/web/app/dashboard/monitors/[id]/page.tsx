@@ -38,5 +38,10 @@ export default async function MonitorDetailPage({
     console.error(`Failed to fetch metrics for monitor ${params.id}:`, error instanceof Error ? error.message : error);
   }
 
-  return <MonitorDetailView monitor={monitor} initialMetrics={initialMetrics} />;
+  // Same reason as the monitors list: MonitorDetailView is a client component,
+  // so a clock it reads itself would differ between the server HTML and the
+  // hydration pass.
+  return (
+    <MonitorDetailView monitor={monitor} initialMetrics={initialMetrics} renderedAt={Date.now()} />
+  );
 }

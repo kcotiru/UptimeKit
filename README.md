@@ -1,6 +1,8 @@
 # UptimeKit
 
-UptimeKit is an HTTP monitor management and time-series performance analytics dashboard. Teams configure endpoint targets for background health checks, ping latency profiling, and uptime/downtime incident tracking.
+HTTP uptime monitoring with time-series performance analytics. Teams register
+endpoints; a background worker pings them on a schedule and records latency,
+status changes, and outages into Postgres.
 
 ## Architecture
 
@@ -21,88 +23,80 @@ Row level security scopes every table by `team_id`. The web app queries as the s
 
 ---
 
-## Setup
+## Quick start
 
-### 1. Create the schema
-
-In the Supabase dashboard, open **SQL Editor**, paste the entire contents of [`supabase/schema.sql`](supabase/schema.sql), and run it. It is idempotent, so re-running is safe.
-
-### 2. Configure the web app
+**You need:** Node 20+, a Supabase project (free tier is fine), and Redis on
+6379 — the last one only if you want the worker.
 
 ```bash
-cd src/web
-cp .env.local.example .env.local
+# 1. schema — paste supabase/schema.sql into the Supabase SQL Editor and run it
+# 2. config
+cp .env.example .env                                  # worker
+cp src/web/.env.local.example src/web/.env.local      # web
+# 3. install
+npm install && (cd src/web && npm install)
+# 4. run
+cd src/web && npm run dev                             # http://localhost:3001
 ```
 
-Fill in the three values from **Supabase → Project Settings → API**:
+`schema.sql` is idempotent — re-running it is safe.
 
-| Variable | Where to find it |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon` `public` key |
-
-The app needs no `service_role` key. Signup used to require one to create the team
-before the user had a session; the `handle_new_user()` trigger does that inside the
-database now, so the RLS-bypassing key never reaches a request path.
-
-**Turn "Confirm email" ON** under Authentication -> Providers -> Email, or verification
-means nothing: `signUp()` returns a usable session immediately and unverified
-addresses can sign straight in.
-
-Password reset and the signup confirmation both go through Supabase's built-in
-sender, which is capped at a few messages an hour and only delivers to members of
-the Supabase project. That is fine for local use and for a demo. Real delivery is
-custom SMTP under Authentication -> Emails — dashboard configuration, no code change.
-
-### 3. Configure the worker (optional)
-
-```bash
-cp .env.example .env
-```
-
-Set `DATABASE_URL` to the **Session pooler** URI from **Supabase → Project Settings → Database → Connection string**, and `REDIS_URL` to your local Redis. Use the pooler, not *Direct connection*: `db.<ref>.supabase.co` resolves to IPv6 only, so on an IPv4-only network the worker hangs and then fails with `ENOTFOUND`.
-
-### 4. Install
-
-```bash
-npm install            # worker
-cd src/web && npm install
-```
+The dashboard works on its own: register, confirm your address, log in, add
+monitors. They sit at `unknown` until the worker pings them.
 
 ---
 
-## Deploying schema changes
+## Architecture
 
-`supabase/schema.sql` is applied by hand — there is no migration runner enforcing order. When a change to this repo touches both the schema and application code, apply `supabase/schema.sql` to Supabase **first**, then deploy the web app and worker. The reverse order (old worker/web code still running against a NEW schema) is fine — new columns and tables that old code doesn't know about are simply ignored. It is new code running against an OLD schema that breaks, in at least four ways:
+Two runnable pieces, plus Supabase. There is no separate API server.
 
-- `monitor-scheduler.ts`'s `SELECT ... timeout_ms` throws because the column doesn't exist yet, `syncMonitors()` rejects, and **zero monitors get scheduled** — a silent monitoring outage, not a visible error.
-- The saved-views share feature (`get_shared_view` RPC, the `saved_views` table) doesn't exist yet, so creating or viewing a shared graph link fails.
-- The `team_webhooks` table doesn't exist yet, so the Notifications settings page fails to load or save webhooks.
-- A worker shipped before the schema throws `column "percentile_source" does not exist` on every `hourly_to_daily` rollup run, leaving `rollup_logs` rows at `'failed'` and daily buckets simply missing for the gap — recoverable only by re-running `scripts/backfill-daily-rollups.ts`.
-- A web build shipped before the schema has no `handle_new_user()` trigger, so `signUp()` creates an auth user with **no team and no profile row**. That account can confirm its address and sign in, then hit an empty `current_team_id()` and see nothing, forever. The `team_invites` table and `describe_invite()` are missing too, so invite links 404 at the same time.
+| Piece | Stack | Talks to |
+| --- | --- | --- |
+| **Web dashboard** (`src/web`) | Next.js 14 App Router, React, Tailwind, Recharts | Supabase directly — Auth for sessions, Postgres via Server Components and Route Handlers |
+| **Worker engine** (`src/worker`) | BullMQ + Redis | Postgres over the direct connection string |
 
-Deploying old worker/web code against a new schema first, then rolling the schema forward, avoids all four.
+**Isolation is the database's job.** Row level security scopes every table by
+`team_id`, and the web app queries as the signed-in user. The worker connects
+as `postgres` and bypasses RLS by design — it is a trusted backend process.
 
-### Verifying partition maintenance after applying the schema
+---
 
-`supabase/schema.sql` now raises an exception if the `uptimekit-partitions`
-job fails to register, so a successful apply proves the job registered in a
-database pg_cron polls. To confirm later — or to check that the job is still
-scheduled and running — run this in the Supabase SQL Editor:
+## Configuration
 
-```sql
-SELECT jobname, schedule, active FROM cron.job WHERE jobname = 'uptimekit-partitions';
-SELECT status, start_time, return_message
-  FROM cron.job_run_details
- WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'uptimekit-partitions')
- ORDER BY start_time DESC
- LIMIT 5;
-```
+### Web app — `src/web/.env.local`
 
-If the first query returns no rows, partition maintenance is not scheduled:
-`ping_logs_raw` will start rejecting every insert once the pre-created
-partitions run out, and monitoring stops without a visible error. Re-apply
-`supabase/schema.sql`.
+From **Supabase → Project Settings → API**:
+
+| Variable | Value |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | The `anon` / publishable key |
+
+No `service_role` key is needed. Signup used to require one to create the team
+before the user had a session; the `handle_new_user()` trigger does that inside
+the database now, so the RLS-bypassing key never reaches a request path.
+
+### Worker — `.env` (repo root)
+
+| Variable | Value |
+| --- | --- |
+| `DATABASE_URL` | The **Session pooler** URI from Project Settings → Database |
+| `REDIS_URL` | `redis://localhost:6379` |
+
+> **Use the pooler, not *Direct connection*.** `db.<ref>.supabase.co` resolves
+> to IPv6 only, so on an IPv4-only network the worker hangs and then fails with
+> `ENOTFOUND`.
+
+### Supabase dashboard settings
+
+**Turn "Confirm email" ON** under Authentication → Providers → Email. Without
+it verification means nothing: `signUp()` returns a usable session immediately
+and unverified addresses can sign straight in.
+
+Confirmation and password-reset mail goes through Supabase's built-in sender,
+which is capped at a few messages an hour and only delivers to members of the
+project. Fine for local use and demos; real delivery is custom SMTP under
+Authentication → Emails, which is dashboard configuration, no code change.
 
 ---
 
@@ -115,50 +109,89 @@ cd src/web
 npm run dev            # http://localhost:3001
 ```
 
-That is the whole app. Register, confirm your address, log in, and create monitors without the worker running — they just sit at `paused` until something pings them.
-
 ### Worker engine
 
-The worker needs Redis for its job queues. Supabase does not provide one. If you don't have Redis installed, Docker is the shortest path:
+The worker needs Redis for its job queues; Supabase does not provide one.
+Docker is the shortest path:
 
 ```bash
 docker run -d --name uptimekit-redis -p 6379:6379 redis:7-alpine
+npm run worker         # second terminal, repo root
 ```
 
-That container persists across restarts — `docker start uptimekit-redis` brings it back later.
+The container persists — `docker start uptimekit-redis` brings it back later.
 
-Then, in a second terminal from the repo root:
+The worker syncs monitors every 30 seconds, pings each on its own interval,
+flips monitor status, and fills the time-series charts. To pause a monitor
+without deleting it, set `is_paused = true` on its row; the scheduler skips it.
 
-```bash
-npm run worker
-```
+### What to do in the app
 
-It syncs monitors every 30 seconds, pings each on its own interval, flips monitor status, and fills the time-series charts. A monitor shows `unknown` in the dashboard until the worker's first ping lands.
-
-To pause a monitor without deleting it, set `is_paused = true` on its row — the scheduler skips those.
+1. **Register** at `/register`, then open the confirmation link before signing in.
+   `signUp()` creates the Auth user and the `handle_new_user()` trigger creates
+   the team and profile row in the same transaction — if it raises, the auth
+   user rolls back too.
+2. **Add a monitor** with any public endpoint (e.g. `https://google.com`).
+   Minimum interval is 30 seconds.
+3. **Start the worker**, then open a monitor for its time-series graph.
+4. **Settings → Alerts** — add a Slack, Discord, or generic JSON webhook. Use
+   **Test** to confirm the destination without waiting for an outage. Without
+   one the worker still records incidents but has nowhere to send them.
+5. **Settings → Team members** — mint an invite link. Anyone holding it
+   registers straight into the team at the role you picked, so share it like a
+   password. Admins only. Forgot a password? `/forgot-password` emails a reset.
 
 ---
 
-## Usage
+## Deploying schema changes
 
-1. Open **[http://localhost:3001](http://localhost:3001)**.
-2. Register at `/register`. `signUp()` creates the Supabase Auth user; the
-   `handle_new_user()` trigger creates the team and the profile row linking them,
-   inside the same transaction — if it raises, the auth user is rolled back too.
-   Open the confirmation link before signing in.
-3. To add someone to an existing team, open **Notifications -> Team members** and
-   create an invite link. Anyone holding that link registers straight into the team
-   at the role you picked, so share it like a password. Only admins can mint or
-   revoke one. Forgot a password? `/forgot-password` emails a reset link.
-4. Click **Add Monitor** and enter a public endpoint (e.g. `https://google.com`). Minimum check interval is 30 seconds.
-5. Start the worker to begin collecting pings, then open a monitor to see its time-series graph.
-6. Open **Notifications** in the sidebar to add a Slack, Discord, or generic JSON webhook. Use **Test** to confirm the destination works without waiting for an outage. Without a webhook the worker still records incidents, but has nowhere to send them.
+`supabase/schema.sql` is applied by hand — no migration runner enforces order.
+
+> **Apply the schema first, then deploy code.**
+
+Old code against a new schema is fine: unknown columns and tables are simply
+ignored. It is **new code against an old schema** that breaks, and mostly
+silently:
+
+<details>
+<summary>The five failure modes, if you deploy in the wrong order</summary>
+
+| Missing in the schema | What breaks |
+| --- | --- |
+| `monitors.timeout_ms` | `monitor-scheduler.ts`'s `SELECT` throws, `syncMonitors()` rejects, and **zero monitors get scheduled** — a silent monitoring outage, not a visible error |
+| `get_shared_view` RPC, `saved_views` | Creating or viewing a shared graph link fails |
+| `team_webhooks` | The Alerts settings page fails to load or save webhooks |
+| `percentile_source` | Every `hourly_to_daily` rollup run throws, `rollup_logs` rows sit at `'failed'`, and daily buckets go missing for the gap — recoverable only via `scripts/backfill-daily-rollups.ts` |
+| `handle_new_user()` trigger, `team_invites`, `describe_invite()` | `signUp()` creates an auth user with **no team and no profile row**. It can confirm and sign in, then hit an empty `current_team_id()` and see nothing, forever. Invite links 404 at the same time |
+
+</details>
+
+### Verifying partition maintenance
+
+`schema.sql` raises an exception if the `uptimekit-partitions` job fails to
+register, so a successful apply proves it registered in a database pg_cron
+polls. To check later that it is still scheduled and running:
+
+```sql
+SELECT jobname, schedule, active FROM cron.job WHERE jobname = 'uptimekit-partitions';
+
+SELECT status, start_time, return_message
+  FROM cron.job_run_details
+ WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'uptimekit-partitions')
+ ORDER BY start_time DESC
+ LIMIT 5;
+```
+
+No rows from the first query means partition maintenance is not scheduled:
+`ping_logs_raw` will start rejecting every insert once the pre-created
+partitions run out, and monitoring stops without a visible error. Re-apply
+`supabase/schema.sql`.
 
 ---
 
 ## Tests
 
 ```bash
-npm test               # worker + schema assertions
-cd src/web && npm test # validation and row-mapping
+npm test                 # worker + schema assertions
+cd src/web && npm test   # validation and row-mapping
 ```

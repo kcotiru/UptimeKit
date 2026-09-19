@@ -9,6 +9,8 @@ import { summarize } from '@/lib/shared/stats';
 
 export interface MonitorRowProps {
   monitor: Monitor;
+  /** Clock captured once on the server, so relative times survive hydration. */
+  renderedAt: number;
   metrics: PingMetric[];
   onDeleteRequest: (monitor: Monitor) => void;
 }
@@ -20,7 +22,7 @@ export interface MonitorRowProps {
  * monitor that is not up carries an error-toned border, the one case where the
  * whole row is the alarm.
  */
-export function MonitorRow({ monitor, metrics, onDeleteRequest }: MonitorRowProps) {
+export function MonitorRow({ monitor, metrics, renderedAt, onDeleteRequest }: MonitorRowProps) {
   const needsAttention = monitor.status !== 'up';
   const stats = summarize(metrics, 'raw');
 
@@ -29,7 +31,7 @@ export function MonitorRow({ monitor, metrics, onDeleteRequest }: MonitorRowProp
   // recent point that was actually up.
   const lastUp = needsAttention ? [...metrics].reverse().find((m) => m.isUp) ?? null : null;
 
-  const downLabel = downSinceLabel(monitor.createdAt, lastUp?.timestamp ?? null, RECENT_WINDOW_HOURS);
+  const downLabel = downSinceLabel(monitor.createdAt, lastUp?.timestamp ?? null, RECENT_WINDOW_HOURS, renderedAt);
 
   return (
     <div
@@ -88,7 +90,7 @@ export function MonitorRow({ monitor, metrics, onDeleteRequest }: MonitorRowProp
 
         <div className="flex items-center gap-4 shrink-0">
           <span className="hidden sm:inline text-xs text-slate-400">
-            checked {formatRelative(monitor.lastCheckedAt)}
+            checked {formatRelative(monitor.lastCheckedAt, renderedAt)}
           </span>
           <button
             onClick={() => onDeleteRequest(monitor)}

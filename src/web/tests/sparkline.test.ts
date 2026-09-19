@@ -56,3 +56,26 @@ describe('formatRelative', () => {
     expect(formatRelative(new Date(now - 2 * 86_400_000).toISOString())).toBe('2d ago');
   });
 });
+
+// formatRelative is rendered inside client components, which Next renders
+// twice: once on the server for the initial HTML, then again on hydration.
+// If it reads the clock itself those two passes disagree the moment the gap
+// crosses a unit boundary, and React reports a hydration mismatch. The
+// injectable clock is what makes both passes produce the same string.
+describe('formatRelative determinism across a hydration gap', () => {
+  const iso = new Date(1_000_000_000_000).toISOString();
+
+  it('returns the same string for the same clock', () => {
+    expect(formatRelative(iso, 1_000_000_012_000)).toBe('12s ago');
+    expect(formatRelative(iso, 1_000_000_012_000)).toBe('12s ago');
+  });
+
+  it('would differ across a one-second gap — the mismatch being prevented', () => {
+    expect(formatRelative(iso, 1_000_000_012_000)).toBe('12s ago');
+    expect(formatRelative(iso, 1_000_000_013_000)).toBe('13s ago');
+  });
+
+  it('still defaults to the real clock when no time is given', () => {
+    expect(formatRelative(new Date().toISOString())).toBe('0s ago');
+  });
+});
