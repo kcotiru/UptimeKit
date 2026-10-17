@@ -18,24 +18,27 @@ export default async function MonitorDetailPage({
   params: { id: string };
   searchParams: { from?: string; to?: string };
 }) {
-  const monitor = await getMonitor(supabaseServer(), params.id).catch((error: unknown) => {
-    console.error(`Failed to fetch monitor ${params.id}:`, error instanceof Error ? error.message : error);
-    return null;
-  });
-
-  if (!monitor) {
-    notFound();
-  }
-
   const now = new Date();
   const from = searchParams.from || new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
   const to = searchParams.to || now.toISOString();
 
-  let initialMetrics: PingMetric[] = [];
-  try {
-    initialMetrics = await getMetrics(supabaseServer(), params.id, from, to);
-  } catch (error: unknown) {
-    console.error(`Failed to fetch metrics for monitor ${params.id}:`, error instanceof Error ? error.message : error);
+  // Issued together, not one after the other: getMetrics needs only the id and
+  // the window, never the monitor row, so awaiting the row first just spends a
+  // whole Supabase round trip (~70-150ms) doing nothing. Costs one wasted RPC
+  // on the 404 path, which is rare and returns no rows under RLS anyway.
+  const [monitor, initialMetrics] = await Promise.all([
+    getMonitor(supabaseServer(), params.id).catch((error: unknown) => {
+      console.error(`Failed to fetch monitor ${params.id}:`, error instanceof Error ? error.message : error);
+      return null;
+    }),
+    getMetrics(supabaseServer(), params.id, from, to).catch((error: unknown) => {
+      console.error(`Failed to fetch metrics for monitor ${params.id}:`, error instanceof Error ? error.message : error);
+      return [] as PingMetric[];
+    }),
+  ]);
+
+  if (!monitor) {
+    notFound();
   }
 
   // Same reason as the monitors list: MonitorDetailView is a client component,

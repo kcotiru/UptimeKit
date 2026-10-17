@@ -35,6 +35,10 @@ export function DeleteMonitorModal({
       onClose();
     } catch (error: unknown) {
       console.error('Monitor deletion failed:', error instanceof Error ? error.message : error);
+    } finally {
+      // finally, not just the catch: closing renders null but does NOT unmount
+      // this component, so `deleting` survives. Left true on success, the next
+      // monitor's dialog opens with its button already disabled and spinning.
       setDeleting(false);
     }
   };

@@ -48,6 +48,27 @@ export function supabaseAnon() {
 }
 
 /**
+ * Signed-in user's id and email from the session token, or null when
+ * unauthenticated. This is the free part of the session: getClaims() verifies
+ * the JWT locally against the project's JWKS, with no network call.
+ *
+ * The dashboard layout renders on every route and needs only the email, so
+ * paying getSessionUser()'s profile round trip there buys nothing. Use
+ * getSessionUser() whenever teamId or role is needed — and `role` must always
+ * come from the database row, never from the token.
+ */
+export const getSessionClaims = cache(async () => {
+  const { data } = await supabaseServer().auth.getClaims();
+  const claims = data?.claims;
+  if (!claims?.sub) return null;
+
+  return {
+    id: claims.sub,
+    email: typeof claims.email === 'string' ? claims.email : '',
+  };
+});
+
+/**
  * Current user plus their team, or null when unauthenticated.
  *
  * Uses getClaims() rather than getUser(): getClaims() verifies the JWT
@@ -64,20 +85,17 @@ export function supabaseAnon() {
  * dedupes only within a request, so there is no cross-request staleness risk.
  */
 export const getSessionUser = cache(async () => {
-  const supabase = supabaseServer();
-  const { data } = await supabase.auth.getClaims();
-  const claims = data?.claims;
-  if (!claims?.sub) return null;
+  const claims = await getSessionClaims();
+  if (!claims) return null;
 
-  const { data: profile } = await supabase
+  const { data: profile } = await supabaseServer()
     .from('users')
     .select('team_id, role')
-    .eq('id', claims.sub)
+    .eq('id', claims.id)
     .single();
 
   return {
-    id: claims.sub,
-    email: typeof claims.email === 'string' ? claims.email : '',
+    ...claims,
     teamId: profile?.team_id ?? '',
     // Read from the profile row, never from the JWT: app_metadata would need
     // re-issuing on every role change, and user_metadata is client-writable.

@@ -25,7 +25,10 @@ export const defaultBullMQConnection = {
 const dbUrl = process.env.DATABASE_URL || '';
 
 if (!dbUrl) {
-  throw new Error('DATABASE_URL is required (Supabase → Project Settings → Database → Connection string)');
+  throw new Error(
+    'DATABASE_URL is required. Copy .env.example to .env in the repo root and set it ' +
+      'to the Session pooler URI from Supabase → Project Settings → Database → Connection string.'
+  );
 }
 
 /**

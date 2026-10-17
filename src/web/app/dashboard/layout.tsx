@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { Sidebar } from '@/components/layout/sidebar';
 import { TopBar } from '@/components/layout/top-bar';
-import { getSessionUser } from '@/lib/server/supabase';
+import { getSessionClaims } from '@/lib/server/supabase';
 import { SIDEBAR_MODE_COOKIE, parseSidebarMode } from '@/lib/shared/sidebar-mode';
 
 export default async function DashboardLayout({
@@ -9,14 +9,14 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getSessionUser();
+  const user = await getSessionClaims();
   // Read on the server so the rail paints at its chosen width immediately,
   // rather than flashing the default and then correcting after mount.
   const mode = parseSidebarMode(cookies().get(SIDEBAR_MODE_COOKIE)?.value);
 
   return (
     <div className="min-h-screen bg-background text-slate-100">
-      <TopBar email={user?.email} role={user?.role} />
+      <TopBar email={user?.email} />
 
       {/* pt-16 clears the fixed bar. The bar and the rail are both fixed, so
           nothing below them reflows when the rail expands on hover. */}

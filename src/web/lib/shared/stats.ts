@@ -152,6 +152,25 @@ export function bucketUptime(metric: PingMetric): number | null {
  */
 export const CHART_Y_AXIS_WIDTH = 64;
 
+/**
+ * Gap between the X axis line and its time labels.
+ *
+ * Recharts' default puts the first `HH:MM AM/PM` label one pixel *above* the
+ * bottom `0ms` / `0%` label's baseline — measured at -1px, i.e. overlapping —
+ * because the two axes meet at the origin and neither reserves room for the
+ * other. 10px measures a 7px clear gap, and the label still sits 4px inside
+ * the plot box, so the default 30px axis height needs no override.
+ */
+export const CHART_X_TICK_MARGIN = 10;
+
+/**
+ * Minimum space Recharts must leave between two time labels before it drops
+ * one. The default of 5 lets them close to 4px apart on a narrow viewport,
+ * which reads as a single smear of digits; 24 holds them 32px apart and thins
+ * the labels out instead.
+ */
+export const CHART_X_MIN_TICK_GAP = 24;
+
 export function chartLabel(iso: string, spansDays: boolean): string {
   const d = new Date(iso);
   const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

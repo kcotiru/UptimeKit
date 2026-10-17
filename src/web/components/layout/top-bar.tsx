@@ -9,8 +9,6 @@ import { useDismissable } from '@/lib/client/use-dismissable';
 export interface TopBarProps {
   /** Signed-in user's email. */
   email?: string;
-  /** Signed-in user's role, shown beneath the email. */
-  role?: string;
 }
 
 /** Height of the bar. The sidebar offsets itself by this, so it lives in one
@@ -24,7 +22,7 @@ export const TOP_BAR_HEIGHT = 'h-16';
  * 36px mark centres it at 28px) so it stays aligned with the nav icons in the
  * rail directly below it.
  */
-export function TopBar({ email, role }: TopBarProps) {
+export function TopBar({ email }: TopBarProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -83,7 +81,6 @@ export function TopBar({ email, role }: TopBarProps) {
               <p className="truncate text-sm text-slate-100" title={email}>
                 {email ?? 'Signed in'}
               </p>
-              {role && <p className="text-[11px] capitalize text-slate-500">{role}</p>}
             </div>
 
             <div className="py-1">

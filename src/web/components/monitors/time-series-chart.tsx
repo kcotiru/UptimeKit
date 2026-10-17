@@ -12,7 +12,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { PingMetric } from '@/lib/shared/types';
-import { CHART_Y_AXIS_WIDTH, chartLabel, outageRanges, spansMoreThanADay } from '@/lib/shared/stats';
+import { CHART_X_MIN_TICK_GAP, CHART_X_TICK_MARGIN, CHART_Y_AXIS_WIDTH, chartLabel, outageRanges, spansMoreThanADay } from '@/lib/shared/stats';
 import { Activity } from 'lucide-react';
 
 /**
@@ -114,6 +114,8 @@ export function TimeSeriesChart({ metrics, height = 320 }: TimeSeriesChartProps)
               stroke="#a1a1a1"
               fontSize={11}
               tickLine={false}
+              tickMargin={CHART_X_TICK_MARGIN}
+              minTickGap={CHART_X_MIN_TICK_GAP}
               axisLine={{ stroke: '#383838' }}
             />
             <YAxis
