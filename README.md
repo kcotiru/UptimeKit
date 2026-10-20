@@ -129,7 +129,8 @@ see [docs/operations.md](docs/operations.md#environment-variables-in-powershell)
 On a brand-new project that command is all there is to it. **On a database that
 has been running for a while, verify it first:** recording the baseline without
 executing it asserts the database already equals `schema.sql`, and once that row
-exists, drift that predates it can never be detected. Run the parity audit first
+exists nothing ever asks you to check again — and a later audit shows drift that
+predates the row tangled up with the migrations applied since. Run the parity audit first
 — [docs/operations.md → Baselining an existing
 project](docs/operations.md#baselining-an-existing-project). More on migrations
 in [`supabase/migrations/README.md`](supabase/migrations/README.md).

@@ -28,6 +28,11 @@ supabase/migrations/down/20261105143000_add_monitor_notes.sql
 - A forward migration with no down file is **rejected before anything is
   applied**, unless its very first line is `-- irreversible: <reason>`. The
   baseline is the one such file today.
+- **The baseline must be recorded before anything stacks on it.** `npm run migrate`
+  refuses outright while `20261020000000` is unapplied, because `schema.sql` is
+  applied separately and this runner never executes it — migrations would otherwise
+  land on a schema that may not be there. `--baseline-only` is the only way to record
+  that row; see [operations.md](../../docs/operations.md#baselining-an-existing-project).
 - **The runner already owns the transaction.** It wraps your file and its history
   row in one `BEGIN`/`COMMIT`, so your file must not open its own. A file
   containing `BEGIN`, `COMMIT`, `ROLLBACK`, `START TRANSACTION` or `SAVEPOINT` is

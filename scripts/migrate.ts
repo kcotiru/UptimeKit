@@ -17,6 +17,7 @@ import fs from 'fs';
 import path from 'path';
 import { Client } from 'pg';
 import {
+  BASELINE_VERSION,
   applyPending,
   containsDestructive,
   listMigrationFiles,
@@ -87,6 +88,28 @@ export async function run(
       // Recomputed: recordBaseline above takes the baseline out of the pending set, and
       // `changed` must not count it — it writes a history row, never schema.
       const pending = await pendingMigrations(client, dir);
+
+      // The baseline stub is a forward file like any other: comment-only, and carrying the
+      // `-- irreversible:` marker that gets it past assertRevertable. Left alone, a routine
+      // `npm run migrate -- --hosted` "applies" it and records it, making the assertion
+      // *this database equals schema.sql* on the operator's behalf — skipping the check
+      // docs/operations.md puts before it, and stacking later migrations on a schema this
+      // runner never applied. Recording it stays deliberate: --baseline-only here, or
+      // recordBaseline from the test harness.
+      // ponytail: keys on "the baseline file is present and still pending", which equals
+      // "not recorded" for supabase/migrations — the only directory this CLI passes. A
+      // directory with no baseline file passes vacuously; that shape exists only in tests.
+      // Upgrade: require the row unconditionally, which means giving those fixtures
+      // versions above BASELINE_VERSION so they still validate.
+      if (pending.some((f) => f.version === BASELINE_VERSION)) {
+        throw new Error(
+          `The baseline (${BASELINE_VERSION}) is not recorded for this database, so migrations ` +
+            `have nothing to stack on: supabase/schema.sql is applied separately and this runner ` +
+            `never executes it. Apply schema.sql, check the database matches it (docs/operations.md ` +
+            `-> "Baselining an existing project"), then record it with --baseline-only.`
+        );
+      }
+
       // Each migration commits on its own, so a failure part-way leaves earlier ones applied.
       changed = pending.length > 0;
       const applied = await applyPending(client, dir, applyOpts);

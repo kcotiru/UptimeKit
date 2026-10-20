@@ -3,6 +3,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import {
+  BASELINE_VERSION,
   listMigrationFiles,
   validateMigrationSet,
   stripPgCronFence,
@@ -268,7 +269,8 @@ describe('rejectUnknownFlags', () => {
 // production, and it needs no hosted connection: `hosted` is a boolean and NOTIFY is a
 // query string. A fake Queryable covers it.
 describe('run (CLI body)', () => {
-  function fakeDb(fail?: RegExp) {
+  /** `applied` is what the history table reports back, so the baseline can be present. */
+  function fakeDb(fail?: RegExp, applied: string[] = []) {
     const sent: string[] = [];
     return {
       sent,
@@ -276,10 +278,19 @@ describe('run (CLI body)', () => {
       async query(sql: string) {
         sent.push(sql);
         if (fail?.test(sql)) throw new Error('boom');
-        return { rows: [] as Array<Record<string, unknown>> };
+        const rows = /SELECT version FROM supabase_migrations/i.test(sql)
+          ? applied.map((version) => ({ version }))
+          : [];
+        return { rows: rows as Array<Record<string, unknown>> };
       },
     };
   }
+  // A fixture that mirrors the real directory: the baseline stub plus one later migration.
+  const withBaseline = () =>
+    fixture({
+      '20261020000000_baseline.sql': { sql: '-- irreversible: baseline marker\n' },
+      '20261101000000_a.sql': { down: true },
+    });
   const NOTIFY = "NOTIFY pgrst, 'reload schema'";
   const opts = (hosted: boolean) => ({ args: [], hosted, confirmed: true, expected: 'ref' });
 
@@ -310,6 +321,27 @@ describe('run (CLI body)', () => {
     const db = fakeDb();
     await run(db, fixture({}), opts(true));
     expect(db.sent).not.toContain(NOTIFY);
+  });
+
+  it('refuses to apply anything while the baseline is unrecorded, and writes nothing', async () => {
+    // The routine deploy command in docs/operations.md is `npm run migrate -- --hosted`.
+    // Without this guard that command silently makes the baseline assertion itself: the
+    // stub is comment-only, so "applying" it does nothing but insert its history row.
+    const db = fakeDb();
+
+    await expect(run(db, withBaseline(), opts(true))).rejects.toThrow(/--baseline-only/);
+
+    expect(db.sent.some((s) => /INSERT INTO supabase_migrations/i.test(s))).toBe(false);
+  });
+
+  it('applies migrations once the baseline is recorded', async () => {
+    const db = fakeDb(undefined, [BASELINE_VERSION]);
+
+    await run(db, withBaseline(), opts(true));
+
+    // The later migration really was applied, so the guard above is not just refusing everything.
+    expect(db.sent).toContain('COMMIT');
+    expect(db.sent.some((s) => /INSERT INTO supabase_migrations/i.test(s))).toBe(true);
   });
 
   it('records no baseline when --baseline-only stops for want of a confirm', async () => {

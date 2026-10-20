@@ -23,10 +23,17 @@ equals `schema.sql`*. Nothing has ever verified it, and the drift this runner
 exists to prevent — an edit inside a `CREATE TABLE IF NOT EXISTS` body never
 reaching a table that already exists — is exactly what would have made it false.
 
-**Verify before you record, because the order is one-way.** Once the baseline row
-is written, forward drift gets fixed by the next migration and **backward drift
-is undetectable forever**: every later migration stacks on a foundation nothing
-can re-check, and the history table says it was verified.
+**Verify before you record, because nothing asks you again.** Once the baseline row
+is written, the history table says this database was checked against `schema.sql`,
+and no command will ever contradict it. The audit below still works afterwards —
+it compares live catalogs and never reads the history table — but it stops being
+conclusive: once migrations have run on top, a diff shows pre-existing drift and
+intended change mixed together, and you are left telling them apart by hand.
+
+The runner enforces the order: it refuses to apply migrations to a database whose
+baseline is not recorded, and `--baseline-only` is the only way to record it.
+That stops the step being skipped by accident; it cannot tell whether you actually
+ran the audit.
 
 The audit compares **two live databases**, never a database against a file, so
 step 1 exists to build the database it needs.
