@@ -6,6 +6,8 @@
   "scripts": {
     "build": "tsc",
     "worker": "ts-node src/worker/index.ts",
+    "migrate": "ts-node scripts/migrate.ts",
+    "migrate:down": "ts-node scripts/migrate.ts --down",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",

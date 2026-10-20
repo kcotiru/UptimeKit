@@ -2,9 +2,9 @@
 --
 -- Baseline marker. supabase/schema.sql IS the baseline; this file contains no SQL.
 --
--- schema.sql is applied separately: by hand in the Supabase SQL Editor, or by the
--- runner on a fresh database. The runner records this version as applied without
--- executing schema.sql against a database that already has it.
+-- schema.sql is applied separately: by hand in the Supabase SQL Editor (README step 2),
+-- or by the test harness. The runner only records this version as applied, without
+-- executing schema.sql, and applies later migrations on top.
 --
 -- Because of that, a Supabase CLI `db reset` cannot rebuild the schema from
 -- migrations alone: it would run the migrations on top of an empty database

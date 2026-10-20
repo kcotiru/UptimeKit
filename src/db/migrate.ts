@@ -251,3 +251,38 @@ export async function recordBaseline(client: Queryable, dir: string): Promise<bo
   );
   return rows.length === 1;
 }
+
+// Destructive-statement scan for the CLI guard.
+// ponytail: regex over comment-stripped text, a heuristic and NOT a guarantee. It
+// false-positives on DROP/DELETE inside string literals or dollar-quoted bodies and
+// is defeated by dynamic SQL (EXECUTE in a DO block). Upgrade: a real SQL parser.
+export function containsDestructive(sql: string): boolean {
+  return stripComments(sql)
+    .split(';')
+    .some(
+      (s) =>
+        /\bDROP\s+(?:TABLE|COLUMN|SCHEMA|DATABASE|VIEW|TYPE)\b/i.test(s) ||
+        /\bTRUNCATE\b/i.test(s) ||
+        /\bALTER\b[\s\S]*\bDROP\b/i.test(s) ||
+        (/\bDELETE\s+FROM\b/i.test(s) && !/\bWHERE\b/i.test(s))
+    );
+}
+
+/** True for any Supabase host (pooler `*.pooler.supabase.com` or direct `db.<ref>.supabase.co`). */
+export function isHostedUrl(url: string): boolean {
+  return /(?:^|\.)supabase\.(?:com|co)$/i.test(new URL(url).hostname);
+}
+
+/**
+ * What MIGRATE_CONFIRM must equal for this target: the project ref when hosted, else the
+ * database name. Never the database name for a hosted URL: it is always `postgres`.
+ */
+export function confirmValueFor(url: string): string {
+  const u = new URL(url);
+  if (!isHostedUrl(url)) return decodeURIComponent(u.pathname.slice(1));
+  const ref =
+    /^postgres\.(.+)$/.exec(decodeURIComponent(u.username))?.[1] ??
+    /^db\.([^.]+)\.supabase\.co$/i.exec(u.hostname)?.[1];
+  if (!ref) throw new Error('Cannot derive a Supabase project ref from this URL');
+  return ref;
+}

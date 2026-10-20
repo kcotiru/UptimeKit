@@ -8,6 +8,9 @@ import {
   stripPgCronFence,
   isIrreversible,
   assertRevertable,
+  containsDestructive,
+  isHostedUrl,
+  confirmValueFor,
 } from '../../src/db/migrate';
 
 const dirs: string[] = [];
@@ -140,5 +143,42 @@ describe('assertRevertable', () => {
       '20260101000000_a.sql': { sql: '-- irreversible: drops a column\nALTER TABLE t DROP COLUMN c;' },
     });
     expect(() => assertRevertable(listMigrationFiles(dir))).not.toThrow();
+  });
+});
+
+describe('containsDestructive', () => {
+  it.each([
+    'DROP TABLE monitors;',
+    'ALTER TABLE monitors DROP COLUMN url;',
+    'ALTER TABLE monitors DROP CONSTRAINT c;',
+    'TRUNCATE ping_logs_raw;',
+    'DELETE FROM monitors;',
+    'select 1; delete from monitors',
+  ])('flags %s', (sql) => expect(containsDestructive(sql)).toBe(true));
+
+  it.each([
+    'CREATE TABLE t (id int); ALTER TABLE t ADD COLUMN c text;',
+    'DELETE FROM monitors WHERE id = 1;',
+    '-- DROP TABLE monitors;\n/* TRUNCATE x */ SELECT 1;',
+  ])('does not flag %s', (sql) => expect(containsDestructive(sql)).toBe(false));
+});
+
+describe('confirmValueFor / isHostedUrl', () => {
+  const pooler = 'postgresql://postgres.abcdefgh:pw@aws-0-x.pooler.supabase.com:5432/postgres';
+  const local = 'postgresql://postgres:postgres@127.0.0.1:5432/uptimekit_sdd_test';
+
+  it('returns the project ref for a Supabase pooler URL, not "postgres"', () => {
+    expect(confirmValueFor(pooler)).toBe('abcdefgh');
+  });
+  it('returns the project ref for a direct Supabase URL', () => {
+    expect(confirmValueFor('postgresql://postgres:pw@db.abcdefgh.supabase.co:5432/postgres')).toBe('abcdefgh');
+  });
+  it('returns the database name for a local URL', () => {
+    expect(confirmValueFor(local)).toBe('uptimekit_sdd_test');
+  });
+  it('distinguishes a Supabase host from localhost', () => {
+    expect(isHostedUrl(pooler)).toBe(true);
+    expect(isHostedUrl(local)).toBe(false);
+    expect(isHostedUrl('postgresql://u:p@notsupabase.com/db')).toBe(false);
   });
 });
