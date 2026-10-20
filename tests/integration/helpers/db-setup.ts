@@ -2,6 +2,7 @@ import { Client } from 'pg';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
+import { applyPending, recordBaseline, stripPgCronFence } from '../../../src/db/migrate';
 
 dotenv.config();
 
@@ -47,13 +48,19 @@ export async function getTestClient(): Promise<Client> {
 // `g` flag: without it, only the first fenced region is stripped, so a
 // second fenced region added later would survive and break every
 // DB-backed test with a confusing "extension not available" error.
-const PG_CRON_BLOCK =
-  /-- @local-test:strip-start \(pg_cron\)[\s\S]*?-- @local-test:strip-end\n?/g;
 
-/** Applies the full schema. Idempotent — every statement is CREATE ... IF NOT EXISTS or OR REPLACE. */
+/**
+ * Applies the full schema, then every pending migration. Idempotent. The baseline
+ * is recorded on every call, not once: other tests delete its history row.
+ * The destructive guard is deliberately not consulted: this targets a throwaway
+ * database and `npm test` must not need MIGRATE_CONFIRM.
+ */
 export async function applySchema(client: Client): Promise<void> {
-  const sql = fs
-    .readFileSync(path.join(__dirname, '../../../supabase/schema.sql'), 'utf8')
-    .replace(PG_CRON_BLOCK, '');
+  const sql = stripPgCronFence(
+    fs.readFileSync(path.join(__dirname, '../../../supabase/schema.sql'), 'utf8')
+  );
   await client.query(sql);
+  const dir = path.join(__dirname, '../../../supabase/migrations');
+  await recordBaseline(client, dir);
+  await applyPending(client, dir, { stripCron: true });
 }
