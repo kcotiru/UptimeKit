@@ -12,6 +12,7 @@ import {
   isHostedUrl,
   confirmValueFor,
   resolveTarget,
+  sslFor,
 } from '../../src/db/migrate';
 import { rejectUnknownFlags, run } from '../../scripts/migrate';
 
@@ -300,5 +301,35 @@ describe('run (CLI body)', () => {
     const db = fakeDb();
     await run(db, fixture({}), opts(true));
     expect(db.sent).not.toContain(NOTIFY);
+  });
+});
+
+describe('sslFor', () => {
+  it('enables TLS for a hosted target', () => {
+    expect(sslFor('postgresql://postgres.abcdefgh:pw@aws-0-x.pooler.supabase.com:5432/postgres')).toEqual({
+      ssl: { rejectUnauthorized: false },
+    });
+  });
+  it('omits the ssl key entirely for a local target, rather than setting it undefined', () => {
+    const opts = sslFor('postgresql://postgres:postgres@127.0.0.1:5432/uptimekit_sdd_test');
+    expect(opts).toEqual({});
+    expect('ssl' in opts).toBe(false);
+  });
+
+  /**
+   * The helper is worthless if a script forgets it: pg connects in plaintext by default,
+   * so a missed call site sends the production password over the wire in the clear.
+   */
+  it('is passed at every connection a script opens for itself', () => {
+    const scripts = ['scripts/migrate.ts', 'scripts/audit-schema-parity.ts', 'scripts/seed-dev.ts'];
+    let sites = 0;
+    for (const file of scripts) {
+      const src = fs.readFileSync(path.resolve(__dirname, '../..', file), 'utf8');
+      const after = src.split('new Client(').slice(1);
+      expect(after.length, `no connection found in ${file}`).toBeGreaterThan(0);
+      for (const tail of after) expect(tail.slice(0, 200), file).toContain('sslFor(');
+      sites += after.length;
+    }
+    expect(sites).toBe(scripts.length);
   });
 });

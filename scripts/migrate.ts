@@ -25,6 +25,7 @@ import {
   recordBaseline,
   resolveTarget,
   revertLast,
+  sslFor,
   type Queryable,
 } from '../src/db/migrate';
 
@@ -101,7 +102,7 @@ async function main(): Promise<void> {
   // Throws before any connection exists when the target is missing or a hosted one is unconfirmed.
   const { url, expected, hosted, confirmed } = resolveTarget(args, process.env);
 
-  const client = new Client({ connectionString: url });
+  const client = new Client({ connectionString: url, ...sslFor(url) });
   await client.connect();
   try {
     await run(client, DIR, { args, hosted, confirmed, expected });

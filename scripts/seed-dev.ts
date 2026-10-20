@@ -9,6 +9,7 @@
  */
 import 'dotenv/config';
 import { Client } from 'pg';
+import { sslFor } from '../src/db/migrate';
 
 const MONITORS = [
   { name: 'api', url: 'https://api.acme.test/health', base: 140, status: 'up' },
@@ -41,7 +42,7 @@ async function main(): Promise<void> {
     );
   }
 
-  const client = new Client({ connectionString: url });
+  const client = new Client({ connectionString: url, ...sslFor(url) });
   await client.connect();
 
   try {

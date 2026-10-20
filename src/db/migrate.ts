@@ -312,6 +312,18 @@ export function isHostedUrl(url: string): boolean {
 }
 
 /**
+ * Connection options for a target, spread into a `pg` config. node-postgres connects in
+ * plaintext unless told otherwise and Supabase URLs carry no `sslmode`, so without this
+ * the password and every statement cross the internet in the clear. Supabase requires TLS;
+ * its cert chain is not in the local trust store. A local Postgres has no certificate at
+ * all, so it gets no `ssl` key rather than an explicit `undefined` — that would override
+ * an `sslmode` the caller put in the URL itself.
+ */
+export function sslFor(url: string): { ssl?: { rejectUnauthorized: boolean } } {
+  return isHostedUrl(url) ? { ssl: { rejectUnauthorized: false } } : {};
+}
+
+/**
  * What MIGRATE_CONFIRM must equal for this target: the project ref when hosted, else the
  * database name. Never the database name for a hosted URL: it is always `postgres`.
  */

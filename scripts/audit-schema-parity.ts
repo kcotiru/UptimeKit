@@ -30,7 +30,7 @@
  * A category that is empty on both sides fails the run: it means the query is broken.
  */
 import { Client } from 'pg';
-import { confirmValueFor, isHostedUrl } from '../src/db/migrate';
+import { confirmValueFor, isHostedUrl, sslFor } from '../src/db/migrate';
 
 // Child partitions of ping_logs_raw are compared as a set (below), not as tables.
 const NOT_PARTITION = `NOT c.relispartition`;
@@ -120,7 +120,7 @@ function guard(url: string): void {
 }
 
 async function open(url: string): Promise<Client> {
-  const client = new Client({ connectionString: url });
+  const client = new Client({ connectionString: url, ...sslFor(url) });
   await client.connect();
   try {
     await client.query('SET default_transaction_read_only = on');
