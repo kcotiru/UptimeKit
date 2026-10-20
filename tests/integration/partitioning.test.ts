@@ -84,8 +84,9 @@ describe('Partitioning Integration / Validation Tests', () => {
 
   it('every cron. reference in a migration sits inside the pg_cron fence', () => {
     const dir = path.join(__dirname, '../../supabase/migrations');
-    const files = fs.readdirSync(dir).filter((f) => f.endsWith('.sql'));
-    expect(files.length).toBeGreaterThan(0);
+    // Recursive: revertLast applies down/ files with the fence stripped too.
+    const files = fs.readdirSync(dir, { recursive: true }).map(String).filter((f) => f.endsWith('.sql'));
+    expect(files.filter((f) => !/[\/]/.test(f)).length).toBeGreaterThan(0);
     for (const f of files) {
       // applySchema() strips the fence with this same regex before applying
       // migrations, so whatever survives it must run without pg_cron.
