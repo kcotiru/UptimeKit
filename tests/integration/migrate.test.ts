@@ -3,7 +3,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import type { Client } from 'pg';
-import { getTestClient } from './helpers/db-setup';
+import { getTestClient, applySchema } from './helpers/db-setup';
 import {
   ensureHistoryTable,
   applyPending,
@@ -291,5 +291,30 @@ suite('migration runner', () => {
       await recordBaseline(client, bdir);
       expect(await applyPending(client, bdir)).toEqual([]);
     });
+  });
+
+  describe('applySchema (test harness)', () => {
+    it('does not re-execute schema.sql once the schema is present', async () => {
+      // Seven test files call applySchema against this one shared database. Executing
+      // schema.sql a second time puts its CREATE OR REPLACE and DROP POLICY/CREATE POLICY
+      // definitions back over whatever a migration redefined, while applyPending skips
+      // those migrations as already recorded: the suite goes green against a stale schema,
+      // and so does the parity reference database docs/operations.md builds with `npm test`.
+      await applySchema(client);
+
+      const sent: string[] = [];
+      const spy = {
+        query: (sql: string, params?: unknown[]) => {
+          sent.push(sql);
+          return client.query(sql, params);
+        },
+      } as unknown as Client;
+
+      await applySchema(spy);
+
+      // Non-vacuous: it really ran (probe, history DDL, baseline insert, applied-versions).
+      expect(sent.length).toBeGreaterThan(0);
+      expect(sent.some((s) => /CREATE TABLE IF NOT EXISTS monitors/i.test(s))).toBe(false);
+    }, 60_000);
   });
 });

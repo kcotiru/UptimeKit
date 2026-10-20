@@ -19,6 +19,10 @@ supabase/migrations/down/20261105143000_add_monitor_notes.sql
 
 - The name is `<version>_<name>.sql`. The version is a **14-digit UTC
   timestamp**, `YYYYMMDDHHMMSS`. Generate it with `date -u +%Y%m%d%H%M%S`.
+  Any other width is **rejected before anything is applied**: versions are
+  compared as strings, which is chronological only at a fixed width (`5` sorts
+  *after* `20261020000000`), so a short version would apply, become the newest
+  version in history, and then reject every later migration as out of order.
 - The down file lives in `down/` with the **same filename**, and undoes the
   forward file.
 - A forward migration with no down file is **rejected before anything is

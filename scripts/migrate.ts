@@ -74,13 +74,19 @@ export async function run(
       changed = reverted !== null;
       console.log(reverted ? `Reverted ${path.basename(reverted.path)}` : 'Nothing to revert.');
     } else {
+      // The guard runs before anything is written. Recording the baseline is a one-way
+      // door — it asserts the database already equals schema.sql, and drift older than
+      // that row can never be detected afterwards — so a run that stops for want of
+      // MIGRATE_CONFIRM must leave no trace of itself to re-run from.
+      if ((await pendingMigrations(client, dir)).some((f) => containsDestructive(fs.readFileSync(f.path, 'utf8')))) {
+        needConfirm('A pending migration');
+      }
       if (args.includes('--baseline-only')) {
         console.log((await recordBaseline(client, dir)) ? 'Recorded baseline.' : 'Baseline already recorded.');
       }
+      // Recomputed: recordBaseline above takes the baseline out of the pending set, and
+      // `changed` must not count it — it writes a history row, never schema.
       const pending = await pendingMigrations(client, dir);
-      if (pending.some((f) => containsDestructive(fs.readFileSync(f.path, 'utf8')))) {
-        needConfirm('A pending migration');
-      }
       // Each migration commits on its own, so a failure part-way leaves earlier ones applied.
       changed = pending.length > 0;
       const applied = await applyPending(client, dir, applyOpts);

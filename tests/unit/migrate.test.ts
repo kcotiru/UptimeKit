@@ -71,6 +71,15 @@ describe('validateMigrationSet', () => {
     expect(() => validateMigrationSet(listMigrationFiles(dir), [])).toThrow(/oops\.sql/);
   });
 
+  it('throws on a version that is not 14 digits, before ordering can be fooled by it', () => {
+    // '5' > '20261020000000' as strings, so the out-of-order check below passes this file
+    // happily; once applied it is the newest version in history and blocks everything real.
+    const dir = fixture({ '5_short.sql': { down: true } });
+    expect(() => validateMigrationSet(listMigrationFiles(dir), ['20261020000000'])).toThrow(
+      /5_short\.sql.*1-digit/s
+    );
+  });
+
   it('throws when a pending file is older than the newest applied', () => {
     const dir = fixture({ '20260101000000_late.sql': { down: true } });
     expect(() => validateMigrationSet(listMigrationFiles(dir), ['20260105000000'])).toThrow(
@@ -301,6 +310,23 @@ describe('run (CLI body)', () => {
     const db = fakeDb();
     await run(db, fixture({}), opts(true));
     expect(db.sent).not.toContain(NOTIFY);
+  });
+
+  it('records no baseline when --baseline-only stops for want of a confirm', async () => {
+    // Recording the baseline asserts the database already equals schema.sql, and drift
+    // older than that row is undetectable afterwards. A run that refused to proceed must
+    // not leave that assertion behind: the operator's next step is the parity audit.
+    const dir = fixture({
+      '20260101000000_a.sql': { down: true, sql: 'DROP TABLE monitors;' },
+      '20261020000000_baseline.sql': { sql: '-- irreversible: baseline marker\n' },
+    });
+    const db = fakeDb();
+
+    await expect(
+      run(db, dir, { args: ['--baseline-only'], hosted: true, confirmed: false, expected: 'ref' })
+    ).rejects.toThrow(/destructive/);
+
+    expect(db.sent.some((s) => /INSERT INTO supabase_migrations/i.test(s))).toBe(false);
   });
 });
 

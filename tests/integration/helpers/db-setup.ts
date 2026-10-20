@@ -85,16 +85,33 @@ export async function getTestClient(): Promise<Client> {
 // DB-backed test with a confusing "extension not available" error.
 
 /**
- * Applies the full schema, then every pending migration. Idempotent. The baseline
- * is recorded on every call, not once: other tests delete its history row.
- * The destructive guard is deliberately not consulted: this targets a throwaway
- * database and `npm test` must not need MIGRATE_CONFIRM.
+ * Applies the full schema, then every pending migration. Idempotent, and safe to call
+ * repeatedly against one shared database — seven test files do.
+ *
+ * schema.sql is executed ONLY against a database that has never had it. Re-running it
+ * puts its `CREATE OR REPLACE` and `DROP POLICY IF EXISTS … ; CREATE POLICY` definitions
+ * back over whatever a migration redefined, and applyPending then skips those migrations
+ * because they are already recorded — so the suite would pass against a stale schema, and
+ * the parity reference database that docs/operations.md builds with `npm test` would be
+ * wrong in the same way, making production look like the drifted side.
+ *
+ * The probe is a schema object, not the baseline history row: migrate.test.ts deletes that
+ * row and leaves it deleted, so a row-based check would re-run schema.sql after that file
+ * and reintroduce the bug with test-order dependence on top. `monitors` existing proves the
+ * whole file committed, because it runs as one multi-statement query (see above) and is
+ * therefore all-or-nothing — a failed apply leaves no table behind to mistake for success.
+ *
+ * The baseline is still recorded on every call, not once, for that same deletion. The
+ * destructive guard is deliberately not consulted: this targets a throwaway database and
+ * `npm test` must not need MIGRATE_CONFIRM.
  */
 export async function applySchema(client: Client): Promise<void> {
-  const sql = stripPgCronFence(
-    fs.readFileSync(path.join(__dirname, '../../../supabase/schema.sql'), 'utf8')
-  );
-  await client.query(sql);
+  const { rows } = await client.query("SELECT to_regclass('public.monitors') IS NOT NULL AS present");
+  if (!rows[0].present) {
+    await client.query(
+      stripPgCronFence(fs.readFileSync(path.join(__dirname, '../../../supabase/schema.sql'), 'utf8'))
+    );
+  }
   const dir = path.join(__dirname, '../../../supabase/migrations');
   await recordBaseline(client, dir);
   await applyPending(client, dir, { stripCron: true });

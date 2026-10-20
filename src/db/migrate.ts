@@ -97,6 +97,18 @@ export function validateMigrationSet(files: MigrationFile[], applied: string[]):
     if (!MIGRATION_FILENAME.test(base)) {
       throw new Error(`Migration file "${base}" does not match <version>_<name>.sql`);
     }
+    // The out-of-order check below compares versions as strings, which is chronological
+    // only at a fixed width: '5' > '20261020000000'. A short version passes that check,
+    // applies, lands in history as the newest version there is, and then rejects every
+    // real migration after it as out of order until someone deletes the row by hand.
+    // MIGRATION_FILENAME stays `[0-9]+` to match the Supabase CLI's own pattern; the
+    // width is a rule about this repo's versions, so it is enforced here.
+    if (f.version.length !== 14) {
+      throw new Error(
+        `Migration file "${base}" has a ${f.version.length}-digit version; it must be a ` +
+          `14-digit UTC timestamp (YYYYMMDDHHMMSS), or version ordering breaks`
+      );
+    }
     const prior = seen.get(f.version);
     if (prior) {
       throw new Error(`duplicate version ${f.version}: "${prior}" and "${base}"`);
@@ -104,7 +116,7 @@ export function validateMigrationSet(files: MigrationFile[], applied: string[]):
     seen.set(f.version, base);
   }
 
-  // 14-digit versions, so lexicographic order is chronological order.
+  // 14-digit versions (enforced above), so lexicographic order is chronological order.
   const newest = applied.reduce((a, b) => (b > a ? b : a), '');
   const done = new Set(applied);
   for (const f of files) {
