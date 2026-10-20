@@ -11,6 +11,8 @@ import {
   appliedVersions,
   listMigrationFiles,
   revertLast,
+  BASELINE_VERSION,
+  recordBaseline,
 } from '../../src/db/migrate';
 
 const hasDb = Boolean(process.env.DATABASE_TEST_URL);
@@ -232,6 +234,62 @@ suite('migration runner', () => {
         await client.query(`DROP TRIGGER ${guard} ON supabase_migrations.schema_migrations`);
         await client.query(`DROP FUNCTION public.${guard}()`);
       }
+    });
+  });
+  describe('baseline', () => {
+    let bdir: string;
+    beforeEach(async () => {
+      bdir = fs.mkdtempSync(path.join(os.tmpdir(), 'migrate-int-'));
+      fs.mkdirSync(path.join(bdir, 'down'));
+      const real = path.join(__dirname, '../../supabase/migrations');
+      const stub = fs.readdirSync(real).find((f) => f.startsWith(`${BASELINE_VERSION}_`))!;
+      fs.copyFileSync(path.join(real, stub), path.join(bdir, stub));
+      // Sandbox DB: forget a baseline recorded by an earlier run.
+      await ensureHistoryTable(client);
+      await client.query('DELETE FROM supabase_migrations.schema_migrations WHERE version = $1', [
+        BASELINE_VERSION,
+      ]);
+    });
+    afterEach(async () => {
+      await client.query('DELETE FROM supabase_migrations.schema_migrations WHERE version = $1', [
+        BASELINE_VERSION,
+      ]);
+      fs.rmSync(bdir, { recursive: true, force: true });
+    });
+
+    it('recordBaseline inserts the baseline version and executes no schema SQL', async () => {
+      // The test DB already has schema.sql applied, so "monitors is absent" proves nothing.
+      // Instead record every statement sent: executing schema.sql would send its text.
+      const sent: string[] = [];
+      const spy = {
+        escapeLiteral: (v: string) => client.escapeLiteral(v),
+        query: (sql: string, params?: unknown[]) => {
+          sent.push(sql);
+          return client.query(sql, params);
+        },
+      };
+      expect(await recordBaseline(spy, bdir)).toBe(true);
+      expect(await appliedVersions(client)).toContain(BASELINE_VERSION);
+
+      const schema = fs.readFileSync(path.join(__dirname, '../../supabase/schema.sql'), 'utf8');
+      const all = sent.join('\n');
+      expect(all).not.toMatch(/monitors/i);
+      expect(all.length).toBeLessThan(schema.length / 10);
+    });
+
+    it('recordBaseline is idempotent and returns false the second time', async () => {
+      expect(await recordBaseline(client, bdir)).toBe(true);
+      expect(await recordBaseline(client, bdir)).toBe(false);
+      const { rows } = await client.query(
+        'SELECT 1 FROM supabase_migrations.schema_migrations WHERE version = $1',
+        [BASELINE_VERSION]
+      );
+      expect(rows).toHaveLength(1);
+    });
+
+    it('applyPending skips the baseline once it is recorded', async () => {
+      await recordBaseline(client, bdir);
+      expect(await applyPending(client, bdir)).toEqual([]);
     });
   });
 });

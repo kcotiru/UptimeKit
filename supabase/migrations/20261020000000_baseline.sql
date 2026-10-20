@@ -1,0 +1,11 @@
+-- irreversible: reverting the baseline would drop the entire schema
+--
+-- Baseline marker. supabase/schema.sql IS the baseline; this file contains no SQL.
+--
+-- schema.sql is applied separately: by hand in the Supabase SQL Editor, or by the
+-- runner on a fresh database. The runner records this version as applied without
+-- executing schema.sql against a database that already has it.
+--
+-- Because of that, a Supabase CLI `db reset` cannot rebuild the schema from
+-- migrations alone: it would run the migrations on top of an empty database
+-- with no baseline underneath.

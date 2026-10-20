@@ -231,3 +231,23 @@ export async function revertLast(
   }
   return file;
 }
+
+// Version of supabase/migrations/20261020000000_baseline.sql, the comment-only stub
+// marking where supabase/schema.sql sits. Single source for that version.
+export const BASELINE_VERSION = '20261020000000';
+
+/**
+ * Records the baseline as applied WITHOUT running any schema SQL, for databases that
+ * already have supabase/schema.sql. Returns false if it was already recorded.
+ */
+export async function recordBaseline(client: Queryable, dir: string): Promise<boolean> {
+  const file = listMigrationFiles(dir).find((f) => f.version === BASELINE_VERSION);
+  if (!file) throw new Error(`No baseline migration ${BASELINE_VERSION} in ${dir}`);
+  await ensureHistoryTable(client);
+  const { rows } = await client.query(
+    `INSERT INTO supabase_migrations.schema_migrations (version, statements, name)
+     VALUES ($1, $2, $3) ON CONFLICT (version) DO NOTHING RETURNING version`,
+    [file.version, [], file.name]
+  );
+  return rows.length === 1;
+}
