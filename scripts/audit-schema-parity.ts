@@ -11,6 +11,18 @@
  * before any query (and is verified), and every query is a SELECT on system catalogs.
  * Targets come from --a/--b only; DATABASE_URL is never read. A hosted target needs
  * MIGRATE_CONFIRM=<project ref>. Never imports src/worker/config/redis.ts.
+ *
+ * Use a direct or session-pooler URL (port 5432), not a transaction pooler (6543): SET is
+ * per-session, and the SHOW check below cannot detect a pooler routing statements to
+ * different backends. (Every query is still a SELECT, so nothing could be written anyway.)
+ *
+ * Scope: the public schema only. NOT compared (known gaps):
+ *   - cron.job: the real guard behind the partition rotation lives there. Most consequential gap.
+ *   - grants/privileges (anon, authenticated), views, sequences, enums and custom types
+ *   - extensions, and auth/storage objects such as triggers on auth.users
+ *   - which dated ping_logs_raw children exist (they roll daily); only the key and
+ *     each child's shape are compared
+ * A category that is empty on both sides fails the run: it means the query is broken.
  */
 import { Client } from 'pg';
 import { confirmValueFor, isHostedUrl } from '../src/db/migrate';
@@ -20,6 +32,11 @@ const NOT_PARTITION = `NOT c.relispartition`;
 
 // Each category: a SELECT returning one string per item, so a diff is a set difference.
 const CATEGORIES: Record<string, string> = {
+  // Table-level RLS flags: if RLS is off, every matching policy is inert.
+  tables: `
+    SELECT format('%s rls=%s force=%s', c.relname, c.relrowsecurity, c.relforcerowsecurity) AS item
+      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+     WHERE c.relkind IN ('r', 'p') AND ${NOT_PARTITION}`,
   columns: `
     SELECT format('%s.%s %s %s default=%s', c.relname, a.attname, format_type(a.atttypid, a.atttypmod),
                   CASE WHEN a.attnotnull THEN 'NOT NULL' ELSE 'NULL' END,
@@ -46,7 +63,9 @@ const CATEGORIES: Record<string, string> = {
       FROM pg_policies WHERE schemaname = 'public'`,
   // prosrc is where CREATE OR REPLACE drift hides.
   functions: `
-    SELECT format('%s(%s)%s', p.proname, pg_get_function_identity_arguments(p.oid),
+    SELECT format('%s(%s) returns %s secdef=%s volatility=%s config=%s%s', p.proname,
+                  pg_get_function_identity_arguments(p.oid), pg_get_function_result(p.oid),
+                  p.prosecdef, p.provolatile, coalesce(p.proconfig::text, '-'),
                   E'\n' || p.prosrc) AS item
       FROM pg_proc p
       JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'public'`,
@@ -78,16 +97,21 @@ function arg(args: string[], name: string): string {
   return v;
 }
 
-async function open(url: string): Promise<Client> {
-  if (isHostedUrl(url)) {
-    const expected = confirmValueFor(url);
-    if (process.env.MIGRATE_CONFIRM !== expected) {
-      throw new Error(
-        `Refusing to connect to a hosted database. Re-run with MIGRATE_CONFIRM=${expected} ` +
-          `once you are sure the target is the one you intend.`
-      );
-    }
+// Throws, before any connection exists, when a hosted target is not confirmed.
+function guard(url: string): void {
+  if (!isHostedUrl(url)) return;
+  const expected = confirmValueFor(url);
+  if (process.env.MIGRATE_CONFIRM !== expected) {
+    throw new Error(
+      `Refusing to connect to a hosted database. Re-run with MIGRATE_CONFIRM=${expected} ` +
+        `once you are sure the target is the one you intend. Use the direct or session-pooler ` +
+        `URL (port 5432), not a transaction pooler (6543): SET is per-session and the read-only ` +
+        `check cannot detect a pooler routing statements to different backends.`
+    );
   }
+}
+
+async function open(url: string): Promise<Client> {
   const client = new Client({ connectionString: url });
   await client.connect();
   try {
@@ -112,8 +136,9 @@ async function snapshot(client: Client): Promise<Record<string, Set<string>>> {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const [urlA, urlB] = [arg(args, '--a'), arg(args, '--b')];
-  // Both are validated before the first connection opens.
-  for (const u of [urlA, urlB]) if (isHostedUrl(u)) confirmValueFor(u);
+  // Both guarded before the first connection opens.
+  guard(urlA);
+  guard(urlB);
   const a = await open(urlA);
   let snapA, snapB;
   try {
@@ -129,7 +154,11 @@ async function main(): Promise<void> {
   }
 
   let diffs = 0;
+  const counts: string[] = [];
+  const empty: string[] = [];
   for (const name of Object.keys(CATEGORIES)) {
+    counts.push(`${name}: ${snapA[name].size}/${snapB[name].size}`);
+    if (!snapA[name].size && !snapB[name].size) empty.push(name);
     const onlyA = [...snapA[name]].filter((x) => !snapB[name].has(x)).sort();
     const onlyB = [...snapB[name]].filter((x) => !snapA[name].has(x)).sort();
     if (!onlyA.length && !onlyB.length) continue;
@@ -138,7 +167,16 @@ async function main(): Promise<void> {
     for (const x of onlyA) console.log(`  only in A: ${x}`);
     for (const x of onlyB) console.log(`  only in B: ${x}`);
   }
-  console.log(diffs ? `\n${diffs} difference(s) found.` : 'No differences found.');
+  console.log(`\nItems compared (A/B): ${counts.join(", ")}`);
+  if (empty.length) {
+    console.log(`ERROR: empty on both sides, the query is probably wrong: ${empty.join(', ')}`);
+    process.exit(1);
+  }
+  console.log(
+    diffs
+      ? `${diffs} difference(s) found.`
+      : 'No differences found in the public-schema categories above (see header for what is not compared).'
+  );
   process.exit(diffs ? 1 : 0);
 }
 
