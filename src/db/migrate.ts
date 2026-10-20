@@ -142,6 +142,22 @@ export async function pendingMigrations(client: Queryable, dir: string): Promise
   return files.filter((f) => !done.has(f.version));
 }
 
+/** A migration that cannot be undone says so with a leading "-- irreversible: <reason>". */
+export function isIrreversible(sql: string): boolean {
+  return /^\s*-- irreversible:[ 	]*\S/.test(sql);
+}
+
+/** Every forward file needs a down file or the irreversible marker, so apply never outruns revert. */
+export function assertRevertable(files: MigrationFile[]): void {
+  for (const f of files) {
+    if (!f.downPath && !isIrreversible(fs.readFileSync(f.path, 'utf8'))) {
+      throw new Error(
+        `Migration "${path.basename(f.path)}" has no down file and is not marked "-- irreversible: <reason>"`
+      );
+    }
+  }
+}
+
 /** Runs one migration and records it in one transaction: both commit or neither does. */
 export async function applyMigration(
   client: Queryable,
@@ -171,6 +187,47 @@ export async function applyPending(
   opts: { stripCron?: boolean } = {}
 ): Promise<MigrationFile[]> {
   const pending = await pendingMigrations(client, dir);
+  assertRevertable(pending);
   for (const f of pending) await applyMigration(client, f, opts);
   return pending;
+}
+
+/**
+ * Reverts the newest applied migration: runs its down file and deletes its history
+ * row in one transaction. Newest-first only; walking further back is repetition.
+ * Returns null when nothing is applied.
+ */
+export async function revertLast(
+  client: Queryable,
+  dir: string,
+  opts: { stripCron?: boolean } = {}
+): Promise<MigrationFile | null> {
+  await ensureHistoryTable(client);
+  const newest = (await appliedVersions(client)).pop();
+  if (!newest) return null;
+
+  const file = listMigrationFiles(dir).find((f) => f.version === newest);
+  if (!file) throw new Error(`Cannot revert ${newest}: no migration file with that version in ${dir}`);
+  if (!file.downPath) {
+    const why = isIrreversible(fs.readFileSync(file.path, 'utf8')) ? 'is marked irreversible' : 'has no down file';
+    throw new Error(`Cannot revert "${path.basename(file.path)}": it ${why}`);
+  }
+
+  let sql = fs.readFileSync(file.downPath, 'utf8');
+  if (opts.stripCron) sql = stripPgCronFence(sql);
+  await client.query('BEGIN');
+  try {
+    await client.query(sql);
+    const { rows } = await client.query(
+      'DELETE FROM supabase_migrations.schema_migrations WHERE version = $1 RETURNING version',
+      [file.version]
+    );
+    // Someone else reverted it between our read and now: undo our down file too.
+    if (rows.length !== 1) throw new Error(`Cannot revert ${file.version}: no longer in history`);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  }
+  return file;
 }

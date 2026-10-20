@@ -6,6 +6,8 @@ import {
   listMigrationFiles,
   validateMigrationSet,
   stripPgCronFence,
+  isIrreversible,
+  assertRevertable,
 } from '../../src/db/migrate';
 
 const dirs: string[] = [];
@@ -111,5 +113,32 @@ describe('stripPgCronFence', () => {
     expect(out).toContain('SELECT 1;');
     expect(out).toContain('SELECT 2;');
     expect(out).not.toContain('cron');
+  });
+});
+
+describe('isIrreversible', () => {
+  it('detects a leading "-- irreversible:" marker', () => {
+    expect(isIrreversible('-- irreversible: drops data\nDROP TABLE t;')).toBe(true);
+    expect(isIrreversible('\n  -- irreversible: drops data\nDROP TABLE t;')).toBe(true);
+    expect(isIrreversible('SELECT 1;\n-- irreversible: not leading')).toBe(false);
+    expect(isIrreversible('-- irreversible:\nSELECT 1;')).toBe(false); // no reason given
+    expect(isIrreversible('SELECT 1;')).toBe(false);
+  });
+});
+
+describe('assertRevertable', () => {
+  it('throws naming a forward file that has no down file and no marker', () => {
+    const dir = fixture({
+      '20260101000000_a.sql': { down: true },
+      '20260102000000_b.sql': {},
+    });
+    expect(() => assertRevertable(listMigrationFiles(dir))).toThrow(/20260102000000_b\.sql/);
+  });
+
+  it('accepts a file marked irreversible with a reason', () => {
+    const dir = fixture({
+      '20260101000000_a.sql': { sql: '-- irreversible: drops a column\nALTER TABLE t DROP COLUMN c;' },
+    });
+    expect(() => assertRevertable(listMigrationFiles(dir))).not.toThrow();
   });
 });
