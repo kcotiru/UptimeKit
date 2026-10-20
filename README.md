@@ -118,13 +118,21 @@ changes can stack on top of it (this needs `DATABASE_URL` from step 4, so come
 back to it after filling in `.env`):
 
 ```bash
-npm run migrate -- --hosted --baseline-only
+MIGRATE_CONFIRM=<your-project-ref> npm run migrate -- --hosted --baseline-only
 ```
 
 `--hosted` aims it at your real project, so it refuses to run until you confirm
-which one: set `MIGRATE_CONFIRM` to your Supabase project ref (the
-`<project-ref>` in your project URL). More in
-[`supabase/migrations/README.md`](supabase/migrations/README.md).
+which one: `MIGRATE_CONFIRM` is your Supabase project ref, the `<project-ref>` in
+your project URL. (PowerShell needs `$env:MIGRATE_CONFIRM='…'` on its own line —
+see [docs/operations.md](docs/operations.md#environment-variables-in-powershell).)
+
+On a brand-new project that command is all there is to it. **On a database that
+has been running for a while, verify it first:** recording the baseline without
+executing it asserts the database already equals `schema.sql`, and once that row
+exists, drift that predates it can never be detected. Run the parity audit first
+— [docs/operations.md → Baselining an existing
+project](docs/operations.md#baselining-an-existing-project). More on migrations
+in [`supabase/migrations/README.md`](supabase/migrations/README.md).
 
 **3. Turn on email confirmation** — Supabase → **Authentication → Providers →
 Email** → switch **Confirm email** to **on**. Skip this and verification means
@@ -182,7 +190,7 @@ Optional settings, webhooks, invites and shared links:
 ## Tests
 
 ```bash
-npm test                 # worker: 104 tests
+npm test                 # worker: 112 tests
 cd src/web && npm test   # web: 135 tests
 ```
 
