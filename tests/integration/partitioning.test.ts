@@ -86,7 +86,10 @@ describe('Partitioning Integration / Validation Tests', () => {
     const dir = path.join(__dirname, '../../supabase/migrations');
     // Recursive: revertLast applies down/ files with the fence stripped too.
     const files = fs.readdirSync(dir, { recursive: true }).map(String).filter((f) => f.endsWith('.sql'));
-    expect(files.filter((f) => !/[\/]/.test(f)).length).toBeGreaterThan(0);
+    // Not vacuous: at least one forward migration exists. path.sep, not '/': on Windows
+    // readdirSync returns `down\x.sql`, so a '/' test counts down/ entries as top-level
+    // and the assertion passes even with no forward migration at all.
+    expect(files.filter((f) => !f.includes(path.sep)).length).toBeGreaterThan(0);
     for (const f of files) {
       // applySchema() strips the fence with this same regex before applying
       // migrations, so whatever survives it must run without pg_cron.

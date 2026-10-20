@@ -6,6 +6,13 @@ import path from 'path';
 // break atomicity. `escapeLiteral` exists on connections but not on Pool, so the type
 // rejects a Pool at compile time.
 export type Queryable = {
+  /**
+   * Never called. It is here only as a structural discriminator: Client and PoolClient
+   * declare it, Pool does not, so a Pool fails to type-check.
+   * ponytail: a proxy for "one dedicated connection", not enforcement of it. It rides on
+   * @types/pg's current shape, `pool as any` still slips through, and every test fake has
+   * to implement it. Upgrade: a branded type the connection helpers hand out.
+   */
   escapeLiteral(value: string): string;
   query(sql: string, params?: unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
 };
@@ -60,13 +67,23 @@ export function listMigrationFiles(dir: string): MigrationFile[] {
 // a transaction block are rejected up front rather than failing cryptically at
 // apply time. Supporting them would mean giving up atomicity.
 // ponytail: regex over comment-stripped text, not a SQL parser; a keyword inside
-// a string literal or function body could false-positive. Upgrade: real tokenizer.
+// a string literal or function body could false-positive. The transaction-control
+// entry trips on a plpgsql body written `DECLARE v int; BEGIN …`, since the `;`
+// before BEGIN looks like a statement boundary — write such a body with no DECLARE
+// block, or inline the declaration, until this grows a tokenizer.
 const NON_TRANSACTIONAL: RegExp[] = [
   /\b(?:CREATE|DROP)\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\b/i,
   /\bREINDEX\b[^;]*\bCONCURRENTLY\b/i,
   /(?:^|;)\s*VACUUM\b/i,
   /(?:^|;)\s*CLUSTER\b/i,
   /\bALTER\s+SYSTEM\b/i,
+  // applyMigration owns the transaction. A file that opens its own voids that
+  // silently: Postgres ignores the nested BEGIN with a warning, the file's COMMIT
+  // ends the runner's transaction, and the history INSERT then runs alone and
+  // auto-committed — so if it fails, the DDL is already committed. schema.sql:6
+  // tells the operator to wrap *that* file in BEGIN/COMMIT, so the pattern is in
+  // the repo waiting to be copied into a migration.
+  /(?:^|;)\s*(?:BEGIN|START\s+TRANSACTION|COMMIT|ROLLBACK|SAVEPOINT)\b/i,
 ];
 
 function stripComments(sql: string): string {
@@ -102,7 +119,8 @@ export function validateMigrationSet(files: MigrationFile[], applied: string[]):
       const hit = re.exec(sql);
       if (hit) {
         throw new Error(
-          `Migration "${base}" contains "${hit[0].replace(/^;/, '').trim()}", which cannot run inside a transaction`
+          `Migration "${base}" contains "${hit[0].replace(/^;/, '').trim()}", which cannot run inside ` +
+            `the transaction the runner opens for every migration`
         );
       }
     }
@@ -259,12 +277,22 @@ export async function recordBaseline(client: Queryable, dir: string): Promise<bo
 
 // Destructive-statement scan for the CLI guard.
 // ponytail: regex over comment-stripped text, a heuristic and NOT a guarantee. It
-// false-positives on DROP/DELETE inside string literals or dollar-quoted bodies and
-// is defeated by dynamic SQL (EXECUTE in a DO block). Upgrade: a real SQL parser.
-// Scope: DATA LOSS, plus DISABLE ROW LEVEL SECURITY (it exposes every tenant's rows to
-// PostgREST's non-owner roles and no legitimate migration contains it). It does NOT cover
-// authorization changes in general: DROP POLICY / FUNCTION / TRIGGER are deliberately
-// unflagged, since "DROP POLICY IF EXISTS x; CREATE POLICY x" is the idiom schema.sql uses.
+// FAILS OPEN as well as closed, so it must never be described as a safety net:
+//   - fail-closed: it false-positives on DROP/DELETE inside a string literal or a
+//     dollar-quoted body, and asks for a confirm that was not needed.
+//   - FAIL-OPEN: stripComments() treats `--` as a line comment *even inside a string
+//     literal*, so everything after it on that line disappears before the scan sees it.
+//     `INSERT INTO notes VALUES ('a--b'); DROP TABLE old;` on one line is reported clean.
+//   - FAIL-OPEN: dynamic SQL defeats it entirely (EXECUTE inside a DO block).
+// Upgrade: a real SQL parser; nothing short of one closes the fail-open direction.
+// Scope: drops (TABLE/COLUMN/SCHEMA/DATABASE/VIEW/MATERIALIZED VIEW/TYPE and
+// `ALTER … DROP`), TRUNCATE, a DELETE with no WHERE, and DISABLE ROW LEVEL SECURITY
+// (it exposes every tenant's rows to PostgREST's non-owner roles and no legitimate
+// migration contains it). Plenty of data loss falls outside that list and is NOT
+// flagged: `UPDATE … SET col = NULL`, a lossy `ALTER COLUMN … TYPE`, `DROP INDEX`.
+// It does not cover authorization changes in general either: DROP POLICY / FUNCTION /
+// TRIGGER are deliberately unflagged, since "DROP POLICY IF EXISTS x; CREATE POLICY x"
+// is the idiom schema.sql uses.
 export function containsDestructive(sql: string): boolean {
   return stripComments(sql)
     .split(';')

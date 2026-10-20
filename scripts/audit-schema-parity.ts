@@ -10,7 +10,12 @@
  * Read-only by construction: every connection runs SET default_transaction_read_only = on
  * before any query (and is verified), and every query is a SELECT on system catalogs.
  * Targets come from --a/--b only; DATABASE_URL is never read. A hosted target needs
- * MIGRATE_CONFIRM=<project ref>. Never imports src/worker/config/redis.ts.
+ * MIGRATE_CONFIRM=<project ref>, and --a may not equal --b. Never imports
+ * src/worker/config/redis.ts.
+ *
+ * The audit compares two live databases, never a database against schema.sql, so
+ * auditing production means building a reference database from schema.sql first:
+ * docs/operations.md -> "Baselining an existing project".
  *
  * Use a direct or session-pooler URL (port 5432), not a transaction pooler (6543): SET is
  * per-session, and the SHOW check below cannot detect a pooler routing statements to
@@ -56,7 +61,10 @@ const CATEGORIES: Record<string, string> = {
     SELECT format('%s.%s %s', tablename, indexname, indexdef) AS item
       FROM pg_indexes
      WHERE schemaname = 'public'
-       AND tablename NOT IN (SELECT c.relname FROM pg_class c WHERE c.relispartition)`,
+       AND tablename NOT IN (
+             SELECT c.relname FROM pg_class c
+               JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+              WHERE c.relispartition)`,
   policies: `
     SELECT format('%s.%s %s roles=%s using=%s check=%s', tablename, policyname, cmd, roles,
                   coalesce(qual, '-'), coalesce(with_check, '-')) AS item
@@ -135,7 +143,14 @@ async function snapshot(client: Client): Promise<Record<string, Set<string>>> {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  const [urlA, urlB] = [arg(args, '--a'), arg(args, '--b')];
+  const [urlA, urlB] = [arg(args, '--a').trim(), arg(args, '--b').trim()];
+  // A database compared with itself reports "No differences found" and exits 0 — a
+  // vacuous pass on the one run that gates a one-way door: once the baseline row is
+  // written to production, backward drift is undetectable forever. Exact-string
+  // equality after a trim catches the realistic mistake, which is pasting one URL twice.
+  if (urlA === urlB) {
+    throw new Error('--a and --b are the same URL. Comparing a database with itself always passes.');
+  }
   // Both guarded before the first connection opens.
   guard(urlA);
   guard(urlB);

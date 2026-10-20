@@ -2,7 +2,7 @@ import { Client } from 'pg';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
-import { applyPending, recordBaseline, stripPgCronFence } from '../../../src/db/migrate';
+import { applyPending, confirmValueFor, recordBaseline, stripPgCronFence } from '../../../src/db/migrate';
 
 dotenv.config();
 
@@ -11,12 +11,47 @@ dotenv.config();
 // run DDL and fixture inserts. A DB-backed test missing its skip guard would
 // hit prod instead of failing loudly. A test database must be named explicitly
 // via DATABASE_TEST_URL.
+//
+// Naming it explicitly is not the same as naming something safe, though: nothing
+// stopped DATABASE_TEST_URL from *being* the production URL. `npm run migrate`
+// refuses that (resolveTarget demands MIGRATE_CONFIRM for a hosted target);
+// `npm test` would have accepted it and then applied schema.sql, recorded the
+// baseline and written fixtures. assertNotProduction() below closes that.
 const testDbUrl = process.env.DATABASE_TEST_URL || '';
+
+/** confirmValueFor, or null when the URL is unset or cannot be classified. Never throws. */
+function projectOf(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return confirmValueFor(url);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Refuses a test target that resolves to the same project (or local database) as
+ * DATABASE_URL. Deliberately NOT a blanket hosted refusal: pointing the tests at a
+ * *separate* Supabase project is legitimate, and `getTestClient`'s ssl branch supports it.
+ * DATABASE_URL is routinely unset for contributors and confirmValueFor throws on a URL it
+ * cannot classify, so an unset or unclassifiable side compares as null and never blocks.
+ */
+function assertNotProduction(): void {
+  const test = projectOf(testDbUrl);
+  const prod = projectOf(process.env.DATABASE_URL);
+  if (test && prod && test === prod) {
+    throw new Error(
+      `DATABASE_TEST_URL resolves to the same target as DATABASE_URL ("${test}"). ` +
+        'These tests apply the schema and write fixtures: point DATABASE_TEST_URL at a throwaway database.'
+    );
+  }
+}
 
 /**
  * Creates and returns an active pg Client connected to test database.
  */
 export async function getTestClient(): Promise<Client> {
+  assertNotProduction();
   const client = new Client({
     connectionString: testDbUrl,
     // Supabase requires TLS; its cert chain isn't in the local trust store.

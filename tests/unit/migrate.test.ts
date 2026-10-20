@@ -13,6 +13,7 @@ import {
   confirmValueFor,
   resolveTarget,
 } from '../../src/db/migrate';
+import { rejectUnknownFlags, run } from '../../scripts/migrate';
 
 const dirs: string[] = [];
 /** Temp migrations dir; each entry gets a forward file, plus a down file when `down` is set. */
@@ -89,6 +90,11 @@ describe('validateMigrationSet', () => {
     'VACUUM t;',
     'CLUSTER t;',
     "ALTER SYSTEM SET work_mem = '8MB';",
+    // applyMigration owns the transaction: a file's own COMMIT would end it early and
+    // leave the history INSERT auto-committed on its own, so the DDL survives its failure.
+    'BEGIN;\nALTER TABLE t ADD COLUMN c text;\nCOMMIT;',
+    'ALTER TABLE t ADD COLUMN c text;\nCOMMIT;',
+    'SAVEPOINT s;',
   ])('rejects a statement that cannot run inside a transaction: %s', (sql) => {
     const dir = fixture({ '20260101000000_a.sql': { down: true, sql } });
     expect(() => validateMigrationSet(listMigrationFiles(dir), [])).toThrow(
@@ -105,17 +111,24 @@ describe('validateMigrationSet', () => {
 });
 
 describe('stripPgCronFence', () => {
-  it('removes the fenced region and leaves surrounding SQL', () => {
+  // Two fenced blocks, not one: PG_CRON_BLOCK needs the /g flag, and a single block
+  // passes with or without it. A dropped `g` previously broke every DB-backed test.
+  it('removes every fenced region and leaves surrounding SQL', () => {
     const sql = [
       'SELECT 1;',
       '-- @local-test:strip-start (pg_cron)',
       "SELECT cron.schedule('x', '* * * * *', 'select 1');",
       '-- @local-test:strip-end',
       'SELECT 2;',
+      '-- @local-test:strip-start (pg_cron)',
+      "SELECT cron.unschedule('x');",
+      '-- @local-test:strip-end',
+      'SELECT 3;',
     ].join('\n');
     const out = stripPgCronFence(sql);
     expect(out).toContain('SELECT 1;');
     expect(out).toContain('SELECT 2;');
+    expect(out).toContain('SELECT 3;');
     expect(out).not.toContain('cron');
   });
 });
@@ -226,5 +239,66 @@ describe('resolveTarget', () => {
   });
   it('refuses --hosted when DATABASE_URL is not a recognised Supabase host', () => {
     expect(() => resolveTarget(['--hosted'], { DATABASE_URL: LOCAL, MIGRATE_CONFIRM: 'uptimekit_sdd_test' })).toThrow(/not a recognised Supabase host/);
+  });
+});
+
+describe('rejectUnknownFlags', () => {
+  it('accepts the known flags and a --db-url value', () => {
+    expect(() => rejectUnknownFlags(['--down'])).not.toThrow();
+    expect(() => rejectUnknownFlags(['--hosted', '--baseline-only'])).not.toThrow();
+    expect(() => rejectUnknownFlags(['--db-url', 'postgresql://u:p@127.0.0.1/db'])).not.toThrow();
+  });
+  it('names a typo instead of silently falling through to the default target', () => {
+    expect(() => rejectUnknownFlags(['--hostd'])).toThrow(/Unknown flag: --hostd/);
+    expect(() => rejectUnknownFlags(['--dwon', '--baselineonly'])).toThrow(/--dwon, --baselineonly/);
+  });
+});
+
+// The NOTIFY gate is the only untested branch on the code path that exclusively touches
+// production, and it needs no hosted connection: `hosted` is a boolean and NOTIFY is a
+// query string. A fake Queryable covers it.
+describe('run (CLI body)', () => {
+  function fakeDb(fail?: RegExp) {
+    const sent: string[] = [];
+    return {
+      sent,
+      escapeLiteral: (v: string) => `'${v}'`,
+      async query(sql: string) {
+        sent.push(sql);
+        if (fail?.test(sql)) throw new Error('boom');
+        return { rows: [] as Array<Record<string, unknown>> };
+      },
+    };
+  }
+  const NOTIFY = "NOTIFY pgrst, 'reload schema'";
+  const opts = (hosted: boolean) => ({ args: [], hosted, confirmed: true, expected: 'ref' });
+
+  it('notifies PostgREST after a partial apply against a hosted target', async () => {
+    const dir = fixture({
+      '20260101000000_a.sql': { down: true },
+      '20260102000000_b.sql': { down: true, sql: 'BOOM;' },
+    });
+    const db = fakeDb(/BOOM/);
+
+    await expect(run(db, dir, opts(true))).rejects.toThrow(/boom/);
+
+    // The first migration really did commit, so this is the partial-apply case.
+    expect(db.sent).toContain('COMMIT');
+    expect(db.sent).toContain(NOTIFY);
+    expect(db.sent.indexOf('COMMIT')).toBeLessThan(db.sent.indexOf(NOTIFY));
+  });
+
+  it('does not notify when the target is not hosted', async () => {
+    const dir = fixture({ '20260101000000_a.sql': { down: true } });
+    const db = fakeDb();
+    await run(db, dir, opts(false));
+    expect(db.sent).toContain('COMMIT');
+    expect(db.sent).not.toContain(NOTIFY);
+  });
+
+  it('does not notify a hosted target when nothing changed', async () => {
+    const db = fakeDb();
+    await run(db, fixture({}), opts(true));
+    expect(db.sent).not.toContain(NOTIFY);
   });
 });
