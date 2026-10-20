@@ -1,7 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 
+// Must be ONE dedicated connection (pg.Client or a checked-out PoolClient), never
+// a pg.Pool: BEGIN/COMMIT on a pool land on different connections and silently
+// break atomicity. `escapeLiteral` exists on connections but not on Pool, so the type
+// rejects a Pool at compile time.
 export type Queryable = {
+  escapeLiteral(value: string): string;
   query(sql: string, params?: unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
 };
 

@@ -4,7 +4,13 @@ import os from 'os';
 import path from 'path';
 import type { Client } from 'pg';
 import { getTestClient } from './helpers/db-setup';
-import { ensureHistoryTable, applyPending, appliedVersions } from '../../src/db/migrate';
+import {
+  ensureHistoryTable,
+  applyPending,
+  applyMigration,
+  appliedVersions,
+  listMigrationFiles,
+} from '../../src/db/migrate';
 
 const hasDb = Boolean(process.env.DATABASE_TEST_URL);
 const suite = hasDb ? describe : describe.skip;
@@ -93,12 +99,28 @@ suite('migration runner', () => {
     const v = ver();
     write(v, 'broken', `CREATE TABLE public.${t} (id int);\nTHIS IS NOT SQL;`, `DROP TABLE public.${t};`);
 
-    await expect(applyPending(client, dir)).rejects.toThrow();
+    await expect(applyPending(client, dir)).rejects.toThrow(/syntax error/);
     expect(await tableExists(t)).toBe(false);
     expect(await appliedVersions(client)).not.toContain(v);
 
     // Clear the broken file so it cannot affect later runs of this suite.
     fs.rmSync(path.join(dir, `${v}_broken.sql`));
     fs.rmSync(path.join(dir, 'down', `${v}_broken.sql`));
+  });
+
+  // The case that needs the explicit BEGIN/COMMIT: the migration SQL succeeds,
+  // then the history INSERT fails. Without the transaction the DDL stays behind.
+  it('rolls back the schema change when the history INSERT fails after the SQL succeeded', async () => {
+    const t = tbl('hist');
+    const v = ver();
+    await client.query('INSERT INTO supabase_migrations.schema_migrations (version) VALUES ($1)', [v]);
+    write(v, 'dup', `CREATE TABLE public.${t} (id int);`, `DROP TABLE public.${t};`);
+    const file = listMigrationFiles(dir).find((f) => f.version === v)!;
+
+    await expect(applyMigration(client, file)).rejects.toThrow(/duplicate key/);
+    expect(await tableExists(t)).toBe(false);
+
+    fs.rmSync(file.path);
+    fs.rmSync(path.join(dir, 'down', `${v}_dup.sql`));
   });
 });
