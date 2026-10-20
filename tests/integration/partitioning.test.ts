@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
+import { stripPgCronFence } from '../../src/db/migrate';
 
 describe('Partitioning Integration / Validation Tests', () => {
   it('validates 004_create_ping_log_raw.sql partitioned table structure', () => {
@@ -79,5 +80,22 @@ describe('Partitioning Integration / Validation Tests', () => {
     // and silently never runs. An RLS enable or a tenant policy added there
     // leaves a table unprotected in a multi-tenant database.
     expect(sql.trimEnd().endsWith('-- @local-test:strip-end')).toBe(true);
+  });
+
+  it('every cron. reference in a migration sits inside the pg_cron fence', () => {
+    const dir = path.join(__dirname, '../../supabase/migrations');
+    // Recursive: revertLast applies down/ files with the fence stripped too.
+    const files = fs.readdirSync(dir, { recursive: true }).map(String).filter((f) => f.endsWith('.sql'));
+    // Not vacuous: at least one forward migration exists. path.sep, not '/': on Windows
+    // readdirSync returns `down\x.sql`, so a '/' test counts down/ entries as top-level
+    // and the assertion passes even with no forward migration at all.
+    expect(files.filter((f) => !f.includes(path.sep)).length).toBeGreaterThan(0);
+    for (const f of files) {
+      // applySchema() strips the fence with this same regex before applying
+      // migrations, so whatever survives it must run without pg_cron.
+      const outside = stripPgCronFence(fs.readFileSync(path.join(dir, f), 'utf8'));
+      expect(outside, f).not.toContain('cron.');
+      expect(outside, f).not.toContain('pg_cron');
+    }
   });
 });

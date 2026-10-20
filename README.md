@@ -113,6 +113,28 @@ cd src/web && npm install && cd ../..
 Paste all of [`supabase/schema.sql`](supabase/schema.sql) and hit **Run**. It is
 idempotent, so re-running it later is safe.
 
+Then tell the migration runner that file is your starting point, so later schema
+changes can stack on top of it (this needs `DATABASE_URL` from step 4, so come
+back to it after filling in `.env`):
+
+```bash
+MIGRATE_CONFIRM=<your-project-ref> npm run migrate -- --hosted --baseline-only
+```
+
+`--hosted` aims it at your real project, so it refuses to run until you confirm
+which one: `MIGRATE_CONFIRM` is your Supabase project ref, the `<project-ref>` in
+your project URL. (PowerShell needs `$env:MIGRATE_CONFIRM='…'` on its own line —
+see [docs/operations.md](docs/operations.md#environment-variables-in-powershell).)
+
+On a brand-new project that command is all there is to it. **On a database that
+has been running for a while, verify it first:** recording the baseline without
+executing it asserts the database already equals `schema.sql`, and once that row
+exists nothing ever asks you to check again — and a later audit shows drift that
+predates the row tangled up with the migrations applied since. Run the parity audit first
+— [docs/operations.md → Baselining an existing
+project](docs/operations.md#baselining-an-existing-project). More on migrations
+in [`supabase/migrations/README.md`](supabase/migrations/README.md).
+
 **3. Turn on email confirmation** — Supabase → **Authentication → Providers →
 Email** → switch **Confirm email** to **on**. Skip this and verification means
 nothing: `signUp()` hands back a working session immediately, so any unverified
@@ -169,11 +191,11 @@ Optional settings, webhooks, invites and shared links:
 ## Tests
 
 ```bash
-npm test                 # worker: 61 tests
+npm test                 # worker: 112 tests
 cd src/web && npm test   # web: 135 tests
 ```
 
-Both pass from a clean clone with no database configured. 35 further worker
+Both pass from a clean clone with no database configured. 48 further worker
 tests are database-backed and skip themselves unless you point
 `DATABASE_TEST_URL` at a throwaway Postgres — see
 [docs/setup.md](docs/setup.md#database-backed-tests).
@@ -195,7 +217,6 @@ tests are database-backed and skip themselves unless you point
 **Unfinished**
 
 - [ ] Theme and Timezone in the account menu are visible but disabled.
-- [ ] No migration runner — `supabase/schema.sql` is applied by hand.
 - [ ] No landing page; `/` redirects straight to the dashboard.
 - [ ] Email uses Supabase's built-in sender: a few messages an hour, and only
       to addresses attached to the Supabase project.
@@ -210,7 +231,7 @@ Full write-ups, including why each one is still open:
 | | |
 | --- | --- |
 | [docs/setup.md](docs/setup.md) | Optional config, test database, seed data, feature tour |
-| [docs/operations.md](docs/operations.md) | Schema deploy order, partition maintenance |
+| [docs/operations.md](docs/operations.md) | Schema deploy order, migrations, partition maintenance |
 | [docs/known-issues.md](docs/known-issues.md) | Bugs and to-do in detail |
 | [docs/design-system.md](docs/design-system.md) | Colour, type and component conventions |
 | [docs/superpowers/](docs/superpowers) | Design docs and implementation plans, by date |

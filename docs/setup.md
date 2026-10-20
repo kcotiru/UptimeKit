@@ -20,14 +20,37 @@ ever read `degraded`. Raise the monitor's timeout (max 30000) to see that state.
 
 ## Database-backed tests
 
-35 of the worker's 96 tests skip themselves unless a test database is
+48 of the worker's 160 tests skip themselves unless a test database is
 configured:
 
 ```bash
-createdb uptimekit_test
-echo 'DATABASE_TEST_URL=postgresql://postgres:postgres@127.0.0.1:5432/uptimekit_test' >> .env
-npm test                 # 96 tests instead of 61
+createdb uptimekit_sdd_test
+PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -d uptimekit_sdd_test -f tests/integration/helpers/bootstrap-local.sql
+echo 'DATABASE_TEST_URL=postgresql://postgres:postgres@127.0.0.1:5432/uptimekit_sdd_test' >> .env
+npm test                 # 160 tests instead of 112
 ```
+
+The `psql` line comes first on purpose. `supabase/schema.sql` assumes it runs on
+Supabase, and a plain local Postgres lacks the pieces it needs: the `extensions`
+schema with pgcrypto in it, the `anon` and `authenticated` roles, and an
+`auth.users` table. [`bootstrap-local.sql`](../tests/integration/helpers/bootstrap-local.sql)
+stubs them. Skip it and the schema fails to apply, and the tests with it.
+
+Those commands use the POSIX `VAR=value cmd` form, which Git Bash runs as-is;
+PowerShell needs `$env:PGPASSWORD='postgres'` on its own line first — see
+[operations.md](operations.md#environment-variables-in-powershell).
+
+The tests apply `schema.sql`, record it as the migration baseline, then apply
+every pending migration, so they never run against a stale schema. (Don't feed
+`schema.sql` to `psql` yourself: it schedules a `pg_cron` job, and a plain local
+Postgres has no `pg_cron`. The tests strip that part; a hand-run does not.)
+Once the tests have run, `npm run migrate` with no flags applies any migrations
+added since, to the same database, because it targets `DATABASE_TEST_URL`.
+
+That property — a green run means `schema.sql` plus every migration applied
+cleanly — is also how you build the reference database the parity audit needs:
+[operations.md → Baselining an existing
+project](operations.md#baselining-an-existing-project).
 
 > ⚠️ Use a throwaway database. These tests apply the schema and write fixtures.
 > `DATABASE_URL` is deliberately **not** used as a fallback, so a test missing
@@ -38,7 +61,7 @@ npm test                 # 96 tests instead of 61
 Rather than waiting hours for pings to accumulate:
 
 ```bash
-SEED_CONFIRM=uptimekit_test npx ts-node scripts/seed-dev.ts
+SEED_CONFIRM=uptimekit_sdd_test npx ts-node scripts/seed-dev.ts
 ```
 
 ## Trying the features
