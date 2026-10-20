@@ -49,9 +49,6 @@ that is not in place.
 # To-do
 
 - [ ] **Theme and Timezone** in the account menu are visible but disabled.
-- [ ] **No migration runner.** `supabase/schema.sql` is applied by hand. It is
-      idempotent, but nothing enforces apply order — see
-      [operations.md](operations.md).
 - [ ] **No landing page.** `/` redirects straight to the dashboard.
 - [ ] **Email is Supabase's built-in sender** — a few messages an hour, and
       only to addresses attached to the Supabase project. Fine for a demo. Real
