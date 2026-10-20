@@ -1,0 +1,22 @@
+# Installed by kcotiru/pr-reviewer setup.sh. Edit there, not here.
+name: Claude Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: ${{ !github.event.pull_request.draft && github.event.pull_request.user.login == github.repository_owner }}
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    uses: kcotiru/pr-reviewer/.github/workflows/claude-review.yml@main
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
