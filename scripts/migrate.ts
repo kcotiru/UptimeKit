@@ -17,12 +17,12 @@ import path from 'path';
 import { Client } from 'pg';
 import {
   applyPending,
-  confirmValueFor,
   containsDestructive,
-  isHostedUrl,
   listMigrationFiles,
+  newestApplied,
   pendingMigrations,
   recordBaseline,
+  resolveTarget,
   revertLast,
 } from '../src/db/migrate';
 
@@ -30,33 +30,8 @@ const DIR = path.resolve(__dirname, '../supabase/migrations');
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  const flag = (f: string) => args.includes(f);
-  const dbUrlIdx = args.indexOf('--db-url');
-  const explicit = dbUrlIdx >= 0 ? args[dbUrlIdx + 1] : undefined;
-  if (dbUrlIdx >= 0 && !explicit) throw new Error('--db-url needs a value');
-  if (explicit && flag('--hosted')) throw new Error('--db-url and --hosted are mutually exclusive');
-
-  const url = flag('--hosted')
-    ? process.env.DATABASE_URL
-    : (explicit ?? process.env.DATABASE_TEST_URL);
-  if (!url) {
-    throw new Error(
-      flag('--hosted')
-        ? 'DATABASE_URL is not set'
-        : 'No target: set DATABASE_TEST_URL or pass --db-url <url> (or --hosted)'
-    );
-  }
-
-  const hosted = isHostedUrl(url);
-  const expected = confirmValueFor(url);
-  const confirmed = process.env.MIGRATE_CONFIRM === expected;
-  // Refuse before any connection is opened.
-  if ((flag('--hosted') || hosted) && !confirmed) {
-    throw new Error(
-      `Refusing to touch a hosted database. Re-run with MIGRATE_CONFIRM=${expected} ` +
-        `once you are sure the target is the one you intend.`
-    );
-  }
+  // Throws before any connection exists when the target is missing or a hosted one is unconfirmed.
+  const { url, expected, hosted, confirmed } = resolveTarget(args, process.env);
   const needConfirm = (what: string) => {
     if (!confirmed) {
       throw new Error(
@@ -67,34 +42,38 @@ async function main(): Promise<void> {
 
   const client = new Client({ connectionString: url });
   await client.connect();
+  let changed = false;
   try {
     // pg_cron is a Supabase extension; local databases have none, so its fence is stripped there.
     const opts = { stripCron: !hosted };
 
-    if (flag('--down')) {
-      const newest = (await client.query(
-        'SELECT max(version) AS v FROM supabase_migrations.schema_migrations'
-      ).catch(() => ({ rows: [{ v: null }] }))).rows[0].v as string | null;
+    if (args.includes('--down')) {
+      const newest = await newestApplied(client);
       const down = listMigrationFiles(DIR).find((f) => f.version === newest)?.downPath;
       if (down && containsDestructive(fs.readFileSync(down, 'utf8'))) needConfirm('The down migration');
       const reverted = await revertLast(client, DIR, opts);
+      changed = reverted !== null;
       console.log(reverted ? `Reverted ${path.basename(reverted.path)}` : 'Nothing to revert.');
     } else {
-      if (flag('--baseline-only')) {
+      if (args.includes('--baseline-only')) {
         console.log((await recordBaseline(client, DIR)) ? 'Recorded baseline.' : 'Baseline already recorded.');
       }
       const pending = await pendingMigrations(client, DIR);
       if (pending.some((f) => containsDestructive(fs.readFileSync(f.path, 'utf8')))) {
         needConfirm('A pending migration');
       }
+      // Each migration commits on its own, so a failure part-way leaves earlier ones applied.
+      changed = pending.length > 0;
       const applied = await applyPending(client, DIR, opts);
       for (const f of applied) console.log(`Applied ${path.basename(f.path)}`);
       if (!applied.length) console.log('Nothing to apply.');
     }
-
-    // PostgREST caches function OIDs; without this a redefined RPC returns PGRST202.
-    if (hosted) await client.query("NOTIFY pgrst, 'reload schema'");
   } finally {
+    // PostgREST caches function OIDs; without this a redefined RPC returns PGRST202. Runs even
+    // after a partial apply, and must not mask the original error.
+    if (hosted && changed) {
+      await client.query("NOTIFY pgrst, 'reload schema'").catch((e: unknown) => console.error('NOTIFY failed:', e));
+    }
     await client.end();
   }
 }

@@ -11,6 +11,7 @@ import {
   containsDestructive,
   isHostedUrl,
   confirmValueFor,
+  resolveTarget,
 } from '../../src/db/migrate';
 
 const dirs: string[] = [];
@@ -151,6 +152,9 @@ describe('containsDestructive', () => {
     'DROP TABLE monitors;',
     'ALTER TABLE monitors DROP COLUMN url;',
     'ALTER TABLE monitors DROP CONSTRAINT c;',
+    'DROP SCHEMA app CASCADE;',
+    'DROP MATERIALIZED VIEW daily_rollups;',
+    'ALTER TABLE monitors DISABLE ROW LEVEL SECURITY;',
     'TRUNCATE ping_logs_raw;',
     'DELETE FROM monitors;',
     'select 1; delete from monitors',
@@ -159,6 +163,7 @@ describe('containsDestructive', () => {
   it.each([
     'CREATE TABLE t (id int); ALTER TABLE t ADD COLUMN c text;',
     'DELETE FROM monitors WHERE id = 1;',
+    'DROP POLICY IF EXISTS p ON monitors; CREATE POLICY p ON monitors USING (true);',
     '-- DROP TABLE monitors;\n/* TRUNCATE x */ SELECT 1;',
   ])('does not flag %s', (sql) => expect(containsDestructive(sql)).toBe(false));
 });
@@ -180,5 +185,46 @@ describe('confirmValueFor / isHostedUrl', () => {
     expect(isHostedUrl(pooler)).toBe(true);
     expect(isHostedUrl(local)).toBe(false);
     expect(isHostedUrl('postgresql://u:p@notsupabase.com/db')).toBe(false);
+  });
+});
+
+describe('resolveTarget', () => {
+  const LOCAL = 'postgresql://postgres:postgres@127.0.0.1:5432/uptimekit_sdd_test';
+  const PROD = 'postgresql://postgres.abcdefgh:pw@aws-0-x.pooler.supabase.com:5432/postgres';
+  const env = { DATABASE_TEST_URL: LOCAL, DATABASE_URL: PROD };
+
+  it('no flags targets DATABASE_TEST_URL', () => {
+    expect(resolveTarget([], env)).toMatchObject({ url: LOCAL, expected: 'uptimekit_sdd_test', hosted: false });
+  });
+  it('--db-url targets that URL', () => {
+    const other = 'postgresql://u:p@127.0.0.1/other';
+    expect(resolveTarget(['--db-url', other], env)).toMatchObject({ url: other, expected: 'other' });
+  });
+  it('--hosted targets DATABASE_URL when confirmed with the project ref', () => {
+    expect(resolveTarget(['--hosted'], { ...env, MIGRATE_CONFIRM: 'abcdefgh' })).toMatchObject({
+      url: PROD, expected: 'abcdefgh', hosted: true, confirmed: true,
+    });
+  });
+  it('--baseline-only and --down keep the DATABASE_TEST_URL target', () => {
+    expect(resolveTarget(['--baseline-only'], env).url).toBe(LOCAL);
+    expect(resolveTarget(['--down'], env).url).toBe(LOCAL);
+  });
+  it('refuses when there is no target and never falls back to DATABASE_URL', () => {
+    expect(() => resolveTarget([], { DATABASE_URL: PROD })).toThrow(/No target/);
+    expect(() => resolveTarget([], { DATABASE_TEST_URL: '', DATABASE_URL: PROD })).toThrow(/No target/);
+  });
+  it('refuses --hosted without the project-ref confirm, or with the database name', () => {
+    expect(() => resolveTarget(['--hosted'], env)).toThrow(/MIGRATE_CONFIRM=abcdefgh/);
+    expect(() => resolveTarget(['--hosted'], { ...env, MIGRATE_CONFIRM: 'postgres' })).toThrow(/MIGRATE_CONFIRM=abcdefgh/);
+  });
+  it('refuses --hosted without DATABASE_URL, and --hosted with --db-url', () => {
+    expect(() => resolveTarget(['--hosted'], { DATABASE_TEST_URL: LOCAL })).toThrow(/DATABASE_URL is not set/);
+    expect(() => resolveTarget(['--hosted', '--db-url', LOCAL], env)).toThrow(/mutually exclusive/);
+  });
+  it('requires the confirm when DATABASE_TEST_URL itself points at a Supabase host', () => {
+    expect(() => resolveTarget([], { DATABASE_TEST_URL: PROD })).toThrow(/MIGRATE_CONFIRM=abcdefgh/);
+  });
+  it('refuses --hosted when DATABASE_URL is not a recognised Supabase host', () => {
+    expect(() => resolveTarget(['--hosted'], { DATABASE_URL: LOCAL, MIGRATE_CONFIRM: 'uptimekit_sdd_test' })).toThrow(/not a recognised Supabase host/);
   });
 });

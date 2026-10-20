@@ -133,6 +133,12 @@ export async function appliedVersions(client: Queryable): Promise<string[]> {
   return rows.map((r) => String(r.version));
 }
 
+/** Newest applied version, or null. The one definition shared by revertLast and the CLI guard. */
+export async function newestApplied(client: Queryable): Promise<string | null> {
+  await ensureHistoryTable(client);
+  return (await appliedVersions(client)).pop() ?? null;
+}
+
 export async function pendingMigrations(client: Queryable, dir: string): Promise<MigrationFile[]> {
   await ensureHistoryTable(client);
   const applied = await appliedVersions(client);
@@ -202,8 +208,7 @@ export async function revertLast(
   dir: string,
   opts: { stripCron?: boolean } = {}
 ): Promise<MigrationFile | null> {
-  await ensureHistoryTable(client);
-  const newest = (await appliedVersions(client)).pop();
+  const newest = await newestApplied(client);
   if (!newest) return null;
 
   const file = listMigrationFiles(dir).find((f) => f.version === newest);
@@ -256,12 +261,17 @@ export async function recordBaseline(client: Queryable, dir: string): Promise<bo
 // ponytail: regex over comment-stripped text, a heuristic and NOT a guarantee. It
 // false-positives on DROP/DELETE inside string literals or dollar-quoted bodies and
 // is defeated by dynamic SQL (EXECUTE in a DO block). Upgrade: a real SQL parser.
+// Scope: DATA LOSS, plus DISABLE ROW LEVEL SECURITY (it exposes every tenant's rows to
+// PostgREST's non-owner roles and no legitimate migration contains it). It does NOT cover
+// authorization changes in general: DROP POLICY / FUNCTION / TRIGGER are deliberately
+// unflagged, since "DROP POLICY IF EXISTS x; CREATE POLICY x" is the idiom schema.sql uses.
 export function containsDestructive(sql: string): boolean {
   return stripComments(sql)
     .split(';')
     .some(
       (s) =>
-        /\bDROP\s+(?:TABLE|COLUMN|SCHEMA|DATABASE|VIEW|TYPE)\b/i.test(s) ||
+        /\bDROP\s+(?:TABLE|COLUMN|SCHEMA|DATABASE|(?:MATERIALIZED\s+)?VIEW|TYPE)\b/i.test(s) ||
+        /\bDISABLE\s+ROW\s+LEVEL\s+SECURITY\b/i.test(s) ||
         /\bTRUNCATE\b/i.test(s) ||
         /\bALTER\b[\s\S]*\bDROP\b/i.test(s) ||
         (/\bDELETE\s+FROM\b/i.test(s) && !/\bWHERE\b/i.test(s))
@@ -285,4 +295,42 @@ export function confirmValueFor(url: string): string {
     /^db\.([^.]+)\.supabase\.co$/i.exec(u.hostname)?.[1];
   if (!ref) throw new Error('Cannot derive a Supabase project ref from this URL');
   return ref;
+}
+
+/**
+ * Pure target selection and safety gate for the CLI; opens no connection. Throws, before
+ * any connection could exist, when there is no target, or the target is hosted and
+ * MIGRATE_CONFIRM is not its project ref. DATABASE_TEST_URL never falls back to DATABASE_URL.
+ */
+export function resolveTarget(
+  args: string[],
+  env: Record<string, string | undefined>
+): { url: string; expected: string; hosted: boolean; confirmed: boolean } {
+  const wantHosted = args.includes('--hosted');
+  const i = args.indexOf('--db-url');
+  const explicit = i >= 0 ? args[i + 1] : undefined;
+  if (i >= 0 && !explicit) throw new Error('--db-url needs a value');
+  if (explicit && wantHosted) throw new Error('--db-url and --hosted are mutually exclusive');
+
+  const url = wantHosted ? env.DATABASE_URL : (explicit ?? env.DATABASE_TEST_URL);
+  if (!url) {
+    throw new Error(
+      wantHosted
+        ? 'DATABASE_URL is not set'
+        : 'No target: set DATABASE_TEST_URL or pass --db-url <url> (or --hosted)'
+    );
+  }
+  const hosted = isHostedUrl(url);
+  // Otherwise the confirm degrades to the database name and the cron fence/NOTIFY are mishandled.
+  if (wantHosted && !hosted) throw new Error('DATABASE_URL is not a recognised Supabase host; refusing');
+
+  const expected = confirmValueFor(url);
+  const confirmed = env.MIGRATE_CONFIRM === expected;
+  if (hosted && !confirmed) {
+    throw new Error(
+      `Refusing to touch a hosted database. Re-run with MIGRATE_CONFIRM=${expected} ` +
+        `once you are sure the target is the one you intend.`
+    );
+  }
+  return { url, expected, hosted, confirmed };
 }
