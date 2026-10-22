@@ -49,7 +49,6 @@ that is not in place.
 # To-do
 
 - [ ] **Theme and Timezone** in the account menu are visible but disabled.
-- [ ] **No landing page.** `/` redirects straight to the dashboard.
 - [ ] **Email is Supabase's built-in sender** — a few messages an hour, and
       only to addresses attached to the Supabase project. Fine for a demo. Real
       delivery is custom SMTP under Authentication → Emails, which is dashboard

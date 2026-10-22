@@ -144,6 +144,9 @@ diff_utf8.txt
 .agents
 .specify
 .serena
+# Agent workspace output and agent-facing design notes, kept local
+.superpowers/
+docs/superpowers/
 graphify-out
 # Anchored: this is the root spec-kit directory, not any nested docs/**/specs.
 /specs

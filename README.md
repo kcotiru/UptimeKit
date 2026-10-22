@@ -217,7 +217,6 @@ tests are database-backed and skip themselves unless you point
 **Unfinished**
 
 - [ ] Theme and Timezone in the account menu are visible but disabled.
-- [ ] No landing page; `/` redirects straight to the dashboard.
 - [ ] Email uses Supabase's built-in sender: a few messages an hour, and only
       to addresses attached to the Supabase project.
 
@@ -234,7 +233,6 @@ Full write-ups, including why each one is still open:
 | [docs/operations.md](docs/operations.md) | Schema deploy order, migrations, partition maintenance |
 | [docs/known-issues.md](docs/known-issues.md) | Bugs and to-do in detail |
 | [docs/design-system.md](docs/design-system.md) | Colour, type and component conventions |
-| [docs/superpowers/](docs/superpowers) | Design docs and implementation plans, by date |
 
 ---
 
