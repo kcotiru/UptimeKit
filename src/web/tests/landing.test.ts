@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -121,7 +121,20 @@ describe('landing metadata', () => {
     expect(String(metadata.title)).toContain('UptimeKit');
     expect(metadata.description).toBeTruthy();
     expect(metadata.openGraph?.title).toBeTruthy();
-    expect(String(metadata.metadataBase)).toMatch(/^https?:\/\/[^/]+/);
+  });
+
+  it('resolves metadataBase from NEXT_PUBLIC_SITE_URL', async () => {
+    const prev = process.env.NEXT_PUBLIC_SITE_URL;
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://status.example.com';
+    try {
+      vi.resetModules();
+      const { metadata: fresh } = await import('../app/page');
+      expect(String(fresh.metadataBase)).toBe('https://status.example.com/');
+    } finally {
+      if (prev === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
+      else process.env.NEXT_PUBLIC_SITE_URL = prev;
+      vi.resetModules();
+    }
   });
 
   it('keeps the metadata free of em dashes', () => {

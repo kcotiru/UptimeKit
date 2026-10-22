@@ -27,7 +27,7 @@
 - **Anti-slop ban list**, from the spec: no gradient mesh, no glow, no icons in circles as a feature grid, no "Powerful features" or "Everything you need" headings, no emoji, no fabricated testimonials or logos, no invented metrics, no "Trusted by". Every technical claim must be traceable to a file in this repository.
 - Hero copy is fixed by the owner and must be used verbatim. See T2.
 
-**Commands** (run from `D:\Github\UptimeKit\UptimeKit\src\web`):
+**Commands** (run from `src/web`):
 
 | | |
 | --- | --- |

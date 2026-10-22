@@ -6,11 +6,12 @@ import { MonitorsPreview } from '@/components/landing/monitors-preview';
 import { Architecture } from '@/components/landing/architecture';
 
 export const metadata: Metadata = {
-  // Resolves the relative og:image URL. NEXT_PUBLIC_* is inlined at build time,
-  // so set NEXT_PUBLIC_SITE_URL before the build, not on the host at runtime.
-  // 3001 is the documented local port. A malformed value throws here on purpose:
-  // a bad site URL should fail the build, not ship broken preview links.
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3001'),
+  // Resolves the relative og:image URL. Set NEXT_PUBLIC_SITE_URL before the
+  // build: the value is inlined at build time, not read at runtime. When it is
+  // unset Next falls back to its own detection (VERCEL_URL on Vercel, localhost
+  // in development). A malformed value throws on purpose rather than silently
+  // producing broken preview links.
+  metadataBase: process.env.NEXT_PUBLIC_SITE_URL ? new URL(process.env.NEXT_PUBLIC_SITE_URL) : undefined,
   title: 'UptimeKit: know the moment it breaks',
   description:
     'Checks your endpoints every 30 seconds, keeps every response time, and messages your team in Slack or Discord the moment one goes down.',
@@ -46,7 +47,7 @@ export default function LandingPage(): JSX.Element {
           <span className="font-bold leading-tight tracking-tight text-slate-50">UptimeKit</span>
         </div>
         <div className="flex items-center gap-4 text-sm text-slate-300">
-          <a href={`${REPO}/blob/main/docs/operations.md`} className="hover:text-slate-50">
+          <a href={`${REPO}/blob/main/docs/setup.md`} className="hover:text-slate-50">
             Docs
           </a>
           <a href={REPO} className="hover:text-slate-50">
