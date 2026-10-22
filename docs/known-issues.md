@@ -13,7 +13,7 @@ Three different definitions of a successful check are in the codebase at once:
 | Dashboard | Anything `< 400` |
 
 A monitor returning a permanent redirect would therefore show a red `down`
-badge next to `uptime 100%` — the worker calls it a failure, the rollup counts
+badge next to `uptime 100%`: the worker calls it a failure, the rollup counts
 it as a success, and both figures render on the same card.
 
 Latent today because everything being monitored returns `200`.
@@ -26,8 +26,8 @@ re-deriving a verdict from the status code. One definition, written once.
 
 For monitors young enough that their window is served from raw pings rather
 than hourly buckets, the list view reports the single most recent sample in the
-slots labelled p50 and p99. The number is correct — it is a real response time
-— but a single sample is not a percentile, so the label overstates it.
+slots labelled p50 and p99. The number is correct (it is a real response time),
+but a single sample is not a percentile, so the label overstates it.
 
 The detail page is unaffected; it computes window percentiles properly via
 `summarize()` in `src/web/lib/shared/stats.ts`.
@@ -43,13 +43,13 @@ still shows the outage.
 
 Seven server actions call `revalidatePath` while every dashboard route is
 `export const dynamic = 'force-dynamic'`, which means nothing is cached to
-invalidate. Harmless, but misleading to read — they imply a caching strategy
+invalidate. Harmless, but misleading to read: they imply a caching strategy
 that is not in place.
 
 # To-do
 
 - [ ] **Theme and Timezone** in the account menu are visible but disabled.
-- [ ] **Email is Supabase's built-in sender** — a few messages an hour, and
+- [ ] **Email is Supabase's built-in sender**: a few messages an hour, and
       only to addresses attached to the Supabase project. Fine for a demo. Real
       delivery is custom SMTP under Authentication → Emails, which is dashboard
       configuration, not a code change.
