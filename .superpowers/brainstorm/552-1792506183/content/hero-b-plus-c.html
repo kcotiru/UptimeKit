@@ -1,0 +1,115 @@
+<h2>B's product shot, C's composition</h2>
+<p class="subtitle">Hero text left-aligned, the live data sitting beside it rather than behind it, then the real dashboard shot full width below. Scroll the whole thing. Tell me what to change; no need to click anything this time.</p>
+
+<style>
+.uk { --bg:#121212; --surf:#242424; --bd:#383838; --alarm:#401518; --b4:#a5b4fc; --b5:#4f46e5; --b7:#4338ca;
+      --tx:#e4e9f5; --mu:#8b93a7; --up:#4ade80; --dn:#ff6166; --am:#fbbf24;
+      font-family:Inter,ui-sans-serif,system-ui,sans-serif; background:var(--bg); color:var(--tx);
+      border-radius:8px; overflow:hidden; font-size:14px; line-height:1.5; border:1px solid var(--bd); }
+.uk *, .uk *::before { box-sizing:border-box; }
+.uk-nav { display:flex; align-items:center; gap:10px; padding:14px 28px; border-bottom:1px solid var(--bd); }
+.uk-mark { width:26px; height:26px; border-radius:8px; border:1px solid rgba(79,70,229,.3);
+           background:rgba(79,70,229,.2); color:var(--b4); display:flex; align-items:center;
+           justify-content:center; font-size:13px; }
+.uk-brand { font-weight:600; letter-spacing:-.01em; }
+.uk-navlinks { margin-left:auto; display:flex; gap:22px; color:var(--mu); font-size:13px; }
+.uk-h1 { font-weight:600; letter-spacing:-.025em; margin:0; color:#fff; }
+.uk-sub { color:var(--mu); margin:14px 0 0; }
+.uk-btn { display:inline-block; background:var(--b5); color:#fff; padding:9px 16px; border-radius:8px;
+          font-size:13px; font-weight:500; }
+.uk-ghost { display:inline-block; border:1px solid var(--bd); color:var(--tx); padding:9px 16px;
+            border-radius:8px; font-size:13px; font-weight:500; }
+.uk-link { color:var(--b4); font-size:13px; }
+.uk-card { background:var(--surf); border:1px solid var(--bd); border-radius:8px; }
+.uk-lbl { font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:.09em; color:var(--mu); }
+.uk-mono { font-variant-numeric:tabular-nums; }
+.uk-row { display:flex; align-items:center; gap:16px; padding:11px 18px; border-bottom:1px solid var(--bd); font-size:13px; }
+.uk-row:last-child { border-bottom:0; }
+.uk-name { flex:1; }
+.uk-up { color:var(--up); font-weight:500; } .uk-dn { color:var(--dn); font-weight:500; }
+.uk-am { color:var(--am); font-weight:500; }
+.uk-hero { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,.92fr); gap:46px; align-items:center; padding:58px 28px 46px; }
+.uk-shot { padding:0 40px; margin-bottom:-1px; }
+.uk-frame { border:1px solid var(--bd); border-bottom:0; border-radius:8px 8px 0 0; background:var(--surf); overflow:hidden; }
+@media (max-width:860px){ .uk-hero { grid-template-columns:1fr; gap:34px; } }
+</style>
+
+<div class="uk">
+  <div class="uk-nav"><div class="uk-mark">&#9697;</div><span class="uk-brand">UptimeKit</span>
+    <div class="uk-navlinks"><span>Docs</span><span>GitHub</span><span style="color:#a5b4fc">Sign in</span></div></div>
+
+  <!-- HERO: text left, live data right -->
+  <div class="uk-hero">
+    <div>
+      <h1 class="uk-h1" style="font-size:40px; line-height:1.14">Know the moment it breaks.<br>And how slow it was before.</h1>
+      <p class="uk-sub" style="font-size:15px; max-width:430px">UptimeKit checks your endpoints every 30 seconds, keeps every single response time rather than a rolling average, and messages your team in Slack or Discord the moment one goes down.</p>
+      <p style="margin:28px 0 0; display:flex; gap:12px; align-items:center">
+        <span class="uk-btn">See a live monitor</span><span class="uk-ghost">View on GitHub</span></p>
+      <p style="margin:18px 0 0; color:#8b93a7; font-size:12px">No account needed for the live monitor. It is a real endpoint, really being checked.</p>
+    </div>
+
+    <div class="uk-card">
+      <div style="display:flex; align-items:baseline; gap:10px; padding:14px 16px 10px">
+        <span style="font-size:13px; font-weight:500">api.example.com/health</span>
+        <span class="uk-up" style="font-size:13px">up</span>
+        <span class="uk-mono" style="margin-left:auto; font-size:13px; color:#8b93a7">p50 142 ms</span>
+      </div>
+      <svg viewBox="0 0 400 118" preserveAspectRatio="none" style="display:block; width:100%; height:128px">
+        <rect x="228" y="0" width="30" height="118" fill="#401518"/>
+        <g stroke="#2c2c2c" stroke-width="1">
+          <line x1="0" y1="30" x2="400" y2="30"/><line x1="0" y1="60" x2="400" y2="60"/><line x1="0" y1="90" x2="400" y2="90"/>
+        </g>
+        <polyline points="0,74 20,70 40,77 60,66 80,72 100,64 120,75 140,68 160,62 180,71 200,66 220,69 228,110 258,110 266,48 286,60 306,54 326,62 346,50 366,57 386,52 400,58"
+          fill="none" stroke="#4f46e5" stroke-width="2"/>
+      </svg>
+      <div style="display:flex; gap:0; border-top:1px solid var(--bd)">
+        <div style="flex:1; padding:11px 16px"><div class="uk-lbl">Outage</div><div class="uk-mono" style="font-size:13px; margin-top:2px">4m 12s</div></div>
+        <div style="flex:1; padding:11px 16px; border-left:1px solid var(--bd)"><div class="uk-lbl">p95</div><div class="uk-mono" style="font-size:13px; margin-top:2px">311 ms</div></div>
+        <div style="flex:1; padding:11px 16px; border-left:1px solid var(--bd)"><div class="uk-lbl">Uptime 30d</div><div class="uk-mono" style="font-size:13px; margin-top:2px">99.94%</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRODUCT SHOT, full width, bleeding off the bottom -->
+  <div style="border-top:1px solid var(--bd); padding-top:34px">
+    <div style="padding:0 28px 18px"><div class="uk-lbl">The dashboard</div>
+      <p style="margin:7px 0 0; color:#8b93a7; font-size:13px; max-width:520px">Anything broken sorts to the top. One row per endpoint, with the last 24 hours beside it.</p></div>
+    <div class="uk-shot">
+      <div class="uk-frame">
+        <div style="display:flex; gap:6px; padding:10px 14px; border-bottom:1px solid var(--bd)">
+          <span style="width:9px;height:9px;border-radius:50%;background:#383838"></span>
+          <span style="width:9px;height:9px;border-radius:50%;background:#383838"></span>
+          <span style="width:9px;height:9px;border-radius:50%;background:#383838"></span>
+          <span style="margin-left:10px; font-size:11px; color:#8b93a7">Monitors</span></div>
+        <div class="uk-row" style="background:#1d1d1d"><span class="uk-lbl" style="flex:1">Endpoint</span><span class="uk-lbl" style="width:76px">Status</span><span class="uk-lbl" style="width:66px">p50</span><span class="uk-lbl" style="width:66px">p99</span><span class="uk-lbl" style="width:96px">24h</span></div>
+        <div class="uk-row" style="background:#1a1515"><span class="uk-name">marketing-site.example.com</span><span class="uk-dn" style="width:76px">down</span><span class="uk-mono" style="width:66px; color:#8b93a7">-</span><span class="uk-mono" style="width:66px; color:#8b93a7">-</span>
+          <svg width="96" height="20" viewBox="0 0 96 20"><polyline points="0,8 14,7 28,9 42,6 54,8 58,19 96,19" fill="none" stroke="#ff6166" stroke-width="1.5"/></svg></div>
+        <div class="uk-row"><span class="uk-name">status.example.com</span><span class="uk-am" style="width:76px">degraded</span><span class="uk-mono" style="width:66px">884 ms</span><span class="uk-mono" style="width:66px">2.1 s</span>
+          <svg width="96" height="20" viewBox="0 0 96 20"><polyline points="0,14 14,13 28,10 42,11 54,6 68,5 82,3 96,4" fill="none" stroke="#fbbf24" stroke-width="1.5"/></svg></div>
+        <div class="uk-row"><span class="uk-name">api.example.com/health</span><span class="uk-up" style="width:76px">up</span><span class="uk-mono" style="width:66px">142 ms</span><span class="uk-mono" style="width:66px">311 ms</span>
+          <svg width="96" height="20" viewBox="0 0 96 20"><polyline points="0,12 14,9 28,13 42,8 54,11 68,7 82,10 96,9" fill="none" stroke="#4ade80" stroke-width="1.5"/></svg></div>
+        <div class="uk-row"><span class="uk-name">checkout.example.com</span><span class="uk-up" style="width:76px">up</span><span class="uk-mono" style="width:66px">96 ms</span><span class="uk-mono" style="width:66px">188 ms</span>
+          <svg width="96" height="20" viewBox="0 0 96 20"><polyline points="0,13 14,12 28,14 42,11 54,13 68,10 82,12 96,11" fill="none" stroke="#4ade80" stroke-width="1.5"/></svg></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:34px">
+  <div class="uk-lbl" style="margin-bottom:10px">Next section down, for context</div>
+  <div class="uk" style="border-radius:8px">
+    <div style="padding:24px 28px 28px">
+      <div class="uk-lbl" style="margin-bottom:16px">Keeping a year of 30-second checks without keeping a year of rows</div>
+      <div style="display:flex; align-items:stretch; gap:10px">
+        <div class="uk-card" style="flex:1; padding:14px 16px"><div style="font-size:13px; font-weight:500">Raw checks</div><div style="color:#8b93a7; font-size:12px; margin-top:3px">every 30s, recent past</div><div style="height:3px; background:#4f46e5; border-radius:2px; margin-top:12px"></div></div>
+        <div style="align-self:center; color:#8b93a7">&#8594;</div>
+        <div class="uk-card" style="flex:1; padding:14px 16px"><div style="font-size:13px; font-weight:500">Hourly rollups</div><div style="color:#8b93a7; font-size:12px; margin-top:3px">p50, p95, p99 behind that</div><div style="height:3px; background:#4338ca; border-radius:2px; margin-top:12px"></div></div>
+        <div style="align-self:center; color:#8b93a7">&#8594;</div>
+        <div class="uk-card" style="flex:1; padding:14px 16px"><div style="font-size:13px; font-weight:500">Daily rollups</div><div style="color:#8b93a7; font-size:12px; margin-top:3px">kept for good, storage stays flat</div><div style="height:3px; background:#383838; border-radius:2px; margin-top:12px"></div></div>
+      </div>
+      <p style="color:#8b93a7; font-size:12px; margin:12px 0 0">The chart asks for a window; the database answers from whichever tier can still see it.</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:28px">Three things I guessed at and would like your read on: the hero card shows <strong>one endpoint with a real outage in it</strong> rather than a summary, the numbers strip under it is <strong>three figures not six</strong>, and the dashboard shot sits <strong>below</strong> the hero instead of beside it so it can run full width.</p>

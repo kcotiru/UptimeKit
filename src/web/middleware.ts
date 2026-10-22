@@ -60,7 +60,7 @@ export async function middleware(request: NextRequest) {
   // /reset-password is deliberately absent: a signed-in user reaching it has a
   // live recovery session and is there on purpose. Bouncing them to the
   // dashboard would make the emailed link unusable.
-  if (user && (pathname === '/login' || pathname === '/register')) {
+  if (user && (pathname === '/' || pathname === '/login' || pathname === '/register')) {
     return redirectTo('/dashboard/monitors');
   }
 
@@ -81,5 +81,10 @@ export const config = {
   // /share/:token is deliberately absent: it is the public read path and must
   // work with no session. Its authorization is the token, enforced inside the
   // get_shared_view SQL function, not here.
-  matcher: ['/dashboard/:path*', '/login', '/register', '/forgot-password', '/reset-password'],
+  // ponytail: '/' now runs getClaims() on every public hit, so a deploy missing
+  // NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY fails on the
+  // landing page too, not only in the app. Left unguarded because the rest of
+  // the app is already unusable without them; upgrade path: skip the Supabase
+  // client for '/' when those vars are absent.
+  matcher: ['/', '/dashboard/:path*', '/login', '/register', '/forgot-password', '/reset-password'],
 };

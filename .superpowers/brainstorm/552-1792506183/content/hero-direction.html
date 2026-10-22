@@ -1,0 +1,142 @@
+<h2>Three directions for the page</h2>
+<p class="subtitle">Same palette, same fonts, same radii — your real tokens from <code>tailwind.config.js</code>. What differs is the shape of the page and how hard it tries. Your fail condition is "reads as AI slop", so the question is really: <strong>which of these would you not be embarrassed to put on your GitHub profile?</strong> Click one (or two) — and tell me in the terminal what specifically feels off.</p>
+
+<style>
+.uk { --bg:#121212; --surf:#242424; --bd:#383838; --b4:#a5b4fc; --b5:#4f46e5; --b7:#4338ca;
+      --tx:#e4e9f5; --mu:#8b93a7; --up:#4ade80; --dn:#ff6166; --am:#fbbf24;
+      font-family:Inter,ui-sans-serif,system-ui,sans-serif; background:var(--bg); color:var(--tx);
+      border-radius:8px; overflow:hidden; font-size:14px; line-height:1.5; }
+.uk *, .uk *::before { box-sizing:border-box; }
+.uk-nav { display:flex; align-items:center; gap:10px; padding:14px 28px; border-bottom:1px solid var(--bd); }
+.uk-mark { width:26px; height:26px; border-radius:8px; border:1px solid rgba(79,70,229,.3);
+           background:rgba(79,70,229,.2); color:var(--b4); display:flex; align-items:center;
+           justify-content:center; font-size:13px; }
+.uk-brand { font-weight:600; letter-spacing:-.01em; }
+.uk-navlinks { margin-left:auto; display:flex; gap:22px; color:var(--mu); font-size:13px; }
+.uk-h1 { font-weight:600; letter-spacing:-.025em; margin:0; color:#fff; }
+.uk-sub { color:var(--mu); margin:14px 0 0; }
+.uk-btn { display:inline-block; background:var(--b5); color:#fff; padding:9px 16px; border-radius:8px;
+          font-size:13px; font-weight:500; }
+.uk-ghost { display:inline-block; border:1px solid var(--bd); color:var(--tx); padding:9px 16px;
+            border-radius:8px; font-size:13px; font-weight:500; }
+.uk-link { color:var(--b4); font-size:13px; }
+.uk-card { background:var(--surf); border:1px solid var(--bd); border-radius:8px; padding:18px 20px; }
+.uk-lbl { font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:.09em; color:var(--mu); }
+.uk-mono { font-variant-numeric:tabular-nums; }
+.uk-row { display:flex; align-items:center; gap:16px; padding:11px 18px; border-bottom:1px solid var(--bd); font-size:13px; }
+.uk-row:last-child { border-bottom:0; }
+.uk-name { flex:1; color:var(--tx); }
+.uk-up { color:var(--up); font-weight:500; } .uk-dn { color:var(--dn); font-weight:500; }
+.uk-am { color:var(--am); font-weight:500; }
+.uk-note { margin:10px 0 26px; color:var(--mu); font-size:13px; }
+.uk-note b { color:var(--tx); font-weight:500; }
+.option.uk-opt { display:block; padding:0; overflow:hidden; }
+.uk-caption { padding:12px 16px; display:flex; gap:12px; align-items:baseline; }
+.uk-caption .letter { position:static; }
+</style>
+
+<!-- ============ A ============ -->
+<div class="section">
+  <div class="uk-lbl" style="margin-bottom:8px">Direction A</div>
+  <h3 style="margin:0 0 4px">Plain-spoken</h3>
+  <p class="uk-note">No hero theatre. The page opens the way a good README opens: a sentence that states the problem, a sentence that states the answer, two links. The persuasion is the <b>specificity</b> below the fold, not the headline. <b>Anti-slop by subtraction</b> — there is nothing to pattern-match against because there is almost nothing there.</p>
+  <div class="option uk-opt" data-choice="a" onclick="toggleSelect(this)">
+    <div class="uk">
+      <div class="uk-nav"><div class="uk-mark">◠</div><span class="uk-brand">UptimeKit</span>
+        <div class="uk-navlinks"><span>Docs</span><span>GitHub</span><span style="color:#a5b4fc">Sign in</span></div></div>
+      <div style="padding:64px 28px 40px; max-width:620px">
+        <h1 class="uk-h1" style="font-size:36px; line-height:1.2">Is my website up? And how fast was it, really?</h1>
+        <p class="uk-sub" style="font-size:15px">UptimeKit checks your endpoints every 30 seconds, keeps a permanent record of every response time, and messages your team the moment one breaks. Same idea as Pingdom, built from scratch to find out what makes that hard.</p>
+        <p style="margin:26px 0 0; display:flex; gap:18px; align-items:center">
+          <span class="uk-link">Read the source on GitHub →</span>
+          <span style="color:#8b93a7; font-size:13px">See a live monitor</span>
+        </p>
+      </div>
+      <div style="border-top:1px solid var(--bd); padding:22px 28px 26px">
+        <div class="uk-lbl" style="margin-bottom:14px">The interesting parts</div>
+        <div style="display:grid; grid-template-columns:148px 1fr; gap:11px 22px; font-size:13px">
+          <span style="color:#8b93a7" class="uk-mono">1M rows / year</span><span>per endpoint at 30s. Ten endpoints is ten million, and "show me last year" stops being a query.</span>
+          <span style="color:#8b93a7">Three storage tiers</span><span>raw checks, hourly summaries, daily summaries. The chart picks whichever can answer the question.</span>
+          <span style="color:#8b93a7">Isolation in the DB</span><span>row level security, so a bug in a query can't leak another team's monitors.</span>
+        </div>
+      </div>
+    </div>
+    <div class="uk-caption"><div class="letter">A</div><div><strong>Plain-spoken</strong> · cheapest to build, no screenshot needed above the fold · risk: can read as unfinished</div></div>
+  </div>
+</div>
+
+<!-- ============ B ============ -->
+<div class="section">
+  <div class="uk-lbl" style="margin-bottom:8px">Direction B</div>
+  <h3 style="margin:0 0 4px">Product shot leads</h3>
+  <p class="uk-note">The conventional shape: centred headline, two buttons, then a large screenshot of the real dashboard bleeding off the bottom edge. <b>The screenshot does the arguing</b>, so the copy can stay short. Honest, because it's your actual UI — but this is the silhouette every AI-generated landing page has, so it lives or dies on the screenshot being good.</p>
+  <div class="option uk-opt" data-choice="b" onclick="toggleSelect(this)">
+    <div class="uk">
+      <div class="uk-nav"><div class="uk-mark">◠</div><span class="uk-brand">UptimeKit</span>
+        <div class="uk-navlinks"><span>Docs</span><span>GitHub</span><span style="color:#a5b4fc">Sign in</span></div></div>
+      <div style="padding:60px 28px 30px; text-align:center">
+        <h1 class="uk-h1" style="font-size:40px; line-height:1.15; max-width:660px; margin:0 auto">Know the moment it breaks.<br>And how slow it was before.</h1>
+        <p class="uk-sub" style="font-size:15px; max-width:510px; margin:16px auto 0">Uptime and response-time monitoring for your HTTP endpoints, with alerts in Slack or Discord within seconds.</p>
+        <p style="margin:26px 0 0; display:flex; gap:12px; justify-content:center">
+          <span class="uk-btn">See a live demo</span><span class="uk-ghost">View on GitHub</span></p>
+      </div>
+      <div style="padding:0 40px; margin-bottom:-1px">
+        <div style="border:1px solid var(--bd); border-bottom:0; border-radius:8px 8px 0 0; background:var(--surf); overflow:hidden">
+          <div style="display:flex; gap:6px; padding:10px 14px; border-bottom:1px solid var(--bd)">
+            <span style="width:9px;height:9px;border-radius:50%;background:#383838"></span>
+            <span style="width:9px;height:9px;border-radius:50%;background:#383838"></span>
+            <span style="width:9px;height:9px;border-radius:50%;background:#383838"></span>
+            <span style="margin-left:10px; font-size:11px; color:#8b93a7">Monitors</span></div>
+          <div class="uk-row" style="background:#1d1d1d"><span class="uk-lbl" style="flex:1">Endpoint</span><span class="uk-lbl" style="width:68px">Status</span><span class="uk-lbl" style="width:62px">p50</span><span class="uk-lbl" style="width:90px">24h</span></div>
+          <div class="uk-row"><span class="uk-name">marketing-site.example.com</span><span class="uk-dn" style="width:68px">down</span><span class="uk-mono" style="width:62px; color:#8b93a7">—</span>
+            <svg width="90" height="20" viewBox="0 0 90 20"><polyline points="0,8 12,7 24,9 36,6 48,8 52,19 90,19" fill="none" stroke="#ff6166" stroke-width="1.5"/></svg></div>
+          <div class="uk-row"><span class="uk-name">api.example.com/health</span><span class="uk-up" style="width:68px">up</span><span class="uk-mono" style="width:62px">142 ms</span>
+            <svg width="90" height="20" viewBox="0 0 90 20"><polyline points="0,12 12,9 24,13 36,8 48,11 60,7 72,10 90,9" fill="none" stroke="#4ade80" stroke-width="1.5"/></svg></div>
+          <div class="uk-row"><span class="uk-name">status.example.com</span><span class="uk-am" style="width:68px">degraded</span><span class="uk-mono" style="width:62px">884 ms</span>
+            <svg width="90" height="20" viewBox="0 0 90 20"><polyline points="0,14 12,13 24,10 36,11 48,6 60,5 72,3 90,4" fill="none" stroke="#fbbf24" stroke-width="1.5"/></svg></div>
+        </div>
+      </div>
+    </div>
+    <div class="uk-caption"><div class="letter">B</div><div><strong>Product shot leads</strong> · needs your best screenshot · risk: the most templated silhouette of the three</div></div>
+  </div>
+</div>
+
+<!-- ============ C ============ -->
+<div class="section">
+  <div class="uk-lbl" style="margin-bottom:8px">Direction C</div>
+  <h3 style="margin:0 0 4px">The data is the hero</h3>
+  <p class="uk-note">The hero's visual isn't decoration, it's <b>the product's actual output</b>: a real latency trace across the full width, with one real outage in it, headline sitting over the quiet part. Then the three-tier storage model drawn as a diagram rather than claimed in a sentence. <b>You could not paste this hero onto another product</b> — which is the one thing a generated page never manages.</p>
+  <div class="option uk-opt" data-choice="c" onclick="toggleSelect(this)">
+    <div class="uk">
+      <div class="uk-nav"><div class="uk-mark">◠</div><span class="uk-brand">UptimeKit</span>
+        <div class="uk-navlinks"><span>Docs</span><span>GitHub</span><span style="color:#a5b4fc">Sign in</span></div></div>
+      <div style="position:relative; padding:56px 28px 34px; overflow:hidden">
+        <svg viewBox="0 0 800 150" preserveAspectRatio="none" style="position:absolute; inset:auto 0 0 0; width:100%; height:150px; opacity:.55">
+          <rect x="455" y="0" width="58" height="150" fill="#401518"/>
+          <polyline points="0,96 40,92 80,99 120,88 160,94 200,86 240,97 280,90 320,84 360,93 400,88 440,91 455,140 513,140 520,70 560,82 600,76 640,84 680,72 720,79 760,74 800,80"
+            fill="none" stroke="#4f46e5" stroke-width="2"/>
+        </svg>
+        <div style="position:relative; max-width:580px">
+          <h1 class="uk-h1" style="font-size:38px; line-height:1.18">Every check. Every millisecond. Kept.</h1>
+          <p class="uk-sub" style="font-size:15px">That red band is a four-minute outage last Tuesday, and the trace either side is the real p50 — because UptimeKit keeps every individual check, not a rolling average that forgets.</p>
+          <p style="margin:24px 0 0; display:flex; gap:12px; align-items:center">
+            <span class="uk-btn">See a live monitor</span><span class="uk-link">Read the source →</span></p>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--bd); padding:24px 28px 28px">
+        <div class="uk-lbl" style="margin-bottom:16px">Keeping a year of 30-second checks without keeping a year of rows</div>
+        <div style="display:flex; align-items:stretch; gap:10px">
+          <div class="uk-card" style="flex:1; padding:14px 16px"><div style="font-size:13px; font-weight:500">Raw checks</div><div style="color:#8b93a7; font-size:12px; margin-top:3px">every 30s · recent past</div><div style="height:3px; background:#4f46e5; border-radius:2px; margin-top:12px"></div></div>
+          <div style="align-self:center; color:#8b93a7; font-size:16px">→</div>
+          <div class="uk-card" style="flex:1; padding:14px 16px"><div style="font-size:13px; font-weight:500">Hourly rollups</div><div style="color:#8b93a7; font-size:12px; margin-top:3px">p50 / p95 / p99 · behind that</div><div style="height:3px; background:#4338ca; border-radius:2px; margin-top:12px"></div></div>
+          <div style="align-self:center; color:#8b93a7; font-size:16px">→</div>
+          <div class="uk-card" style="flex:1; padding:14px 16px"><div style="font-size:13px; font-weight:500">Daily rollups</div><div style="color:#8b93a7; font-size:12px; margin-top:3px">kept for good · storage stays flat</div><div style="height:3px; background:#383838; border-radius:2px; margin-top:12px"></div></div>
+        </div>
+        <p style="color:#8b93a7; font-size:12px; margin:12px 0 0">The chart asks for a window; the database answers from whichever tier can still see it.</p>
+      </div>
+    </div>
+    <div class="uk-caption"><div class="letter">C</div><div><strong>Data is the hero</strong> · most work, most distinctive · risk: busier, and the trace must be real data not a doodle</div></div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:28px">All three keep the same five sections underneath (screenshot, what it does, how it works, footer) — this choice is only about the <strong>hero and the rhythm</strong>. Mixing is fine: "A's hero with C's tier diagram" is a legitimate answer.</p>

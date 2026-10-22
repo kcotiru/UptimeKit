@@ -217,7 +217,6 @@ tests are database-backed and skip themselves unless you point
 **Unfinished**
 
 - [ ] Theme and Timezone in the account menu are visible but disabled.
-- [ ] No landing page; `/` redirects straight to the dashboard.
 - [ ] Email uses Supabase's built-in sender: a few messages an hour, and only
       to addresses attached to the Supabase project.
 
