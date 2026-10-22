@@ -14,18 +14,22 @@ It is the same idea as Pingdom or UptimeRobot, built from scratch.
 
 ## Screenshots
 
-<!-- Drop the PNGs into docs/images/ and delete this comment to publish them.
 <p align="center">
-  <img src="docs/images/monitors.png" alt="The monitors list" width="800">
+  <img src="docs/images/monitors.png" alt="The monitors list, with a failing endpoint at the top" width="800">
   <br><em>The monitors list. Anything broken sorts to the top.</em>
 </p>
-<p align="center">
-  <img src="docs/images/detail.png" alt="A single monitor's response-time chart" width="800">
-  <br><em>One monitor: response time over 24 hours, outages shaded in red.</em>
-</p>
--->
 
-> _Screenshots pending: see_ _`docs/images/`._
+<p align="center">
+  <img src="docs/images/monitor-detail.png" alt="One monitor over 24 hours, with an outage" width="800">
+  <br><em>One monitor over 24 hours: an outage, the timeout plateau, and the recovery after it.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/add-monitor.png" alt="The add-monitor form" width="800">
+  <br><em>Adding a monitor: a URL, how often to check it, and when to give up.</em>
+</p>
+
+<sub>The first two use example endpoints and demo data.</sub>
 
 ***
 
