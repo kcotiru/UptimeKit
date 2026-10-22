@@ -46,6 +46,26 @@ Seven server actions call `revalidatePath` while every dashboard route is
 invalidate. Harmless, but misleading to read: they imply a caching strategy
 that is not in place.
 
+## A degraded monitor renders as if it were down
+
+`MonitorRow` (`src/web/components/monitors/monitor-row.tsx`) shows the HTTP
+status code and the "down for X" label whenever `monitor.status !== 'up'`. A
+degraded endpoint that answers every check with `200` therefore prints
+`HTTP 200` and `down for 0s` in the error tone.
+
+**Fix:** gate both spans on `status === 'down'`. The alarm styling on the row
+itself is deliberate and should stay, since a degraded endpoint does need
+attention.
+
+## The list header counts degraded endpoints as down
+
+`src/web/app/dashboard/monitors/page.tsx` builds "N endpoints, M down" by
+counting every monitor whose status is not `up`, so one down plus one degraded
+prints `2 down`. A comment there says this is deliberate ("A row alarms on
+anything other than 'up' (degraded counts too), so the header count must match
+that, not just 'down'"), so treat it as a wording decision to revisit rather
+than an oversight.
+
 # To-do
 
 - [ ] **Theme and Timezone** in the account menu are visible but disabled.
