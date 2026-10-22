@@ -25,8 +25,8 @@ export async function middleware(request: NextRequest) {
   );
 
   // getClaims() verifies the JWT locally against the project's JWKS (ES256), so
-  // this costs no network call — getUser() instead validated against Supabase's
-  // auth API on EVERY matched request, ~120ms of latency before anything renders.
+  // this costs no network call (getUser() instead validated against Supabase's
+  // auth API on EVERY matched request, ~120ms of latency before anything renders).
   // It still refreshes an expired token, because it reads the session first.
   //
   // Trade-off: a session revoked mid-token-lifetime stays valid here until the
@@ -51,7 +51,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // /reset-password runs on the recovery session the emailed link established,
-  // so it needs a session like /dashboard does — but landing on /login would
+  // so it needs a session like /dashboard does, but landing on /login would
   // strand someone who cannot log in, which is the whole reason they are here.
   if (!user && pathname === '/reset-password') {
     return redirectTo('/forgot-password');
@@ -68,11 +68,11 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // There is no app/api tree any more — sign-in, sign-up and sign-out call
+  // There is no app/api tree any more: sign-in, sign-up and sign-out call
   // Supabase from the browser, and every mutation goes through a Server Action,
   // which POSTs to the page URL and is covered by /dashboard. Adding an
   // authenticated /api/* route means adding it here AND restoring a JSON 401
-  // branch above — a redirect to an HTML login page is wrong for JSON.
+  // branch above, since a redirect to an HTML login page is wrong for JSON.
   //
   // /auth/callback is deliberately absent: it redeems the emailed confirmation
   // and recovery codes, so it runs before a session exists and the guard above
