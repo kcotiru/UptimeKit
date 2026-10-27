@@ -61,6 +61,8 @@ export default async function MonitorDetailPage({
     <MonitorDetailView
       monitor={monitor}
       initialMetrics={initialMetrics}
+      from={from}
+      to={to}
       renderedAt={Date.now()}
       canManage={can(user, MANAGE_ROLES)}
     />

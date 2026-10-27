@@ -125,6 +125,8 @@ describe('detail view share button', () => {
       createElement(MonitorDetailView, {
         monitor,
         initialMetrics: [],
+        from: '2026-01-01T00:00:00.000Z',
+        to: '2026-01-02T00:00:00.000Z',
         renderedAt: 0,
         canManage,
       })

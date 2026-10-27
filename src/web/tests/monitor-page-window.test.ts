@@ -52,6 +52,16 @@ describe('monitor detail page window', () => {
     expect(getMetrics).toHaveBeenCalledWith({}, ID, from, to);
   });
 
+  it('hands the component the same clamped bounds it fetched, not the raw URL', async () => {
+    const el = (await render(ID, { from: 'garbage', to: '1900-01-01T00:00:00Z' })) as {
+      props: { from: string; to: string };
+    };
+    const [, , from, to] = getMetrics.mock.calls[0];
+    expect(el.props.from).toBe(from);
+    expect(el.props.to).toBe(to);
+    expect(Date.parse(el.props.to) - Date.parse(el.props.from)).toBe(DAY);
+  });
+
   it('uses the default window when no params are given', async () => {
     await render(ID, {});
     const [, , from, to] = getMetrics.mock.calls[0];

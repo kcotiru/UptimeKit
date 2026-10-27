@@ -114,20 +114,29 @@ GRANT INSERT, UPDATE, DELETE ON team_webhooks TO authenticated;
 -- column stays writable. Enumerating the grantable columns is the only form the
 -- server honours.
 --
+-- UPDATE is narrower than INSERT on purpose: the only update the app ever makes to
+-- either table is setting revoked_at (revokeSavedView, revokeInvite). Granting the
+-- other columns would let a client reassign creator_id, rewrite a view's name or
+-- configuration, or change a minted invite's role or expires_at after the fact.
+-- The worker's purge also sets revoked_at, but over the direct Postgres URL as the
+-- table owner, which no grant here governs.
+--
+-- Revocation is one-way: the UPDATE policies below put `revoked_at IS NOT NULL` in
+-- WITH CHECK, which tests the NEW row, so a client cannot clear revoked_at to
+-- resurrect a share link or invite that was deliberately killed.
+--
 -- ponytail: a column added to either table later is not writable by the app
 -- until it is added to these lists. The upgrade path is a trigger that rejects a
 -- change to the token column; it costs more than these four lines.
 GRANT DELETE ON saved_views TO authenticated;
 GRANT INSERT (id, team_id, creator_id, monitor_id, name, configuration, revoked_at, created_at, updated_at)
   ON saved_views TO authenticated;
-GRANT UPDATE (id, team_id, creator_id, monitor_id, name, configuration, revoked_at, created_at, updated_at)
-  ON saved_views TO authenticated;
+GRANT UPDATE (revoked_at) ON saved_views TO authenticated;
 
 GRANT DELETE ON team_invites TO authenticated;
 GRANT INSERT (id, team_id, creator_id, role, expires_at, revoked_at, created_at)
   ON team_invites TO authenticated;
-GRANT UPDATE (id, team_id, creator_id, role, expires_at, revoked_at, created_at)
-  ON team_invites TO authenticated;
+GRANT UPDATE (revoked_at) ON team_invites TO authenticated;
 
 -- Worker-internal bookkeeping. The web app never touches either table, and both
 -- already have RLS on with no policy, so this closes the grant as well.
@@ -192,7 +201,11 @@ DROP POLICY IF EXISTS saved_views_update ON saved_views;
 CREATE POLICY saved_views_update ON saved_views
   FOR UPDATE TO authenticated
   USING (team_id = current_team_id() AND current_user_role() IN ('admin', 'member'))
-  WITH CHECK (team_id = current_team_id() AND current_user_role() IN ('admin', 'member'));
+  WITH CHECK (
+    team_id = current_team_id()
+    AND current_user_role() IN ('admin', 'member')
+    AND revoked_at IS NOT NULL
+  );
 
 DROP POLICY IF EXISTS saved_views_delete ON saved_views;
 CREATE POLICY saved_views_delete ON saved_views
@@ -242,7 +255,11 @@ DROP POLICY IF EXISTS team_invites_update ON team_invites;
 CREATE POLICY team_invites_update ON team_invites
   FOR UPDATE TO authenticated
   USING (team_id = current_team_id() AND current_user_role() = 'admin')
-  WITH CHECK (team_id = current_team_id() AND current_user_role() = 'admin');
+  WITH CHECK (
+    team_id = current_team_id()
+    AND current_user_role() = 'admin'
+    AND revoked_at IS NOT NULL
+  );
 
 DROP POLICY IF EXISTS team_invites_delete ON team_invites;
 CREATE POLICY team_invites_delete ON team_invites

@@ -23,6 +23,9 @@ export interface MonitorDetailViewProps {
   monitor: Monitor;
   /** Initial time-series metrics data pre-fetched on the server via RSC */
   initialMetrics: PingMetric[];
+  /** The window the server validated and fetched, so state never holds a rejected URL value. */
+  from: string;
+  to: string;
   /** Clock captured once on the server, so relative times survive hydration. */
   renderedAt: number;
   /** Whether the viewer may share a window (not a read-only viewer). */
@@ -32,7 +35,7 @@ export interface MonitorDetailViewProps {
 /**
  * MonitorDetailView component managing Recharts graph state and URL search param synchronization.
  */
-export function MonitorDetailView({ monitor, initialMetrics, renderedAt, canManage }: MonitorDetailViewProps) {
+export function MonitorDetailView({ monitor, initialMetrics, from, to, renderedAt, canManage }: MonitorDetailViewProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -44,11 +47,7 @@ export function MonitorDetailView({ monitor, initialMetrics, renderedAt, canMana
   const [error, setError] = useState<string | null>(null);
 
   // Kept in state so the share button pins the window actually on screen.
-  const initialBounds = calculateTimestamps(currentPreset);
-  const [window_, setWindow] = useState({
-    from: searchParams.get('from') ?? initialBounds.from,
-    to: searchParams.get('to') ?? initialBounds.to,
-  });
+  const [window_, setWindow] = useState({ from, to });
 
   // The tier is a property of the window the database chose to serve, so read
   // it off the points rather than guessing from the preset. Coarsest wins:

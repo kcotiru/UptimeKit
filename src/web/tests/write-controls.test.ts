@@ -115,4 +115,12 @@ describe('pages thread canManage from the session role', () => {
     expect(out).not.toContain('FORM');
     expect(out).toContain('Only team admins and members can do that');
   });
+
+  it('new monitor page shows the refusal, not the error boundary, when the session lookup throws', async () => {
+    getSessionUser.mockRejectedValue(new Error('boom'));
+    const page = (await import('../app/dashboard/monitors/new/page')).default;
+    const out = html(await page());
+    expect(out).not.toContain('FORM');
+    expect(out).toContain('Not authenticated');
+  });
 });

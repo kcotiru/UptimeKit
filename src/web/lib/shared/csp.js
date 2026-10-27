@@ -44,7 +44,15 @@ function buildCsp(nonce) {
   // user-controlled data, and middleware redirects signed-in visitors away from
   // it, so an injected script there has nothing to steal. Do not call it strict
   // and do not move it onto a page that renders a session.
-  const scriptSrc = nonce ? `'nonce-${nonce}' 'strict-dynamic'` : "'self' 'unsafe-inline'";
+  //
+  // 'unsafe-eval' is a DEVELOPMENT-ONLY concession. `next dev` uses webpack's
+  // eval-based source maps and React Refresh, both of which need eval, so
+  // without it no page hydrates locally. Production bundles use neither, and
+  // NODE_ENV is 'production' for `next build` and `next start`, so the shipped
+  // policy never carries it. This is what Next's own CSP guide does.
+  const evalSrc = process.env.NODE_ENV !== 'production' ? " 'unsafe-eval'" : '';
+  const scriptSrc =
+    (nonce ? `'nonce-${nonce}' 'strict-dynamic'` : "'self' 'unsafe-inline'") + evalSrc;
 
   return [
     "default-src 'self'",

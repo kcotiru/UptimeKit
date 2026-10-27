@@ -192,6 +192,100 @@ suite('Role-aware row level security', () => {
     expect(revoke.rowCount).toBe(1);
   });
 
+  describe('revocation is the only update, and it is one way', () => {
+    const CONFIG = `'{"from":"2026-01-01T00:00:00Z","to":"2026-01-02T00:00:00Z"}'::jsonb`;
+
+    /** A fresh row per test, inserted as the table owner so no grant or policy is in the way. */
+    async function freshView(revoked = false): Promise<string> {
+      const {
+        rows: [row],
+      } = await client.query(
+        `INSERT INTO saved_views (team_id, creator_id, monitor_id, name, configuration, revoked_at)
+         VALUES ($1, $2, $3, 'One way view', ${CONFIG}, ${revoked ? 'NOW()' : 'NULL'}) RETURNING id`,
+        [teamId, adminId, monitorId]
+      );
+      return row.id;
+    }
+    async function freshInvite(revoked = false): Promise<string> {
+      const {
+        rows: [row],
+      } = await client.query(
+        `INSERT INTO team_invites (team_id, creator_id, role, expires_at, revoked_at)
+         VALUES ($1, $2, 'viewer', NOW() + INTERVAL '1 day', ${revoked ? 'NOW()' : 'NULL'}) RETURNING id`,
+        [teamId, adminId]
+      );
+      return row.id;
+    }
+    const revokedAt = async (table: string, id: string) =>
+      (await client.query(`SELECT revoked_at FROM ${table} WHERE id = $1`, [id])).rows[0].revoked_at;
+
+    it.each([
+      ['saved_views', freshView],
+      ['team_invites', freshInvite],
+    ])('revoking a live %s row works', async (table, make) => {
+      const id = await make();
+      await asRole(client, 'authenticated', adminId);
+      const res = await client.query(
+        `UPDATE ${table} SET revoked_at = NOW() WHERE id = $1 AND revoked_at IS NULL`,
+        [id]
+      );
+      expect(res.rowCount).toBe(1);
+      await resetRole(client);
+      expect(await revokedAt(table, id)).not.toBeNull();
+    });
+
+    it.each([
+      ['saved_views', freshView],
+      ['team_invites', freshInvite],
+    ])('a second revoke of an already revoked %s row changes nothing', async (table, make) => {
+      const id = await make(true);
+      const before = await revokedAt(table, id);
+      await asRole(client, 'authenticated', adminId);
+      const res = await client.query(
+        `UPDATE ${table} SET revoked_at = NOW() + INTERVAL '1 hour' WHERE id = $1 AND revoked_at IS NULL`,
+        [id]
+      );
+      expect(res.rowCount).toBe(0);
+      await resetRole(client);
+      expect(await revokedAt(table, id)).toEqual(before);
+    });
+
+    it.each([
+      ['saved_views', freshView],
+      ['team_invites', freshInvite],
+    ])('un-revoking a %s row is refused by row level security', async (table, make) => {
+      const id = await make(true);
+      await asRole(client, 'authenticated', adminId);
+      await expect(
+        client.query(`UPDATE ${table} SET revoked_at = NULL WHERE id = $1`, [id])
+      ).rejects.toThrow(/row-level security/i);
+      await resetRole(client);
+      expect(await revokedAt(table, id)).not.toBeNull();
+    });
+
+    it('a saved view name and creator cannot be rewritten', async () => {
+      const id = await freshView();
+      await asRole(client, 'authenticated', adminId);
+      await expect(
+        client.query(`UPDATE saved_views SET name = 'renamed' WHERE id = $1`, [id])
+      ).rejects.toThrow(/permission denied/i);
+      await expect(
+        client.query(`UPDATE saved_views SET creator_id = $1 WHERE id = $2`, [memberId, id])
+      ).rejects.toThrow(/permission denied/i);
+    });
+
+    it('a minted invite role and expiry cannot be changed', async () => {
+      const id = await freshInvite();
+      await asRole(client, 'authenticated', adminId);
+      await expect(
+        client.query(`UPDATE team_invites SET role = 'admin' WHERE id = $1`, [id])
+      ).rejects.toThrow(/permission denied/i);
+      await expect(
+        client.query(`UPDATE team_invites SET expires_at = NOW() + INTERVAL '10 years' WHERE id = $1`, [id])
+      ).rejects.toThrow(/permission denied/i);
+    });
+  });
+
   it('a client cannot choose a saved view share token', async () => {
     await asRole(client, 'authenticated', adminId);
     await expect(
