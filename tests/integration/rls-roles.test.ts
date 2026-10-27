@@ -284,6 +284,28 @@ suite('Role-aware row level security', () => {
         client.query(`UPDATE team_invites SET expires_at = NOW() + INTERVAL '10 years' WHERE id = $1`, [id])
       ).rejects.toThrow(/permission denied/i);
     });
+
+    // Frozen on purpose. A column added to either table is unwritable through
+    // the API until someone decides otherwise: add it to the UPDATE grant in the
+    // migration, or add it here to say it stays read-only. Making that choice
+    // consciously is the point of this test.
+    const FROZEN_COLUMNS: Record<string, string[]> = {
+      saved_views: ['configuration', 'created_at', 'creator_id', 'id', 'monitor_id', 'name', 'revoked_at', 'share_token', 'team_id', 'updated_at'],
+      team_invites: ['created_at', 'creator_id', 'expires_at', 'id', 'revoked_at', 'role', 'team_id', 'token'],
+    };
+
+    it.each(Object.keys(FROZEN_COLUMNS))('%s columns are frozen and only revoked_at is updatable', async (table) => {
+      const { rows } = await client.query(
+        `SELECT column_name,
+                has_column_privilege('authenticated', format('public.%I', table_name), column_name, 'UPDATE') AS updatable
+           FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = $1
+          ORDER BY column_name`,
+        [table]
+      );
+      expect(rows.map((r) => r.column_name)).toEqual(FROZEN_COLUMNS[table]);
+      expect(rows.filter((r) => r.updatable).map((r) => r.column_name)).toEqual(['revoked_at']);
+    });
   });
 
   it('a client cannot choose a saved view share token', async () => {

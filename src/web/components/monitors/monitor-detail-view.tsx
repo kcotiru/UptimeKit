@@ -26,6 +26,8 @@ export interface MonitorDetailViewProps {
   /** The window the server validated and fetched, so state never holds a rejected URL value. */
   from: string;
   to: string;
+  /** The preset the server derived for that window, so the picker label matches it. */
+  preset: TimeRangePreset;
   /** Clock captured once on the server, so relative times survive hydration. */
   renderedAt: number;
   /** Whether the viewer may share a window (not a read-only viewer). */
@@ -35,13 +37,12 @@ export interface MonitorDetailViewProps {
 /**
  * MonitorDetailView component managing Recharts graph state and URL search param synchronization.
  */
-export function MonitorDetailView({ monitor, initialMetrics, from, to, renderedAt, canManage }: MonitorDetailViewProps) {
+export function MonitorDetailView({ monitor, initialMetrics, from, to, preset: initialPreset, renderedAt, canManage }: MonitorDetailViewProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const currentPreset = (searchParams.get('preset') as TimeRangePreset) || '24h';
-  const [preset, setPreset] = useState<TimeRangePreset>(currentPreset);
+  const [preset, setPreset] = useState<TimeRangePreset>(initialPreset);
   const [metrics, setMetrics] = useState<PingMetric[]>(initialMetrics);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

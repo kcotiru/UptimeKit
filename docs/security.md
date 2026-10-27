@@ -247,9 +247,12 @@ defended above.
     fail for a non-owner (they need schema `CREATE` and ownership of
     `ping_logs_raw`); the third leaks only partition names. Migration 3's
     criterion is the definer/invoker split, so this is consistent, not missed.
-14. **The form's minimum password length is 8, Supabase's is 6.**
-    `lib/shared/password.ts` is stricter than the API, so a 6 or 7 character
-    password is accepted by the API and refused by the form. No existing user is
+14. **A hosted project can accept a 6 or 7 character password until its
+    dashboard setting is raised.** The form and `supabase/config.toml` both
+    require 8, so the local stack has no gap. The hosted project ignores
+    `config.toml` and defaults to 6, so a direct Auth API call can register below
+    the form's floor until the deployer step in
+    [For the deployer](#for-the-deployer) is done. No existing user is
     affected: sign-in runs no length check.
 15. **DNS rebinding in the Test button** is a known, deliberate deferral. See
     [known-issues.md](known-issues.md#the-test-webhook-button-is-open-to-dns-rebinding).
@@ -266,6 +269,8 @@ It is inferred from reading the code and has not been executed.
 
 - **Enable leaked password protection** in the Supabase dashboard (Authentication,
   Password settings). No code substitutes for it.
+- **Set the minimum password length to 8** in the same dashboard page, which
+  closes accepted risk 14.
 - **Apply the migrations before deploying the app changes,** with
   `MIGRATE_CONFIRM=<project-ref> npm run migrate -- --hosted`. The confirmation
   is required even though nothing is dropped: the role-aware migration contains

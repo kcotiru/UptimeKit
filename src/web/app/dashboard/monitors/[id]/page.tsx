@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getMetrics, getMonitor } from '@/lib/server/data/monitors';
-import { PingMetric } from '@/lib/shared/types';
+import { PingMetric, TimeRangePreset } from '@/lib/shared/types';
 import { MonitorDetailView } from '@/components/monitors/monitor-detail-view';
 import { getSessionUser, supabaseServer } from '@/lib/server/supabase';
 import { MANAGE_ROLES, can } from '@/lib/server/actions/require-role';
@@ -18,7 +18,7 @@ export default async function MonitorDetailPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams: { from?: string; to?: string };
+  searchParams: { from?: string; to?: string; preset?: string };
 }) {
   if (!uuidArg.safeParse(params.id).success) notFound();
 
@@ -33,6 +33,14 @@ export default async function MonitorDetailPage({
     to: searchParams.to ?? defaultTo,
   });
   const { from, to } = requested.success ? requested.data : { from: defaultFrom, to: defaultTo };
+  // The label must describe the window fetched above. No bounds, or rejected
+  // ones, got the 24h default. Our own URL sync always writes preset, from and
+  // to together, so only a URL with both bounds can carry a trusted preset name;
+  // a lone bound came from elsewhere and is an explicit, custom window.
+  const pinned = requested.success && (searchParams.from || searchParams.to);
+  const named =
+    !!searchParams.from && !!searchParams.to && ['1h', '24h', '7d', '30d'].includes(searchParams.preset ?? '');
+  const preset: TimeRangePreset = pinned ? (named ? (searchParams.preset as TimeRangePreset) : 'custom') : '24h';
 
   // Issued together, not one after the other: getMetrics needs only the id and
   // the window, never the monitor row, so awaiting the row first just spends a
@@ -63,6 +71,7 @@ export default async function MonitorDetailPage({
       initialMetrics={initialMetrics}
       from={from}
       to={to}
+      preset={preset}
       renderedAt={Date.now()}
       canManage={can(user, MANAGE_ROLES)}
     />

@@ -17,19 +17,16 @@ export async function middleware(request: NextRequest) {
   // were made dynamic for it on purpose: they handle passwords and should not
   // take the weaker policy.
   //
-  // How the nonce reaches the script tags is Next's business, not ours, and the
-  // exact path is deliberately not described here: setting x-nonce is not known
-  // to be what Next consumes, and a guess written down beside working code is
-  // how the next person refactors it into breakage. What IS verified, by curl
-  // against a production build served with `next start`: /login returns 200
-  // with 14 script tags and 15 nonce attributes whose value is byte-identical
-  // to the response header's nonce; /share/<token> returns 404 with 11 scripts
-  // and 12 nonced; /share/a/b, which matches no route, 404 with 10 scripts and
-  // 11 nonced; and '/' returns 200 with 12 scripts and 0 nonce attributes under
-  // script-src 'self' 'unsafe-inline', which is the intended static policy.
-  // Re-run that check before changing anything here.
+  // Next stamps its script tags with the nonce it reads from the REQUEST's
+  // content-security-policy header (app-render.js, via
+  // get-script-nonce-from-header.js, which takes it from script-src). So the
+  // policy goes on the forwarded request as well as on the response, which is
+  // what the browser enforces. Verify by curl against `next start` before
+  // changing anything here: every script tag on /login carries the nonce from
+  // the response header, and '/' carries none.
   const nonce = request.nextUrl.pathname === '/' ? null : crypto.randomUUID();
-  if (nonce) request.headers.set('x-nonce', nonce);
+  const csp = nonce && buildCsp(nonce);
+  if (csp) request.headers.set('content-security-policy', csp);
 
   // /share/:token is here for the nonce and nothing else. The weak static
   // policy is justified by '/' rendering no session and no user-controlled
@@ -43,7 +40,7 @@ export async function middleware(request: NextRequest) {
   // so it is handled here too rather than falling through to the session work.
   if (/^\/share(\/|$)/.test(request.nextUrl.pathname)) {
     const shared = NextResponse.next({ request });
-    shared.headers.set('Content-Security-Policy', buildCsp(nonce!));
+    shared.headers.set('Content-Security-Policy', csp!);
     return shared;
   }
 
@@ -119,7 +116,7 @@ export async function middleware(request: NextRequest) {
   // Only on the response that actually renders. A redirect has no body, so
   // there is nothing on it for a policy to govern. Enforcing after a clean
   // browser pass; it shipped report-only until that pass.
-  if (nonce) response.headers.set('Content-Security-Policy', buildCsp(nonce));
+  if (csp) response.headers.set('Content-Security-Policy', csp);
 
   return response;
 }

@@ -137,7 +137,7 @@ export function RegisterForm() {
         <div className="p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 text-amber-400 text-sm">
           <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
           <span>
-            That invite link is no longer valid, it may have expired or been revoked. Ask for a new
+            That invite link is no longer valid. It may have expired or been revoked. Ask for a new
             one, or register your own team below.
           </span>
         </div>

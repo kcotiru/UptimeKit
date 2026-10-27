@@ -245,21 +245,21 @@ describe('middleware nonce', () => {
     expect(csp!.match(/script-src[^;]*/)![0]).not.toContain("'unsafe-inline'");
   });
 
-  it('sets x-nonce on the request to the same value as the response policy', async () => {
-    // What this pins is only that middleware mutates the request headers with
-    // the same nonce it puts in the policy, so the two cannot drift apart. It
-    // does NOT claim Next consumes x-nonce: nothing in next/dist reads that
-    // header, and the delivery path is Next's own.
-    //
-    // End-to-end nonce delivery is not unit-testable here: this suite runs
-    // environment 'node' with no renderer and no server. It was verified by
-    // curl against a production build instead, and the numbers are recorded in
-    // the comment at the top of middleware.ts.
-    const res = await run('/login');
-    const csp = [...res.headers.entries()].find(([k]) => CSP_KEY.test(k))![1];
-    const nonce = csp.match(/'nonce-([^']+)'/)![1];
-    expect(res.headers.get('x-middleware-override-headers')).toContain('x-nonce');
-    expect(res.headers.get('x-middleware-request-x-nonce')).toBe(nonce);
+  it('forwards the policy on the request, where Next reads the nonce from', async () => {
+    // Next derives the HTML nonce from the request's content-security-policy
+    // header (app-render.js, getScriptNonceFromHeader). Signed in, so
+    // /dashboard/monitors renders instead of redirecting.
+    vi.resetModules();
+    getClaims.mockResolvedValue({ data: { claims: { sub: 'u1' } } });
+    createServerClient.mockImplementation(() => ({ auth: { getClaims } }));
+    const { middleware } = await import('../middleware');
+    const res = await middleware(
+      new NextRequest(new URL('http://localhost:3001/dashboard/monitors'))
+    );
+    const nonce = res.headers.get('content-security-policy')!.match(/'nonce-([^']+)'/)![1];
+    expect(res.headers.get('x-middleware-override-headers')).toContain('content-security-policy');
+    const forwarded = res.headers.get('x-middleware-request-content-security-policy');
+    expect(forwarded?.match(/'nonce-([^']+)'/)?.[1]).toBe(nonce);
   });
 
   it('runs middleware on a share link at all, or none of the rest applies', async () => {
@@ -278,9 +278,7 @@ describe('middleware nonce', () => {
     const csp = [...res.headers.entries()].find(([k]) => CSP_KEY.test(k))?.[1];
     expect(csp).toMatch(/script-src[^;]*'nonce-[0-9a-f-]{36}'/);
     expect(csp!.match(/script-src[^;]*/)![0]).not.toContain("'unsafe-inline'");
-    expect(res.headers.get('x-middleware-request-x-nonce')).toBe(
-      csp!.match(/'nonce-([^']+)'/)![1]
-    );
+    expect(res.headers.get('x-middleware-request-content-security-policy')).toBe(csp);
   });
 
   it('serves a share link without an auth call or a redirect', async () => {
@@ -309,7 +307,7 @@ describe('middleware nonce', () => {
   it('leaves / without a nonce, so it stays static', async () => {
     const res = await run('/');
     expect([...res.headers.entries()].find(([k]) => CSP_KEY.test(k))).toBeUndefined();
-    expect(res.headers.get('x-middleware-request-x-nonce')).toBeNull();
+    expect(res.headers.get('x-middleware-request-content-security-policy')).toBeNull();
   });
 
   it('gives every request its own nonce', async () => {
