@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Activity, Lock, Mail, Users, AlertCircle, ArrowRight, MailCheck } from 'lucide-react';
 import { supabaseBrowser } from '@/lib/client/supabase';
+import { passwordError } from '@/lib/shared/password';
 
 type Invite = { team_name: string; invite_role: string };
 
@@ -49,6 +50,11 @@ export function RegisterForm() {
       setError('Please fill in both email and password.');
       return;
     }
+    const tooShort = passwordError(password);
+    if (tooShort) {
+      setError(tooShort);
+      return;
+    }
 
     setLoading(true);
 
@@ -66,7 +72,8 @@ export function RegisterForm() {
       });
 
       if (signUpError) {
-        setError(signUpError.message || 'Registration failed. Please try a different email.');
+        // Provider text is dropped: this runs in the browser, so there is nowhere to log it.
+        setError('Registration failed. Check your details and try again.');
         setLoading(false);
         return;
       }
@@ -74,8 +81,8 @@ export function RegisterForm() {
       // No redirect to the dashboard: with email confirmation on, signUp returns
       // no session until the address is verified.
       setSent(true);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not reach the server. Try again.');
+    } catch {
+      setError('Could not reach the server. Try again.');
       setLoading(false);
     }
   };
@@ -130,7 +137,7 @@ export function RegisterForm() {
         <div className="p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 text-amber-400 text-sm">
           <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
           <span>
-            That invite link is no longer valid — it may have expired or been revoked. Ask for a new
+            That invite link is no longer valid, it may have expired or been revoked. Ask for a new
             one, or register your own team below.
           </span>
         </div>

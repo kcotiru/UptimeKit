@@ -1,5 +1,6 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { UserError } from '../../shared/action-error';
 import type { Monitor, PingMetric } from '../../shared/types';
 import { createMonitorSchema } from '../../shared/validations/monitor';
 
@@ -57,14 +58,14 @@ export async function getMonitor(db: SupabaseClient, id: string): Promise<Monito
 }
 
 /**
- * Validates and inserts a monitor. Input is re-validated server side — the
+ * Validates and inserts a monitor. Input is re-validated server side; the
  * client-side check in the form is a convenience, not a trust boundary.
  * Monitors start paused; the worker flips status on its first ping.
  */
 export async function createMonitor(db: SupabaseClient, input: unknown): Promise<Monitor> {
   const parsed = createMonitorSchema.safeParse(input);
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? 'Invalid monitor');
+    throw new UserError(parsed.error.issues[0]?.message ?? 'Invalid monitor');
   }
 
   const { data, error } = await db
@@ -110,7 +111,7 @@ export async function getMetrics(db: SupabaseClient, id: string, from: string, t
 /**
  * Recent raw samples for every monitor on the team, keyed by monitor id.
  *
- * One query rather than one per monitor: the `tenant_isolation_raw` policy on
+ * One query rather than one per monitor: the `ping_logs_raw_select` policy on
  * ping_logs_raw already scopes reads to the caller's team, so a single read is
  * both correct and cheap.
  *
@@ -155,7 +156,7 @@ export async function listRecentMetrics(
 }
 
 export interface TierRow {
-  /** Named `ts` in SQL — an output column named `timestamp` is a Postgres syntax error. */
+  /** Named `ts` in SQL: an output column named `timestamp` is a Postgres syntax error. */
   ts: string;
   response_time_ms: number;
   min_time_ms: number | null;
@@ -174,7 +175,7 @@ export function toPingMetric(row: TierRow): PingMetric {
   // The raw branch of select_ping_tier echoes the single sample into
   // min/max/p95/p50/p99 (min = max = p95 = ... = the one response time).
   // A single sample has no range and no percentile, so those five fields are
-  // forced null here rather than passed through — matching listRecentMetrics
+  // forced null here rather than passed through, matching listRecentMetrics
   // and the null-on-raw contract documented on PingMetric in types.ts.
   const isRaw = row.source_tier === 'raw';
   return {

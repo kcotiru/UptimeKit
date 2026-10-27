@@ -1,8 +1,8 @@
-import ipaddr from 'ipaddr.js';
 import dns from 'dns/promises';
 import net from 'net';
 import { URL } from 'url';
 import { SSRFValidationResult } from './types';
+import { ipRange, isUnicast, unbracket } from './ip-range';
 
 export class SSRFValidator {
   private defaultAllowlist: string[];
@@ -28,7 +28,9 @@ export class SSRFValidator {
       return { isAllowed: false, reason: `Forbidden scheme: ${parsedUrl.protocol}` };
     }
 
-    const hostname = parsedUrl.hostname;
+    // Unbracketed, so an allowlist entry for an IPv6 literal must be written without brackets
+    // ('::1', not '[::1]'); the bracketed form no longer matches.
+    const hostname = unbracket(parsedUrl.hostname);
 
     // Handle decimal/hex IP representations (e.g., 2130706433 or 0x7f000001)
     const normalizedHost = this.normalizeNumericHost(hostname) || hostname;
@@ -58,31 +60,21 @@ export class SSRFValidator {
         continue;
       }
 
-      let addr: ipaddr.IPv4 | ipaddr.IPv6;
+      let allowed: boolean;
       try {
-        addr = ipaddr.parse(ipStr);
+        allowed = isUnicast(ipStr);
       } catch {
         return { isAllowed: false, resolvedIp: ipStr, reason: `Invalid IP address format: ${ipStr}` };
       }
 
-      const range = addr.range();
-      const forbiddenRanges = [
-        'loopback',
-        'private',
-        'linkLocal',
-        'carrierGradeNat',
-        'broadcast',
-        'multicast',
-        'unspecified',
-        'reserved',
-        'uniqueLocal',
-      ];
-
-      if (forbiddenRanges.includes(range)) {
+      // Allowlist, not denylist: anything ipaddr.js files under a special range is refused. This
+      // closes whole categories (ipv4Mapped, rfc6052, 6to4, teredo, benchmarking, ...) instead of
+      // listing them.
+      if (!allowed) {
         return {
           isAllowed: false,
           resolvedIp: ipStr,
-          reason: `SSRF Violation: IP ${ipStr} is in restricted range (${range})`,
+          reason: `SSRF Violation: IP ${ipStr} is in restricted range (${ipRange(ipStr)})`,
         };
       }
     }

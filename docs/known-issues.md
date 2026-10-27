@@ -66,6 +66,57 @@ anything other than 'up' (degraded counts too), so the header count must match
 that, not just 'down'"), so treat it as a wording decision to revisit rather
 than an oversight.
 
+## The worker's ping may follow a redirect to a bare IP literal
+
+`src/worker/http/ping-client.ts` pins the resolved IP by passing a custom
+`lookup` to the request, so a hostname cannot be re-resolved to a different
+address after validation. A redirect whose `Location` is a bare IP literal
+(for example `http://10.0.0.5/`) never calls `lookup` at all, because Node does
+not resolve an address that is already an address. If redirects are followed,
+that hop skips the pin and the SSRF check.
+
+This is **inferred from reading the code and has not been executed.**
+
+**Out of scope by the owner's scoping decision for the web-hardening work, not
+an oversight.** The worker was deliberately left untouched. The web app's
+equivalent path (`testWebhookAction`) was fixed by sending `redirect: 'manual'`
+and treating a 3xx as a failure.
+
+**Fix:** do not follow redirects in the ping, or re-run `SSRFValidator` on each
+`Location` and pin each hop.
+
+## The Test webhook button is open to DNS rebinding
+
+`testWebhookAction` runs `SSRFValidator`, which resolves the host, and then
+global `fetch` resolves it again. An attacker-controlled name can answer with a
+public address for the first lookup and an internal one for the second, and the
+response status leaks through `Destination responded N`. The worker's ping has
+the same time-of-check-to-time-of-use gap.
+
+**A deliberate deferral, not an oversight.** The Test button is admin-only and
+session-gated, so the "attacker" is an admin probing their own deployment, and
+the owner's threat model is a deployed portfolio with no other users. The real
+fix is to replace global `fetch` with an undici dispatcher whose `lookup` pins
+the IP the validator resolved. That is new scope, and the worker's ping path
+(out of scope by the owner's decision, see above) has the identical gap, so
+closing one and not the other would be incoherent.
+
+**Fix:** one pinned-lookup dispatcher shared by the Test button and the worker.
+
+## The Test webhook button ignores `SSRF_ALLOWLIST`
+
+`testWebhookAction` builds `new SSRFValidator()` with an empty allowlist, so it
+refuses an allowlisted internal host that the worker would accept. Deliberate:
+honouring it would need the same env var on the web host, kept in step with
+the worker's. Do not "fix" it without that trade-off in mind.
+
+## The SSRF allowlist blocks NAT64
+
+`64:ff9b::/96` is refused, which is correct for an SSRF guard but is the one
+newly blocked range with a legitimate use: an IPv6-only host using DNS64 to
+reach an IPv4-only monitoring target would stop being pingable. Not relevant to
+this deployment today.
+
 # To-do
 
 - [ ] **Theme and Timezone** in the account menu are visible but disabled.

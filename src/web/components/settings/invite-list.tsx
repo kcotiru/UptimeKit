@@ -8,9 +8,9 @@ import { formatDate } from '@/lib/shared/utils';
 import { createInviteAction, revokeInviteAction } from '@/lib/server/actions/invites';
 
 const ROLES = [
-  { value: 'member', label: 'Member — can manage monitors' },
-  { value: 'viewer', label: 'Viewer — read only' },
-  { value: 'admin', label: 'Admin — full access, can invite' },
+  { value: 'member', label: 'Member: can manage monitors' },
+  { value: 'viewer', label: 'Viewer: read only' },
+  { value: 'admin', label: 'Admin: full access, can invite' },
 ];
 
 function isLive(invite: TeamInvite): boolean {
@@ -174,17 +174,19 @@ export function InviteList({
 
               {isLive(invite) && (
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => handleCopy(invite)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-hover hover:bg-brand-600/20 border border-surface-border text-slate-300 text-xs font-semibold rounded-lg transition-colors"
-                  >
-                    {copiedId === invite.id ? (
-                      <Check className="h-3.5 w-3.5 text-brand-400" />
-                    ) : (
-                      <Copy className="h-3.5 w-3.5" />
-                    )}
-                    {copiedId === invite.id ? 'Copied' : 'Copy link'}
-                  </button>
+                  {canInvite && (
+                    <button
+                      onClick={() => handleCopy(invite)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-hover hover:bg-brand-600/20 border border-surface-border text-slate-300 text-xs font-semibold rounded-lg transition-colors"
+                    >
+                      {copiedId === invite.id ? (
+                        <Check className="h-3.5 w-3.5 text-brand-400" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                      {copiedId === invite.id ? 'Copied' : 'Copy link'}
+                    </button>
+                  )}
                   {canInvite && (
                     <button
                       onClick={() => handleRevoke(invite.id)}

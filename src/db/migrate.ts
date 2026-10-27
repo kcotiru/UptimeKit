@@ -69,7 +69,7 @@ export function listMigrationFiles(dir: string): MigrationFile[] {
 // ponytail: regex over comment-stripped text, not a SQL parser; a keyword inside
 // a string literal or function body could false-positive. The transaction-control
 // entry trips on a plpgsql body written `DECLARE v int; BEGIN …`, since the `;`
-// before BEGIN looks like a statement boundary — write such a body with no DECLARE
+// before BEGIN looks like a statement boundary. Write such a body with no DECLARE
 // block, or inline the declaration, until this grows a tokenizer.
 const NON_TRANSACTIONAL: RegExp[] = [
   /\b(?:CREATE|DROP)\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\b/i,
@@ -80,7 +80,7 @@ const NON_TRANSACTIONAL: RegExp[] = [
   // applyMigration owns the transaction. A file that opens its own voids that
   // silently: Postgres ignores the nested BEGIN with a warning, the file's COMMIT
   // ends the runner's transaction, and the history INSERT then runs alone and
-  // auto-committed — so if it fails, the DDL is already committed. schema.sql:6
+  // auto-committed. If it fails, the DDL is already committed. schema.sql:6
   // tells the operator to wrap *that* file in BEGIN/COMMIT, so the pattern is in
   // the repo waiting to be copied into a migration.
   /(?:^|;)\s*(?:BEGIN|START\s+TRANSACTION|COMMIT|ROLLBACK|SAVEPOINT)\b/i,
@@ -328,7 +328,7 @@ export function isHostedUrl(url: string): boolean {
  * plaintext unless told otherwise and Supabase URLs carry no `sslmode`, so without this
  * the password and every statement cross the internet in the clear. Supabase requires TLS;
  * its cert chain is not in the local trust store. A local Postgres has no certificate at
- * all, so it gets no `ssl` key rather than an explicit `undefined` — that would override
+ * all, so it gets no `ssl` key rather than an explicit `undefined`, which would override
  * an `sslmode` the caller put in the URL itself.
  */
 export function sslFor(url: string): { ssl?: { rejectUnauthorized: boolean } } {

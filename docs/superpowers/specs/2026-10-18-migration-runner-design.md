@@ -1,4 +1,4 @@
-# Migration runner — design
+# Migration runner: design
 
 **Date:** 2026-10-18
 **Branch:** `feat/migration-runner`
@@ -10,7 +10,7 @@
 
 `supabase/schema.sql` is applied by hand: pasted into the Supabase SQL Editor and
 run. Nothing anywhere records which changes have been applied to which database.
-The last apply went fine — there is no outage driving this — but every future
+The last apply went fine, there is no outage driving this, but every future
 schema change is another manual paste with no record and no enforced order.
 
 We want schema changes applied by a command, added by dropping in a file, and
@@ -34,7 +34,7 @@ is the problem the design should actually solve.
 This repo had a migration runner until commit `59ef8d2` (2026-08-20):
 `src/db/migrations/001-017*.sql` with `down/` counterparts, `migrate.ts` on
 node-pg-migrate, and an `npm run migrate` script. That commit's message never
-mentions migrations — it is the one that folded in "the pre-existing (previously
+mentions migrations, it is the one that folded in "the pre-existing (previously
 uncommitted) Express → Supabase refactor found in the working tree." The runner
 went out as collateral damage, not as a decision.
 
@@ -45,7 +45,7 @@ not create one."*
 
 **This design deliberately reverses that rule**, with the owner's approval. The
 rule is superseded, not overlooked. `schema.sql` keeps its baseline role, so the
-constraint's practical purpose — one file that builds a working database —
+constraint's practical purpose, one file that builds a working database,
 survives.
 
 ---
@@ -56,7 +56,7 @@ survives.
 2. Adding a schema change means adding a file. `schema.sql` is never edited again.
 3. Every migration has a revert path, rehearsed locally before it touches the
    hosted project.
-4. The migration files are the schema's changelog — the documentation of how the
+4. The migration files are the schema's changelog, the documentation of how the
    schema got here.
 5. The runner works against a plain local Postgres as well as the hosted Supabase
    project.
@@ -72,7 +72,7 @@ survives.
   `alter policy` (this schema is largely RLS policies). Wrong tool.
 - Adopting the Supabase CLI. Not installed, and not required. The design must
   not *foreclose* adopting it later, which is why the tracking table matches the
-  CLI's format — but nothing here depends on the CLI existing.
+  CLI's format, but nothing here depends on the CLI existing.
 - Decomposing `schema.sql` into migrations.
 - Auto-migrating on worker startup.
 
@@ -112,7 +112,7 @@ From the repo, all verified:
   Postgres has no pg_cron. Any new code that applies SQL locally must honour
   the same fence.
 - **Local Postgres needs `tests/integration/helpers/bootstrap-local.sql` first**
-  — it creates the `extensions` schema, pgcrypto, the `anon`/`authenticated`
+ , it creates the `extensions` schema, pgcrypto, the `anon`/`authenticated`
   roles, and an `auth.users` stub. `schema.sql` does not create these.
 - **The hosted project's direct host is IPv6-only.** The session pooler URI is
   required on IPv4 networks.
@@ -128,7 +128,7 @@ From the repo, all verified:
 - **Rollback is a newest-first unwind, repeatable**: each run reverts the most
   recently applied migration, and running it repeatedly walks back as far as
   needed, so any point in history stays reachable. Reverting one arbitrary older
-  migration while later ones remain applied was considered and **rejected** — it
+  migration while later ones remain applied was considered and **rejected**, it
   would force every down file to stay correct even after later migrations altered
   the same objects, which is a contract imposed on whoever writes migrations, not
   just more code in the runner.
@@ -184,7 +184,7 @@ ALTER TABLE supabase_migrations.schema_migrations
 
 The CLI compares **version strings only** and never hashes file contents, so an
 edit to an already-applied migration goes undetected. The runner should inherit
-that behaviour rather than inventing a stricter one — a hash check would make the
+that behaviour rather than inventing a stricter one, a hash check would make the
 tracking table CLI-incompatible. Worth a comment in the code so the gap is
 deliberate rather than an oversight.
 
@@ -198,10 +198,10 @@ supabase/migrations/down/<version>_<name>.sql       -- revert, same version
 `<version>` is a 14-digit UTC timestamp, `YYYYMMDDHHMMSS`. The CLI matches
 `^([0-9]+)_(.*)\.sql$` and orders by filename, so this naming stays compatible.
 
-### The baseline — the fiddly part
+### The baseline, the fiddly part
 
 The distinction that matters is **not** fresh-versus-existing, and framing it that
-way is a trap — someone following `README.md:112` creates a brand-new hosted
+way is a trap, someone following `README.md:112` creates a brand-new hosted
 Supabase project and pastes `schema.sql` into the SQL Editor by hand, so a *new*
 database can already have the baseline applied.
 
@@ -225,7 +225,7 @@ baseline wants a file. Options:
    error.
 2. `supabase/migrations/<ts>_baseline.sql` holding a copy of `schema.sql`.
    Duplicates 932 lines, and the six text-asserting tests still point at the
-   original — two files to keep in sync, which is exactly the failure mode this
+   original, two files to keep in sync, which is exactly the failure mode this
    work exists to remove.
 3. **Recommended:** `supabase/migrations/<ts>_baseline.sql` containing only a
    comment that names `supabase/schema.sql` as the baseline and explains that it
@@ -233,15 +233,15 @@ baseline wants a file. Options:
    stays the single source.
 
 Option 3's cost: a CLI `db reset` could not rebuild the database from migrations
-alone. Acceptable, since adopting the CLI is a non-goal — but it should be stated
+alone. Acceptable, since adopting the CLI is a non-goal, but it should be stated
 in the docs, not discovered later.
 
-### Baseline parity audit — a prerequisite, not an afterthought
+### Baseline parity audit, a prerequisite, not an afterthought
 
 Recording the baseline against the hosted project without executing it **asserts
 that production already equals `schema.sql`**. Nothing has ever verified that,
-and the mechanism this whole design exists to prevent — an edit inside a
-`CREATE TABLE IF NOT EXISTS` body never reaching an existing table — is exactly
+and the mechanism this whole design exists to prevent, an edit inside a
+`CREATE TABLE IF NOT EXISTS` body never reaching an existing table, is exactly
 what would have produced a mismatch. If production has already drifted, the
 first history row records something false and every migration after it stacks on
 an unverified foundation. The forward drift gets fixed; the backward drift never
@@ -253,11 +253,11 @@ against a database built fresh from `schema.sql`.
 Supabase's declarative/diff engine is a non-goal (see above), so this is
 hand-written introspection. Compare, at minimum:
 
-- `information_schema.columns` — name, type, nullability, default, per table
+- `information_schema.columns`: name, type, nullability, default, per table
 - constraints, including the `CHECK` on `monitors.timeout_ms`
 - indexes
-- `pg_policies` — RLS policy names, commands, and expressions
-- `pg_proc.prosrc` — function bodies, which is where `CREATE OR REPLACE` drift
+- `pg_policies`: RLS policy names, commands, and expressions
+- `pg_proc.prosrc`: function bodies, which is where `CREATE OR REPLACE` drift
   would hide
 - triggers
 - the partition set on `ping_logs_raw`
@@ -266,7 +266,7 @@ This is a **read-only** comparison and must stay that way: it connects to
 production to `SELECT` from catalogs and writes nothing.
 
 If drift is found, it becomes an explicit first migration that reconciles it,
-reviewed by hand before it runs — not something the runner papers over. If no
+reviewed by hand before it runs, not something the runner papers over. If no
 drift is found, record that fact in the commit or the migrations README, so the
 baseline is a verified claim rather than a hopeful one.
 
@@ -290,7 +290,7 @@ containing one of these cannot be atomic. The builder decides whether to detect
 and reject them with a clear error or support them as a documented special case;
 rejecting is the smaller change and can be revisited.
 
-**Per migration, not per run** — deliberately. `schema.sql:11` advises wrapping a
+**Per migration, not per run**, deliberately. `schema.sql:11` advises wrapping a
 production apply of *that file* in one explicit `BEGIN`/`COMMIT`, because it drops
 and recreates functions hundreds of lines apart and leaves a window where a live
 RPC hits a missing function. That reasoning is specific to one monolithic file.
@@ -303,7 +303,7 @@ migrations and, worse, encourage one enormous migration to get atomicity.
 
 `schema.sql:11` instructs `NOTIFY pgrst, 'reload schema';` after a production
 apply, and this is load-bearing rather than ceremonial: the web app reaches the
-database through PostgREST RPCs — `select_ping_tier`
+database through PostgREST RPCs, `select_ping_tier`
 (`src/web/lib/server/data/monitors.ts:100`), `get_shared_view`
 (`saved-views.ts:198`), `describe_invite` (`register-form.tsx:32`). A migration
 that redefines any of those leaves PostgREST serving stale OIDs and returning
@@ -342,7 +342,7 @@ matching the existing scripts.
 function.** This matters: `applySchema()` in the test harness also applies
 pending migrations (see below), so a guard buried in the shared apply path would
 make the first forward migration containing a `DROP COLUMN` fail `beforeAll` in
-all five database-backed test files — a hard failure, against the standing rule
+all five database-backed test files, a hard failure, against the standing rule
 that those tests skip rather than fail. The in-process path used by tests builds
 a throwaway schema on `DATABASE_TEST_URL` and has no data to protect, so it
 bypasses the guard by construction. Contributors must not need to set a confirm
@@ -351,7 +351,7 @@ variable to run `npm test`.
 **The confirmation value for a hosted target must not be the database name.**
 `seed-dev.ts:36` and `backfill-daily-rollups.ts:44` derive it from
 `new URL(url).pathname.slice(1)`, which for every Supabase session-pooler URI is
-literally `postgres` — generic, guessable, and identical across every Supabase
+literally `postgres`, generic, guessable, and identical across every Supabase
 project. That would make the guard weakest on the one target that must never be
 hit by accident, while the local throwaway gets the specific
 `uptimekit_sdd_test`. For a hosted target, derive the value from the project ref
@@ -374,7 +374,7 @@ The runner must never reach production implicitly. `DATABASE_URL` in the root
 
 - Default target: `DATABASE_TEST_URL`.
 - The hosted project requires an explicit flag *and* the confirm env var.
-- No fallback from `DATABASE_TEST_URL` to `DATABASE_URL`, ever — the same rule
+- No fallback from `DATABASE_TEST_URL` to `DATABASE_URL`, ever, the same rule
   `db-setup.ts:8-13` already enforces for tests.
 
 ### The required test-suite change
@@ -384,7 +384,7 @@ strips the pg_cron fence and executes it. It is called from `beforeAll` in five
 test files.
 
 Once migrations exist, those tests run against a schema that is missing every
-migration — **passing while testing the wrong thing**, which is an anti-goal
+migration, **passing while testing the wrong thing**, which is an anti-goal
 above. `applySchema()` must therefore also apply pending migrations, keeping the
 fence-stripping behaviour.
 
@@ -394,12 +394,12 @@ ships**. See the next section for the part that goes stale later.
 ### The text-asserting tests, and their accepted ceiling
 
 Six test files assert on `schema.sql` **as text** rather than against a live
-database — e.g. `expect(sql).toContain('PARTITION BY RANGE (timestamp)')`:
+database, e.g. `expect(sql).toContain('PARTITION BY RANGE (timestamp)')`:
 `partitioning.test.ts`, `monitors.test.ts`, `rollup.test.ts`,
 `tier-query.test.ts`, `rollup-concurrent.test.ts`, `soft-delete-purge.test.ts`.
 
 The first migration that changes anything they assert about leaves them passing
-while describing a file that is no longer the schema — the same "passing while
+while describing a file that is no longer the schema, the same "passing while
 testing the wrong thing" listed as an anti-goal, relocated rather than solved.
 
 **Decision: accept this ceiling for now.** Converting all six to query the
@@ -431,7 +431,7 @@ flag nor `DATABASE_TEST_URL` is present, rather than defaulting to something.
 `tests/integration/partitioning.test.ts:59-70` asserts the
 `-- @local-test:strip-start (pg_cron)` sentinels bracket every `cron.` reference
 in `schema.sql`. Nothing would assert that for a migration, and partition
-maintenance — the one thing living inside that fence — is a plausible thing to
+maintenance, the one thing living inside that fence, is a plausible thing to
 change. An unfenced `cron.` reference in a migration breaks every
 database-backed test with the confusing "extension not available" error that the
 comment at `db-setup.ts:28-50` exists to stop recurring. Extending that test to
@@ -440,20 +440,20 @@ failure later.
 
 ## Documentation to update
 
-- `README.md:198` — the "No migration runner" to-do line.
-- `docs/known-issues.md:50-52` — same item in the to-do list.
-- `docs/operations.md` — "Deploying schema changes" currently says to paste
+- `README.md:198`: the "No migration runner" to-do line.
+- `docs/known-issues.md:50-52`: same item in the to-do list.
+- `docs/operations.md`: "Deploying schema changes" currently says to paste
   `schema.sql`. It becomes: apply the baseline once, then `npm run migrate`.
   The "apply schema before deploying code" rule and its breakage table stand.
   The `NOTIFY pgrst` step moves from prose into the runner; say so, so nobody
   re-adds it as a manual step.
-- `README.md:112` — step 2 of setup, which tells a new user to paste
+- `README.md:112`: step 2 of setup, which tells a new user to paste
   `schema.sql` into the SQL Editor. That stays correct, but it now needs the
   follow-on step that records the baseline and applies migrations.
-- `docs/setup.md` — the test-database section, which must now mention
+- `docs/setup.md`: the test-database section, which must now mention
   `bootstrap-local.sql` (it already omits this, a pre-existing gap) and the
   migration step.
-- `supabase/migrations/README.md` — how to add a migration and a down file, and
+- `supabase/migrations/README.md`: how to add a migration and a down file, and
   the honest statement that reverting a destructive change restores structure,
   not rows.
 

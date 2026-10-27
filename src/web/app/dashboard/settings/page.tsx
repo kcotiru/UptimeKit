@@ -6,8 +6,9 @@ import { WebhookList } from '@/components/settings/webhook-list';
 import { SavedViewList } from '@/components/settings/saved-view-list';
 import { InviteList } from '@/components/settings/invite-list';
 import { getSessionUser, supabaseServer } from '@/lib/server/supabase';
+import { ADMIN_ROLES, MANAGE_ROLES, can } from '@/lib/server/actions/require-role';
 
-// Per-user data behind a session cookie — never prerender.
+// Per-user data behind a session cookie: never prerender.
 export const dynamic = 'force-dynamic';
 
 /**
@@ -19,7 +20,7 @@ export default async function SettingsPage() {
   let invites: Awaited<ReturnType<typeof listInvites>> = [];
 
   // allSettled, not all: each fetch keeps its own fallback and console.error,
-  // exactly as when they ran in series — one rejecting must not blank the
+  // exactly as when they ran in series: one rejecting must not blank the
   // others. getSessionUser() joins the group for free: it's cache()d per
   // request, so this is its second call, not a second round trip.
   const [webhooksResult, viewsResult, invitesResult, sessionUserResult] = await Promise.allSettled([
@@ -56,32 +57,41 @@ export default async function SettingsPage() {
     );
   }
 
-  // Hides the create form for non-admins. Cosmetic only — createInviteAction
-  // re-checks the role, because a hidden button stops nobody.
-  const canInvite =
-    sessionUserResult.status === 'fulfilled' && sessionUserResult.value?.role === 'admin';
+  // Webhooks and invites are admin only and the database enforces it (their
+  // SELECT policies return no rows to anyone else), so non-admins do not see
+  // those sections at all rather than a permanently empty list.
+  const sessionUser = sessionUserResult.status === 'fulfilled' ? sessionUserResult.value : null;
+  const isAdmin = can(sessionUser, ADMIN_ROLES);
 
   return (
     <div className="space-y-6">
       <Header
         title="Settings"
-        subtitle={`Alert destinations for this team (${webhooks.length} configured)`}
+        subtitle={
+          isAdmin
+            ? `Alert destinations for this team (${webhooks.length} configured)`
+            : 'Shared views for this team'
+        }
       />
 
-      <div className="space-y-4">
-        <h2 className="text-base font-bold text-slate-100">Alerts</h2>
-        <WebhookList initialWebhooks={webhooks} />
-      </div>
+      {isAdmin && (
+        <div className="space-y-4">
+          <h2 className="text-base font-bold text-slate-100">Alerts</h2>
+          <WebhookList initialWebhooks={webhooks} />
+        </div>
+      )}
 
       <div className="space-y-4">
         <h2 className="text-base font-bold text-slate-100">Shared views</h2>
-        <SavedViewList initialViews={views} />
+        <SavedViewList initialViews={views} canManage={can(sessionUser, MANAGE_ROLES)} />
       </div>
 
-      <div className="space-y-4">
-        <h2 className="text-base font-bold text-slate-100">Team members</h2>
-        <InviteList initialInvites={invites} canInvite={canInvite} />
-      </div>
+      {isAdmin && (
+        <div className="space-y-4">
+          <h2 className="text-base font-bold text-slate-100">Team members</h2>
+          <InviteList initialInvites={invites} canInvite={isAdmin} />
+        </div>
+      )}
     </div>
   );
 }

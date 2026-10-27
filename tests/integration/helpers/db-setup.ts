@@ -70,13 +70,13 @@ export async function getTestClient(): Promise<Client> {
 //
 // Strip the whole fenced region. The fence is explicit sentinel comments
 // rather than a match on the block's `$job$` dollar-quote: the old anchor
-// stopped at cron.schedule()'s closing paren, so anything appended after it —
-// such as the cron.job postcondition assertion — silently escaped the strip
+// stopped at cron.schedule()'s closing paren, so anything appended after it
+// (such as the cron.job postcondition assertion) silently escaped the strip
 // and broke every DB-backed test. tests/integration/partitioning.test.ts
 // asserts that no `cron.` reference survives outside the sentinels.
 //
 // This fenced region is the one part of schema.sql with zero local test
-// coverage — nothing in this repo's test suite ever executes it. Only
+// coverage: nothing in this repo's test suite ever executes it. Only
 // pg_cron statements belong inside the fence; anything else placed there
 // silently escapes every DB-backed test.
 //
@@ -86,12 +86,12 @@ export async function getTestClient(): Promise<Client> {
 
 /**
  * Applies the full schema, then every pending migration. Idempotent, and safe to call
- * repeatedly against one shared database — seven test files do.
+ * repeatedly against one shared database (seven test files do).
  *
  * schema.sql is executed ONLY against a database that has never had it. Re-running it
  * puts its `CREATE OR REPLACE` and `DROP POLICY IF EXISTS … ; CREATE POLICY` definitions
  * back over whatever a migration redefined, and applyPending then skips those migrations
- * because they are already recorded — so the suite would pass against a stale schema, and
+ * because they are already recorded, so the suite would pass against a stale schema, and
  * the parity reference database that docs/operations.md builds with `npm test` would be
  * wrong in the same way, making production look like the drifted side.
  *
@@ -99,7 +99,7 @@ export async function getTestClient(): Promise<Client> {
  * row and leaves it deleted, so a row-based check would re-run schema.sql after that file
  * and reintroduce the bug with test-order dependence on top. `monitors` existing proves the
  * whole file committed, because it runs as one multi-statement query (see above) and is
- * therefore all-or-nothing — a failed apply leaves no table behind to mistake for success.
+ * therefore all-or-nothing: a failed apply leaves no table behind to mistake for success.
  *
  * The baseline is still recorded on every call, not once, for that same deletion. The
  * destructive guard is deliberately not consulted: this targets a throwaway database and

@@ -13,6 +13,7 @@ export interface MonitorRowProps {
   renderedAt: number;
   metrics: PingMetric[];
   onDeleteRequest: (monitor: Monitor) => void;
+  canManage: boolean;
 }
 
 /**
@@ -22,7 +23,7 @@ export interface MonitorRowProps {
  * monitor that is not up carries an error-toned border, the one case where the
  * whole row is the alarm.
  */
-export function MonitorRow({ monitor, metrics, renderedAt, onDeleteRequest }: MonitorRowProps) {
+export function MonitorRow({ monitor, metrics, renderedAt, onDeleteRequest, canManage }: MonitorRowProps) {
   const needsAttention = monitor.status !== 'up';
   const stats = summarize(metrics, 'raw');
 
@@ -92,13 +93,15 @@ export function MonitorRow({ monitor, metrics, renderedAt, onDeleteRequest }: Mo
           <span className="hidden sm:inline text-xs text-slate-400">
             checked {formatRelative(monitor.lastCheckedAt, renderedAt)}
           </span>
-          <button
-            onClick={() => onDeleteRequest(monitor)}
-            className="text-slate-400 hover:text-status-down p-2 rounded-lg hover:bg-surface-hover transition-colors"
-            aria-label={`Delete ${monitor.name}`}
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {canManage && (
+            <button
+              onClick={() => onDeleteRequest(monitor)}
+              className="text-slate-400 hover:text-status-down p-2 rounded-lg hover:bg-surface-hover transition-colors"
+              aria-label={`Delete ${monitor.name}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
     </div>

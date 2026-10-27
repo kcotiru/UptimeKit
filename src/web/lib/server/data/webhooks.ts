@@ -1,5 +1,6 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { UserError } from '../../shared/action-error';
 import type { TeamWebhook } from '../../shared/types';
 import { createWebhookSchema } from '../../shared/validations/webhook';
 
@@ -59,7 +60,7 @@ export async function createWebhook(
 ): Promise<TeamWebhook> {
   const parsed = createWebhookSchema.safeParse(input);
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? 'Invalid webhook');
+    throw new UserError(parsed.error.issues[0]?.message ?? 'Invalid webhook');
   }
 
   const { data, error } = await db

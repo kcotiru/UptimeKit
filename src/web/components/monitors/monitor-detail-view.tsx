@@ -12,7 +12,7 @@ import { TierNote } from './tier-note';
 import { TimeRangePicker, TimeRangePreset } from './time-range-picker';
 import { MetricTabs } from './metric-tabs';
 import { SaveViewButton } from './save-view-button';
-import { formatRelative, calculateTimestamps } from '@/lib/shared/utils';
+import { formatRelative, calculateTimestamps, refreshBounds } from '@/lib/shared/utils';
 import { fetchMetricsAction } from '@/lib/server/actions/monitors';
 
 /**
@@ -25,12 +25,14 @@ export interface MonitorDetailViewProps {
   initialMetrics: PingMetric[];
   /** Clock captured once on the server, so relative times survive hydration. */
   renderedAt: number;
+  /** Whether the viewer may share a window (not a read-only viewer). */
+  canManage: boolean;
 }
 
 /**
  * MonitorDetailView component managing Recharts graph state and URL search param synchronization.
  */
-export function MonitorDetailView({ monitor, initialMetrics, renderedAt }: MonitorDetailViewProps) {
+export function MonitorDetailView({ monitor, initialMetrics, renderedAt, canManage }: MonitorDetailViewProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -116,7 +118,7 @@ export function MonitorDetailView({ monitor, initialMetrics, renderedAt }: Monit
         </Link>
         <button
           onClick={() => {
-            const bounds = calculateTimestamps(preset);
+            const bounds = refreshBounds(preset, window_);
             fetchMetrics(bounds.from, bounds.to);
           }}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-surface-hover border border-surface-border text-slate-300 text-xs font-semibold rounded-lg transition-colors"
@@ -173,7 +175,9 @@ export function MonitorDetailView({ monitor, initialMetrics, renderedAt }: Monit
       <div className="space-y-4">
         <div className="flex items-center justify-end">
           <div className="flex items-center gap-2">
-            <SaveViewButton monitorId={monitor.id} from={window_.from} to={window_.to} />
+            {canManage && (
+              <SaveViewButton monitorId={monitor.id} from={window_.from} to={window_.to} />
+            )}
             <TimeRangePicker selectedPreset={preset} onSelectPreset={handleSelectPreset} />
           </div>
         </div>

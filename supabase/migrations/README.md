@@ -30,7 +30,7 @@ supabase/migrations/down/20261105143000_add_monitor_notes.sql
   baseline is the one such file today.
 - **The baseline must be recorded before anything stacks on it.** `npm run migrate`
   refuses outright while `20261020000000` is unapplied, because `schema.sql` is
-  applied separately and this runner never executes it — migrations would otherwise
+  applied separately and this runner never executes it. Migrations would otherwise
   land on a schema that may not be there. `--baseline-only` is the only way to record
   that row; see [operations.md](../../docs/operations.md#baselining-an-existing-project).
 - **The runner already owns the transaction.** It wraps your file and its history
@@ -53,14 +53,14 @@ undoes a `CREATE TABLE` or an `ADD COLUMN` contains a `DROP TABLE` or an
 `ALTER … DROP`, so the destructive guard fires and a bare `npm run migrate:down`
 refuses. **For a local target the expected value is the database name**, which is
 `uptimekit_sdd_test` if you followed [docs/setup.md](../../docs/setup.md#database-backed-tests).
-(PowerShell: `$env:MIGRATE_CONFIRM='…'` on its own line — see
+(PowerShell: `$env:MIGRATE_CONFIRM='…'` on its own line; see
 [docs/operations.md](../../docs/operations.md#environment-variables-in-powershell).)
 
 Aim it elsewhere with `--db-url <url>`, or at your real project with `--hosted`.
 `--hosted` needs `MIGRATE_CONFIRM=<supabase-project-ref>`. A migration or down
 file containing a destructive statement (`DROP TABLE/COLUMN/SCHEMA/DATABASE/VIEW/
 MATERIALIZED VIEW/TYPE`, `TRUNCATE`, `ALTER ... DROP`, an unqualified `DELETE`,
-`DISABLE ROW LEVEL SECURITY`) needs `MIGRATE_CONFIRM` too — set to whatever the
+`DISABLE ROW LEVEL SECURITY`) needs `MIGRATE_CONFIRM` too, set to whatever the
 **target** expects: the project ref when hosted, the database name when local.
 Unknown flags are rejected, so a typo'd `--hostd` is an error, not a silent run
 against the test database.
@@ -91,7 +91,7 @@ migration's work. Not before: converting them all now would be work against
 changes that may never come.
 
 **3. The unwind stops at the baseline.** `npm run migrate:down` walks back one
-migration per run, so any point *after* the baseline stays reachable — and no
+migration per run, so any point *after* the baseline stays reachable but no
 further. The baseline stub has no down file and carries `-- irreversible:`, so
 the revert refuses there rather than trying to drop the whole schema. That floor
 is deliberate, but it is a floor: "every change is revertible" means every change
@@ -103,7 +103,7 @@ behind the baseline means restoring a backup.
 `-- @local-test:strip-end` region for any non-hosted target, because local
 Postgres has no `pg_cron`. So a migration whose real work lives inside that fence
 runs locally as an **empty query**, is recorded as applied, and your local
-rehearsal has proved nothing — the first real execution is against production.
+rehearsal has proved nothing: the first real execution is against production.
 This is not a corner case: the fence invariant in
 `tests/integration/partitioning.test.ts` *requires* every `cron.` reference to be
 fenced, and partition maintenance (the one thing living in there) is a plausible

@@ -1,5 +1,6 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { UserError } from '../../shared/action-error';
 import type { MonitorStatus, SavedView, SharedView, SharedViewPoint, Tier } from '../../shared/types';
 import { createSavedViewSchema } from '../../shared/validations/saved-view';
 import { coarsestTier } from '../../shared/stats';
@@ -55,13 +56,13 @@ export interface SharedViewRow {
 }
 
 /**
- * Folds the function's flat rows — which repeat the view header on every point —
+ * Folds the function's flat rows, which repeat the view header on every point,
  * into one object. Returns null for zero rows, which is what an unknown,
  * revoked, deleted-monitor, cross-tenant, or malformed-window (bad cast
  * input) token yields; the caller renders a 404, not an error. A valid view
- * whose pinned window holds no data — including a reversed window, where
- * snap_from > snap_to — comes back as a single header row with every series
- * column null — that yields an empty `points` array, not null.
+ * whose pinned window holds no data (including a reversed window, where
+ * snap_from > snap_to) comes back as a single header row with every series
+ * column null. That yields an empty `points` array, not null.
  */
 export function toSharedView(rows: SharedViewRow[]): SharedView | null {
   if (rows.length === 0) return null;
@@ -79,7 +80,7 @@ export function toSharedView(rows: SharedViewRow[]): SharedView | null {
     } => r.ts !== null
   );
 
-  // An empty window has no tier at all — '' matches no TIER_NOTE, so the page
+  // An empty window has no tier at all: '' matches no TIER_NOTE, so the page
   // renders no tier label rather than a misleading one. coarsestTier defaults
   // an empty array to 'raw', which would be wrong here, so that case is
   // short-circuited before it reaches the shared helper.
@@ -134,7 +135,7 @@ export async function listSavedViews(db: SupabaseClient): Promise<SavedView[]> {
 }
 
 /**
- * Validates and inserts a saved view. share_token is omitted deliberately — the
+ * Validates and inserts a saved view. share_token is omitted deliberately: the
  * column defaults to gen_share_token(), so the secret is generated in the
  * database and never passes through application code.
  */
@@ -146,7 +147,7 @@ export async function createSavedView(
 ): Promise<SavedView> {
   const parsed = createSavedViewSchema.safeParse(input);
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? 'Invalid saved view');
+    throw new UserError(parsed.error.issues[0]?.message ?? 'Invalid saved view');
   }
 
   const { data, error } = await db
@@ -178,7 +179,7 @@ export async function revokeSavedView(db: SupabaseClient, id: string): Promise<b
   return (data?.length ?? 0) > 0;
 }
 
-/** Hard delete — saved views carry no history worth soft-deleting. */
+/** Hard delete: saved views carry no history worth soft-deleting. */
 export async function deleteSavedView(db: SupabaseClient, id: string): Promise<boolean> {
   const { data, error } = await db.from('saved_views').delete().eq('id', id).select('id');
 
@@ -187,7 +188,7 @@ export async function deleteSavedView(db: SupabaseClient, id: string): Promise<b
 }
 
 /**
- * The anonymous read. `db` must be an anon-key client, not a session-bound one —
+ * The anonymous read. `db` must be an anon-key client, not a session-bound one:
  * this runs for visitors with no account. Authorization is the token itself,
  * checked inside get_shared_view.
  */

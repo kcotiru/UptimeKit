@@ -18,7 +18,7 @@
 - **Database-backed tests skip, never fail,** when `DATABASE_TEST_URL` is absent.
 - **`DATABASE_TEST_URL` never falls back to `DATABASE_URL`.** Rule established at `tests/integration/helpers/db-setup.ts:8-13`.
 - **The pg_cron fence** `-- @local-test:strip-start (pg_cron)` / `-- @local-test:strip-end` must be stripped by anything applying SQL to a local Postgres.
-- **Tracking table matches the CLI exactly:** `supabase_migrations.schema_migrations`, `version text NOT NULL PRIMARY KEY`, plus `statements text[]` and `name text`. Version strings only — never hash file contents.
+- **Tracking table matches the CLI exactly:** `supabase_migrations.schema_migrations`, `version text NOT NULL PRIMARY KEY`, plus `statements text[]` and `name text`. Version strings only, never hash file contents.
 - **Migration filenames match `^([0-9]+)_(.*)\.sql$`,** version being a 14-digit UTC `YYYYMMDDHHMMSS`.
 - **`vitest.config.ts:23` sets `fileParallelism: false`.** Do not change it; concurrent `applySchema` calls deadlock on `pg_proc`.
 - **Never connect to `DATABASE_URL`** during development or testing. It points at a live production project.
@@ -27,9 +27,9 @@
 
 Five failure modes the spec implies that no task's happy path exercises. Each has its test assigned to the task that owns the code.
 
-1. **A migration whose SQL fails partway** must leave neither a partial schema nor a history row — otherwise a failed run is recorded as success. (Task 1)
+1. **A migration whose SQL fails partway** must leave neither a partial schema nor a history row, otherwise a failed run is recorded as success. (Task 1)
 2. **Two files sharing a version** must be rejected, not applied in filesystem order, which is nondeterministic across platforms. (Task 1)
-3. **A new file with a version older than the newest applied** must be rejected loudly, not silently skipped — a silently skipped migration is a missing schema change nobody notices. (Task 1)
+3. **A new file with a version older than the newest applied** must be rejected loudly, not silently skipped, a silently skipped migration is a missing schema change nobody notices. (Task 1)
 4. **No target configured** must refuse to run rather than fall through to any default, since the only other connection string in the environment is production. (Task 4)
 5. **Revert with no down file, or a down file whose forward migration was never applied,** must refuse rather than execute arbitrary SQL. (Task 2)
 
@@ -38,23 +38,23 @@ Five failure modes the spec implies that no task's happy path exercises. Each ha
 ## File Structure
 
 **Create:**
-- `src/db/migrate.ts` — the core. Pure functions plus apply/revert against a passed-in connection. No module-level side effects, no env reads, no Redis, so both the CLI and the test harness can import it.
-- `scripts/migrate.ts` — CLI entry point: argument parsing, target selection, the destructive guard, `NOTIFY pgrst`.
-- `scripts/audit-schema-parity.ts` — one-off read-only comparison of two databases' catalogs.
-- `supabase/migrations/<timestamp>_baseline.sql` — the baseline stub.
-- `supabase/migrations/README.md` — authoring rules and documented ceilings.
-- `tests/unit/migrate.test.ts` — the pure functions. Runs with no database.
-- `tests/integration/migrate.test.ts` — apply/revert against `DATABASE_TEST_URL`.
+- `src/db/migrate.ts`: the core. Pure functions plus apply/revert against a passed-in connection. No module-level side effects, no env reads, no Redis, so both the CLI and the test harness can import it.
+- `scripts/migrate.ts`: CLI entry point: argument parsing, target selection, the destructive guard, `NOTIFY pgrst`.
+- `scripts/audit-schema-parity.ts`: one-off read-only comparison of two databases' catalogs.
+- `supabase/migrations/<timestamp>_baseline.sql`: the baseline stub.
+- `supabase/migrations/README.md`: authoring rules and documented ceilings.
+- `tests/unit/migrate.test.ts`: the pure functions. Runs with no database.
+- `tests/integration/migrate.test.ts`: apply/revert against `DATABASE_TEST_URL`.
 
 **Modify:**
-- `tests/integration/helpers/db-setup.ts` — `applySchema()` also applies pending migrations; the pg_cron regex moves to `src/db/migrate.ts` and is imported from there.
-- `tests/integration/partitioning.test.ts` — fence invariant extended over `supabase/migrations/`.
-- `package.json` — `migrate`, `migrate:down`, `audit:parity` scripts.
+- `tests/integration/helpers/db-setup.ts`: `applySchema()` also applies pending migrations; the pg_cron regex moves to `src/db/migrate.ts` and is imported from there.
+- `tests/integration/partitioning.test.ts`: fence invariant extended over `supabase/migrations/`.
+- `package.json`: `migrate`, `migrate:down`, `audit:parity` scripts.
 - `README.md:112` and `README.md:198`, `docs/operations.md`, `docs/setup.md`, `docs/known-issues.md`.
 
 ---
 
-### Task 1: Core — discovery, tracking, apply
+### Task 1: Core, discovery, tracking, apply
 
 **Files:**
 - Create: `src/db/migrate.ts`
@@ -89,7 +89,7 @@ export async function applyMigration(client: Queryable, file: MigrationFile, opt
 export async function applyPending(client: Queryable, dir: string, opts?: { stripCron?: boolean }): Promise<MigrationFile[]>;
 ```
 
-`listMigrationFiles` sorts by filename and ignores `down/`. A file not matching `MIGRATION_FILENAME` is not silently skipped — it is reported by `validateMigrationSet`.
+`listMigrationFiles` sorts by filename and ignores `down/`. A file not matching `MIGRATION_FILENAME` is not silently skipped, it is reported by `validateMigrationSet`.
 
 - [ ] **Step 1: Write the failing unit tests** in `tests/unit/migrate.test.ts`, using a temp fixture directory per test (`fs.mkdtempSync`):
 
@@ -119,13 +119,13 @@ test('stripPgCronFence removes the fenced region and leaves surrounding SQL', �
 - [ ] **Step 2: Run them to verify they fail**
 
 Run: `npm test -- tests/unit/migrate.test.ts`
-Expected: FAIL — cannot resolve `src/db/migrate`.
+Expected: FAIL: cannot resolve `src/db/migrate`.
 
 - [ ] **Step 3: Implement the pure functions** in `src/db/migrate.ts`
 
 `MIGRATION_FILENAME` and the 14-digit convention are fixed by the Global Constraints. Copy `PG_CRON_BLOCK` verbatim from `tests/integration/helpers/db-setup.ts:50-51` rather than rewriting the regex. `validateMigrationSet` raises on the four conditions above, each with a message naming the offending file.
 
-On the last one: because every migration is applied inside a transaction, a statement Postgres forbids in a transaction block cannot be supported without giving up atomicity. The spec leaves the choice open and notes rejecting is the smaller change — so reject, with an error that names the statement rather than letting Postgres fail cryptically at apply time. Supporting them can be revisited if a real migration ever needs one.
+On the last one: because every migration is applied inside a transaction, a statement Postgres forbids in a transaction block cannot be supported without giving up atomicity. The spec leaves the choice open and notes rejecting is the smaller change, so reject, with an error that names the statement rather than letting Postgres fail cryptically at apply time. Supporting them can be revisited if a real migration ever needs one.
 
 - [ ] **Step 4: Run the unit tests to verify they pass**
 
@@ -154,7 +154,7 @@ The last one is Review Focus item 1 and is the reason apply is transactional.
 - [ ] **Step 6: Run them to verify they fail**
 
 Run: `npm run test:integration -- tests/integration/migrate.test.ts`
-Expected: FAIL (or skip if no `DATABASE_TEST_URL` — configure one before continuing; this task cannot be verified without it).
+Expected: FAIL (or skip if no `DATABASE_TEST_URL`, configure one before continuing; this task cannot be verified without it).
 
 - [ ] **Step 7: Implement `ensureHistoryTable`, `appliedVersions`, `pendingMigrations`, `applyMigration`, `applyPending`**
 
@@ -204,7 +204,7 @@ test('assertRevertable accepts a file marked irreversible with a reason', …)
 - [ ] **Step 2: Run to verify they fail**
 
 Run: `npm test -- tests/unit/migrate.test.ts`
-Expected: FAIL — `isIrreversible` is not exported.
+Expected: FAIL: `isIrreversible` is not exported.
 
 - [ ] **Step 3: Implement `isIrreversible` and `assertRevertable`** in `src/db/migrate.ts`
 
@@ -304,7 +304,7 @@ git commit -m "feat(db): baseline stub and record-without-executing mode"
 
 ---
 
-### Task 4: CLI — target selection, destructive guard, PostgREST reload
+### Task 4: CLI, target selection, destructive guard, PostgREST reload
 
 **Files:**
 - Create: `scripts/migrate.ts`
@@ -364,7 +364,7 @@ Expected: PASS
 
 - [ ] **Step 5: Implement `scripts/migrate.ts`** to the contract table above
 
-Follow the existing confirm-guard shape in `scripts/seed-dev.ts:36-42` and `scripts/backfill-daily-rollups.ts:44-52`, but take the expected value from `confirmValueFor`. Create its own `pg.Client` inline as `seed-dev.ts:44` does — do **not** import `src/worker/config/redis.ts`, which throws on a missing `DATABASE_URL` at import time and opens a Redis connection as a side effect (`redis.ts:13,27-32`).
+Follow the existing confirm-guard shape in `scripts/seed-dev.ts:36-42` and `scripts/backfill-daily-rollups.ts:44-52`, but take the expected value from `confirmValueFor`. Create its own `pg.Client` inline as `seed-dev.ts:44` does, do **not** import `src/worker/config/redis.ts`, which throws on a missing `DATABASE_URL` at import time and opens a Redis connection as a side effect (`redis.ts:13,27-32`).
 
 - [ ] **Step 6: Add the npm scripts** to `package.json`
 
@@ -377,7 +377,7 @@ Follow the existing confirm-guard shape in `scripts/seed-dev.ts:36-42` and `scri
 - [ ] **Step 7: Verify the refusal paths by hand**
 
 Run with `DATABASE_TEST_URL` unset and no flag.
-Expected: a non-zero exit and a message naming the missing target. Review Focus item 4 — it must not touch `DATABASE_URL`.
+Expected: a non-zero exit and a message naming the missing target. Review Focus item 4, it must not touch `DATABASE_URL`.
 
 Run `npm run migrate -- --hosted` with `MIGRATE_CONFIRM` unset.
 Expected: refusal before any connection is opened.
@@ -423,7 +423,7 @@ It keeps applying `schema.sql` with the fence stripped, then calls `recordBaseli
 - [ ] **Step 4: Run the whole worker suite**
 
 Run: `npm test`
-Expected: PASS, with the same counts as before this task — 61 passed / 35 skipped without `DATABASE_TEST_URL`, 96 passed with it. A changed skip count means `applySchema` broke a caller.
+Expected: PASS, with the same counts as before this task, 61 passed / 35 skipped without `DATABASE_TEST_URL`, 96 passed with it. A changed skip count means `applySchema` broke a caller.
 
 - [ ] **Step 5: Commit**
 
@@ -443,17 +443,17 @@ git commit -m "test: apply migrations in applySchema and extend the pg_cron fenc
 - Consumes: nothing from earlier tasks.
 - Produces: a standalone read-only report. Nothing imports it.
 
-**This script connects to production. It must be read-only — `SELECT` against system catalogs, no DDL, no DML, no writes of any kind.** It is run once, by the repo owner, with explicit per-run approval. It is not part of `npm run migrate`.
+**This script connects to production. It must be read-only, `SELECT` against system catalogs, no DDL, no DML, no writes of any kind.** It is run once, by the repo owner, with explicit per-run approval. It is not part of `npm run migrate`.
 
 - [ ] **Step 1: Implement `scripts/audit-schema-parity.ts`**
 
 Takes two connection strings and reports differences. Compare, per the spec:
 
-- `information_schema.columns` — table, column, type, nullability, default
+- `information_schema.columns`: table, column, type, nullability, default
 - constraints, including the `CHECK` on `monitors.timeout_ms`
 - indexes (`pg_indexes`)
-- `pg_policies` — policy name, command, expression
-- `pg_proc.prosrc` — function bodies, where `CREATE OR REPLACE` drift hides
+- `pg_policies`: policy name, command, expression
+- `pg_proc.prosrc`: function bodies, where `CREATE OR REPLACE` drift hides
 - triggers
 - the partition set on `ping_logs_raw`
 
@@ -490,7 +490,7 @@ Running it against the live project needs the owner's explicit go-ahead, separat
 
 - [ ] **Step 1: Write `supabase/migrations/README.md`**
 
-Must cover: how to add a migration and its down file; the naming convention; that revert is newest-first only and why that keeps down files tractable; and two honest ceilings — that **reverting a destructive change restores structure, not rows**, and that the six text-asserting test files describe the baseline rather than the current schema, to be converted individually when a migration invalidates one.
+Must cover: how to add a migration and its down file; the naming convention; that revert is newest-first only and why that keeps down files tractable; and two honest ceilings, that **reverting a destructive change restores structure, not rows**, and that the six text-asserting test files describe the baseline rather than the current schema, to be converted individually when a migration invalidates one.
 
 - [ ] **Step 2: Update `README.md`**
 
@@ -520,6 +520,6 @@ git commit -m "docs: migration runner usage, and retire the no-migration-runner 
 ## Final verification
 
 - [ ] `npx tsc --noEmit` clean from the repo root.
-- [ ] `npm test` — same counts as before the branch, plus the new unit and integration tests.
-- [ ] `cd src/web && npm test` — 135 tests, untouched by this work.
+- [ ] `npm test`, same counts as before the branch, plus the new unit and integration tests.
+- [ ] `cd src/web && npm test`, 135 tests, untouched by this work.
 - [ ] `git diff main --stat` reviewed: no change to `supabase/schema.sql`.

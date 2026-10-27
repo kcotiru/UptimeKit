@@ -1,5 +1,6 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { UserError } from '../../shared/action-error';
 import { createInviteSchema } from '../../shared/validations/invite';
 import type { TeamInvite } from '../../shared/types';
 
@@ -39,7 +40,7 @@ export async function listInvites(db: SupabaseClient): Promise<TeamInvite[]> {
 }
 
 /**
- * Validates and inserts an invite. `token` is omitted deliberately — the column
+ * Validates and inserts an invite. `token` is omitted deliberately: the column
  * defaults to gen_share_token(), so the secret is generated in the database and
  * never passes through application code, exactly as saved_views does it.
  */
@@ -49,7 +50,9 @@ export async function createInvite(
   teamId: string,
   creatorId: string
 ): Promise<TeamInvite> {
-  const { role, expiresInDays } = createInviteSchema.parse(input);
+  const parsed = createInviteSchema.safeParse(input);
+  if (!parsed.success) throw new UserError(parsed.error.issues[0]?.message ?? 'Invalid invite');
+  const { role, expiresInDays } = parsed.data;
 
   const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString();
 

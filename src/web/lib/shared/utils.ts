@@ -36,8 +36,8 @@ export function formatDate(isoString: string | null): string {
  * not an absolute clock time they have to subtract from.
  *
  * Callers inside client components MUST pass an explicit `now` captured once
- * on the server. Next renders those components twice — server HTML, then
- * hydration — and a function that reads the clock itself returns a different
+ * on the server. Next renders those components twice: server HTML, then
+ * hydration, and a function that reads the clock itself returns a different
  * string on each pass the moment the gap crosses a unit boundary, which React
  * reports as a hydration mismatch.
  *
@@ -67,7 +67,7 @@ export function formatDuration(isoString: string, now: number = Date.now()): str
 /**
  * How long a monitor has been failing, as far as the window can actually show.
  *
- * With no successful sample in the window we do not know when it went down —
+ * With no successful sample in the window we do not know when it went down,
  * except that a monitor younger than the window cannot have been down longer
  * than it has existed. `now` is injectable so this is testable without clocks.
  *
@@ -134,4 +134,15 @@ export function calculateTimestamps(preset: TimeRangePreset): { from: string; to
     from: from.toISOString(),
     to: now.toISOString(),
   };
+}
+
+/**
+ * Bounds to refetch for a refresh. A custom range has no preset to recompute
+ * from, so it keeps the window already on screen.
+ */
+export function refreshBounds(
+  preset: TimeRangePreset,
+  known: { from: string; to: string }
+): { from: string; to: string } {
+  return preset === 'custom' ? known : calculateTimestamps(preset);
 }

@@ -46,8 +46,8 @@ export function rejectUnknownFlags(args: string[]): void {
 
 /**
  * Everything the CLI does once a connection is open, so it is testable with a fake
- * Queryable — the hosted-only `NOTIFY pgrst` in particular, which otherwise has no
- * coverage on the one code path that exclusively touches production.
+ * Queryable (the hosted-only `NOTIFY pgrst` in particular, which otherwise has no
+ * coverage on the one code path that exclusively touches production).
  */
 export async function run(
   client: Queryable,
@@ -76,8 +76,8 @@ export async function run(
       console.log(reverted ? `Reverted ${path.basename(reverted.path)}` : 'Nothing to revert.');
     } else {
       // The guard runs before anything is written. Recording the baseline is a one-way
-      // door — it asserts the database already equals schema.sql, and drift older than
-      // that row can never be detected afterwards — so a run that stops for want of
+      // door: it asserts the database already equals schema.sql, and drift older than
+      // that row can never be detected afterwards, so a run that stops for want of
       // MIGRATE_CONFIRM must leave no trace of itself to re-run from.
       if ((await pendingMigrations(client, dir)).some((f) => containsDestructive(fs.readFileSync(f.path, 'utf8')))) {
         needConfirm('A pending migration');
@@ -86,18 +86,18 @@ export async function run(
         console.log((await recordBaseline(client, dir)) ? 'Recorded baseline.' : 'Baseline already recorded.');
       }
       // Recomputed: recordBaseline above takes the baseline out of the pending set, and
-      // `changed` must not count it — it writes a history row, never schema.
+      // `changed` must not count it, since it writes a history row, never schema.
       const pending = await pendingMigrations(client, dir);
 
       // The baseline stub is a forward file like any other: comment-only, and carrying the
       // `-- irreversible:` marker that gets it past assertRevertable. Left alone, a routine
       // `npm run migrate -- --hosted` "applies" it and records it, making the assertion
-      // *this database equals schema.sql* on the operator's behalf — skipping the check
+      // *this database equals schema.sql* on the operator's behalf, skipping the check
       // docs/operations.md puts before it, and stacking later migrations on a schema this
       // runner never applied. Recording it stays deliberate: --baseline-only here, or
       // recordBaseline from the test harness.
       // ponytail: keys on "the baseline file is present and still pending", which equals
-      // "not recorded" for supabase/migrations — the only directory this CLI passes. A
+      // "not recorded" for supabase/migrations (the only directory this CLI passes). A
       // directory with no baseline file passes vacuously; that shape exists only in tests.
       // Upgrade: require the row unconditionally, which means giving those fixtures
       // versions above BASELINE_VERSION so they still validate.
