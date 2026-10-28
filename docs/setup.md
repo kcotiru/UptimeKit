@@ -86,6 +86,27 @@ project](operations.md#baselining-an-existing-project).
 > `DATABASE_URL` is deliberately **not** used as a fallback, so a test missing
 > its skip guard fails loudly instead of writing to your real project.
 
+## Local Supabase stack
+
+Needs Docker running. From the repo root:
+
+```bash
+npx supabase start
+```
+
+It prints an API URL, an anon key and a database URL. Put the API URL and anon
+key in `src/web/.env.local` as `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+
+This project's `supabase/config.toml` shifts the ports +100 from the CLI
+defaults so it can run beside another local Supabase project: API 54421,
+database 54422, studio 54423, mail 54424, analytics 54427 (and pooler 54429,
+shadow db 54420). The CLI's documented 543xx defaults do not apply here.
+
+> ⚠️ Pointing a dev server at the hosted project is how you end up testing
+> against production. Use the local stack for anything that writes or probes
+> grants and policies.
+
 ## Seeding realistic data
 
 Rather than waiting hours for pings to accumulate:

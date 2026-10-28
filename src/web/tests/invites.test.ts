@@ -4,7 +4,7 @@ import { toInvite } from '../lib/server/data/invites';
 
 // vi.mock factories are hoisted above every other statement in the file, so the
 // spies they close over have to be created by vi.hoisted rather than a plain
-// const — otherwise the factory runs against an uninitialised binding.
+// const; otherwise the factory runs against an uninitialised binding.
 const { sessionUser, createInvite, revokeInvite } = vi.hoisted(() => ({
   sessionUser: vi.fn(),
   createInvite: vi.fn(),
@@ -122,7 +122,7 @@ describe('createInviteAction role gate', () => {
     const { revokeInviteAction } = await import('../lib/server/actions/invites');
     sessionUser.mockResolvedValue({ id: 'u1', teamId: 't1', email: 'x@y.z', role: 'viewer' });
 
-    const result = await revokeInviteAction('i1');
+    const result = await revokeInviteAction('3f2b8c1e-9d4a-4e6b-8a1c-5d7e9f0a1b2c');
 
     expect(result).toEqual({ ok: false, error: 'Only team admins can revoke invites' });
     expect(revokeInvite).not.toHaveBeenCalled();

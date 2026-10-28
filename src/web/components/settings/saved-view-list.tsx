@@ -8,7 +8,13 @@ import { formatDate } from '@/lib/shared/utils';
 import { deleteSavedViewAction, revokeSavedViewAction } from '@/lib/server/actions/saved-views';
 
 /** Lists a team's shared windows with copy, revoke, and delete. */
-export function SavedViewList({ initialViews }: { initialViews: SavedView[] }) {
+export function SavedViewList({
+  initialViews,
+  canManage,
+}: {
+  initialViews: SavedView[];
+  canManage: boolean;
+}) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -56,7 +62,7 @@ export function SavedViewList({ initialViews }: { initialViews: SavedView[] }) {
               )}
             </div>
             <p className="text-[11px] text-slate-500 tabular-nums">
-              {formatDate(view.from)} — {formatDate(view.to)}
+              {formatDate(view.from)} to {formatDate(view.to)}
             </p>
           </div>
 
@@ -74,24 +80,28 @@ export function SavedViewList({ initialViews }: { initialViews: SavedView[] }) {
                   )}
                   {copiedId === view.id ? 'Copied' : 'Copy link'}
                 </button>
-                <button
-                  onClick={() => run(view.id, () => revokeSavedViewAction(view.id))}
-                  disabled={busyId === view.id}
-                  aria-label="Revoke share link"
-                  className="p-2 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  <Link2Off className="h-4 w-4" />
-                </button>
+                {canManage && (
+                  <button
+                    onClick={() => run(view.id, () => revokeSavedViewAction(view.id))}
+                    disabled={busyId === view.id}
+                    aria-label="Revoke share link"
+                    className="p-2 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <Link2Off className="h-4 w-4" />
+                  </button>
+                )}
               </>
             )}
-            <button
-              onClick={() => run(view.id, () => deleteSavedViewAction(view.id))}
-              disabled={busyId === view.id}
-              aria-label="Delete saved view"
-              className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+            {canManage && (
+              <button
+                onClick={() => run(view.id, () => deleteSavedViewAction(view.id))}
+                disabled={busyId === view.id}
+                aria-label="Delete saved view"
+                className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
       ))}

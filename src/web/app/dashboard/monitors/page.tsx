@@ -2,11 +2,12 @@ import { AlertCircle } from 'lucide-react';
 import { listMonitors, listRecentMetrics } from '@/lib/server/data/monitors';
 import { Header } from '@/components/layout/header';
 import { MonitorList } from '@/components/monitors/monitor-list';
-import { supabaseServer } from '@/lib/server/supabase';
+import { getSessionUser, supabaseServer } from '@/lib/server/supabase';
+import { MANAGE_ROLES, can } from '@/lib/server/actions/require-role';
 import { RECENT_WINDOW_HOURS, formatRelative } from '@/lib/shared/utils';
 import type { PingMetric } from '@/lib/shared/types';
 
-// Per-user data behind a session cookie — never prerender.
+// Per-user data behind a session cookie: never prerender.
 export const dynamic = 'force-dynamic';
 
 /**
@@ -18,15 +19,16 @@ export default async function MonitorsPage() {
   let loadFailed = false;
 
   // allSettled, not all: a metrics failure must not blank the monitors list,
-  // and a monitors failure must not suppress the metrics fetch either — each
+  // and a monitors failure must not suppress the metrics fetch either. Each
   // outcome is handled independently, exactly as it was when they ran in
   // series with their own try/catch.
-  const [monitorsResult, metricsResult] = await Promise.allSettled([
+  const [monitorsResult, metricsResult, sessionUserResult] = await Promise.allSettled([
     listMonitors(supabaseServer()),
     listRecentMetrics(
       supabaseServer(),
       new Date(Date.now() - RECENT_WINDOW_HOURS * 3600 * 1000).toISOString()
     ),
+    getSessionUser(),
   ]);
 
   if (monitorsResult.status === 'fulfilled') {
@@ -48,8 +50,8 @@ export default async function MonitorsPage() {
     );
   }
 
-  // One clock for the whole render. Every relative time below — the header's
-  // and each row's — is derived from it, so the server HTML and the hydration
+  // One clock for the whole render. Every relative time below (the header's
+  // and each row's) is derived from it, so the server HTML and the hydration
   // pass produce byte-identical strings instead of a mismatch.
   const renderedAt = Date.now();
 
@@ -87,6 +89,9 @@ export default async function MonitorsPage() {
           initialMonitors={monitors}
           metricsByMonitor={Object.fromEntries(recentMetrics)}
           renderedAt={renderedAt}
+          canManage={
+            sessionUserResult.status === 'fulfilled' && can(sessionUserResult.value, MANAGE_ROLES)
+          }
         />
       )}
     </div>

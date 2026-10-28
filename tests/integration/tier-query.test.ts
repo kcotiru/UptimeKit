@@ -2,6 +2,13 @@ import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 
+// These assertions read supabase/schema.sql, the frozen baseline, not the applied
+// database. Migration 20261022232225 replaced select_ping_tier to add pg_temp to
+// its search_path and deliberately left this file alone: nothing here asserts on
+// search_path, so every proposition below is still true of the applied schema.
+// The next migration that changes this function's BODY does owe the conversion in
+// supabase/migrations/README.md ("Four limits", item 2), which means rewriting
+// these tests to query the database instead, as part of that migration.
 describe('Tier Query Function SQL Validation', () => {
   it('validates select_ping_tier SQL structure and tier boundaries', () => {
     const sql = fs.readFileSync(path.join(__dirname, '../../supabase/schema.sql'), 'utf8');

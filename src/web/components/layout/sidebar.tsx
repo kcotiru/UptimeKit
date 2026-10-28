@@ -19,6 +19,8 @@ import { SIDEBAR_MODE_COOKIE, type SidebarMode } from '@/lib/shared/sidebar-mode
 export interface SidebarProps {
   /** Mode read from the cookie on the server, so the first paint is correct. */
   initialMode: SidebarMode;
+  /** Whether the viewer may add monitors; read-only viewers get no Add monitor link. */
+  canManage: boolean;
 }
 
 const MODES: { id: SidebarMode; label: string; icon: typeof MousePointer; hint: string }[] = [
@@ -33,18 +35,18 @@ const MODES: { id: SidebarMode; label: string; icon: typeof MousePointer; hint: 
  * - `hover` (default) stays 56px and widens to 192px while pointed at. The
  *   panel is fixed, so it overlays rather than reflowing the page.
  * - `expanded` is pinned at 192px and the <aside> reserves that width, so
- *   content sits beside the rail instead of underneath it — a permanently
+ *   content sits beside the rail instead of underneath it. A permanently
  *   open rail that covered content would be unusable.
  * - `collapsed` is pinned at 56px and never widens, on hover or on focus. The
  *   icons still navigate; only the labels are withheld.
  *
  * The choice rides in a cookie the server reads, so the first paint is already
- * the chosen width — see lib/shared/sidebar-mode.ts for why not localStorage.
+ * the chosen width (see lib/shared/sidebar-mode.ts for why not localStorage).
  *
  * Labels are clipped rather than removed, so they stay in the accessibility
  * tree and a screen reader still announces each item while the rail is narrow.
  */
-export function Sidebar({ initialMode }: SidebarProps) {
+export function Sidebar({ initialMode, canManage }: SidebarProps) {
   const pathname = usePathname();
   const [mode, setMode] = useState<SidebarMode>(initialMode);
   const [open, setOpen] = useState(false);
@@ -76,14 +78,16 @@ export function Sidebar({ initialMode }: SidebarProps) {
       active:
         (pathname === '/dashboard' || pathname.startsWith('/dashboard/monitors')) && !onNewMonitor,
       inSection: pathname === '/dashboard' || pathname.startsWith('/dashboard/monitors'),
-      children: [
-        {
-          name: 'Add monitor',
-          href: '/dashboard/monitors/new',
-          icon: PlusCircle,
-          active: onNewMonitor,
-        },
-      ],
+      children: canManage
+        ? [
+            {
+              name: 'Add monitor',
+              href: '/dashboard/monitors/new',
+              icon: PlusCircle,
+              active: onNewMonitor,
+            },
+          ]
+        : [],
     },
     {
       name: 'Settings',
@@ -130,8 +134,8 @@ export function Sidebar({ initialMode }: SidebarProps) {
           'border-r border-surface-border bg-surface',
           // Clipping and containment exist only to scope the width animation's
           // per-frame relayout. Pinned shut there is no animation to scope, and
-          // both would cut off the hover tooltips — `contain: paint` clips even
-          // position:fixed descendants — so neither applies in that mode.
+          // both would cut off the hover tooltips: `contain: paint` clips even
+          // position:fixed descendants, so neither applies in that mode.
           mode === 'collapsed'
             ? ''
             : 'overflow-hidden [contain:layout_paint] transition-[width] duration-150 ease-out',

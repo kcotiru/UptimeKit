@@ -39,7 +39,7 @@ export function LoginForm() {
         // "invalid credentials" text would send people hunting for a typo.
         setError(
           signInError.message.toLowerCase().includes('not confirmed')
-            ? 'Please confirm your email address first — check your inbox for the link.'
+            ? 'Please confirm your email address first. Check your inbox for the link.'
             : 'Invalid credentials. Please check your details and try again.'
         );
         setLoading(false);

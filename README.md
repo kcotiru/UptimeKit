@@ -194,6 +194,7 @@ Full write-ups, including why each one is still open:
 | [docs/setup.md](docs/setup.md)                 | Optional config, test database, seed data, feature tour |
 | [docs/operations.md](docs/operations.md)       | Schema deploy order, migrations, partition maintenance  |
 | [docs/known-issues.md](docs/known-issues.md)   | Bugs and to-do in detail                                |
+| [docs/security.md](docs/security.md)           | What is defended, what is accepted, and why             |
 | [docs/design-system.md](docs/design-system.md) | Colour, type and component conventions                  |
 
 ***

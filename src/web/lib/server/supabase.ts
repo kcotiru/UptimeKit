@@ -15,10 +15,13 @@ export function supabaseServer() {
   const store = cookies();
 
   return createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    cookieOptions: { secure: process.env.NODE_ENV === 'production' },
     cookies: {
       getAll: () => store.getAll(),
       setAll: (list) => {
         // Server Components cannot set cookies; middleware refreshes the session.
+        // The Cache-Control headers Supabase passes as setAll's second argument are
+        // not copied: Next gives a Server Action no API to set response headers.
         try {
           list.forEach(({ name, value, options }) => store.set(name, value, options));
         } catch {
@@ -31,7 +34,7 @@ export function supabaseServer() {
 
 /**
  * Session-free client using the public anon key. For pages served to visitors
- * with no account — currently only /share/[token], where authorization is the
+ * with no account (currently only /share/[token]), where authorization is the
  * token itself, checked inside get_shared_view. Carries no elevated privilege:
  * every RLS policy still applies, which is exactly why the share path needs a
  * SECURITY DEFINER function rather than a direct table read.
@@ -54,7 +57,7 @@ export function supabaseAnon() {
  *
  * The dashboard layout renders on every route and needs only the email, so
  * paying getSessionUser()'s profile round trip there buys nothing. Use
- * getSessionUser() whenever teamId or role is needed — and `role` must always
+ * getSessionUser() whenever teamId or role is needed. `role` must always
  * come from the database row, never from the token.
  */
 export const getSessionClaims = cache(async () => {
@@ -72,12 +75,12 @@ export const getSessionClaims = cache(async () => {
  * Current user plus their team, or null when unauthenticated.
  *
  * Uses getClaims() rather than getUser(): getClaims() verifies the JWT
- * signature locally against the project's JWKS, so — like middleware.ts —
+ * signature locally against the project's JWKS, so like middleware.ts
  * this costs no network round trip to Supabase's auth API, unlike getUser()
  * (~120ms). Trade-off: a session revoked mid-token-lifetime stays valid here
  * until the token expires. That window grants no data a valid token would
- * not already reach, because row level security authorizes every query —
- * and the role that gates admin actions is read from the database row, not
+ * not already reach, because row level security authorizes every query.
+ * The role that gates admin actions is read from the database row, not
  * the token, so a downgraded role takes effect immediately.
  *
  * Wrapped in React's cache() so repeated calls within one request (layout,

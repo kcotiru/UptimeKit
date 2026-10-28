@@ -144,7 +144,7 @@ async function snapshot(client: Client): Promise<Record<string, Set<string>>> {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const [urlA, urlB] = [arg(args, '--a').trim(), arg(args, '--b').trim()];
-  // A database compared with itself reports "No differences found" and exits 0 — a
+  // A database compared with itself reports "No differences found" and exits 0. That is a
   // vacuous pass on the one run that gates a one-way door: once the baseline row is
   // written to production, backward drift is undetectable forever. Exact-string
   // equality after a trim catches the realistic mistake, which is pasting one URL twice.

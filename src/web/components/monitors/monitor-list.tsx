@@ -19,12 +19,14 @@ export interface MonitorListProps {
   metricsByMonitor: Record<string, PingMetric[]>;
   /** Clock captured once on the server, so relative times survive hydration. */
   renderedAt: number;
+  /** Whether the viewer may add and delete monitors (not a read-only viewer). */
+  canManage: boolean;
 }
 
 /**
  * Client Component for searching, displaying, and managing the team's HTTP monitors list.
  */
-export function MonitorList({ initialMonitors, metricsByMonitor, renderedAt }: MonitorListProps) {
+export function MonitorList({ initialMonitors, metricsByMonitor, renderedAt, canManage }: MonitorListProps) {
   const [monitors, setMonitors] = useState<Monitor[]>(initialMonitors);
   const [search, setSearch] = useState('');
   const [deletingMonitor, setDeletingMonitor] = useState<Monitor | null>(null);
@@ -68,12 +70,14 @@ export function MonitorList({ initialMonitors, metricsByMonitor, renderedAt }: M
           />
         </div>
 
-        <Link
-          href="/dashboard/monitors/new"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm rounded-lg transition-all shrink-0"
-        >
-          <Plus className="h-4 w-4" /> Add monitor
-        </Link>
+        {canManage && (
+          <Link
+            href="/dashboard/monitors/new"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm rounded-lg transition-all shrink-0"
+          >
+            <Plus className="h-4 w-4" /> Add monitor
+          </Link>
+        )}
       </div>
 
       {/* Monitor List */}
@@ -90,7 +94,7 @@ export function MonitorList({ initialMonitors, metricsByMonitor, renderedAt }: M
                 : 'Add an endpoint and UptimeKit will check it on a schedule and tell you when it breaks.'}
             </p>
           </div>
-          {!search && (
+          {!search && canManage && (
             <Link
               href="/dashboard/monitors/new"
               className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-lg transition-all"
@@ -108,6 +112,7 @@ export function MonitorList({ initialMonitors, metricsByMonitor, renderedAt }: M
               renderedAt={renderedAt}
               metrics={metricsByMonitor[monitor.id] ?? []}
               onDeleteRequest={setDeletingMonitor}
+              canManage={canManage}
             />
           ))}
         </div>

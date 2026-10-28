@@ -5,7 +5,7 @@
  *
  * DATABASE_URL in this repo's .env points at production, so this script never
  * reads it. It uses DATABASE_TEST_URL and refuses to run unless SEED_CONFIRM
- * names that exact database — the same guard as backfill-daily-rollups.ts.
+ * names that exact database. It is the same guard as backfill-daily-rollups.ts.
  */
 import 'dotenv/config';
 import { Client } from 'pg';

@@ -20,13 +20,13 @@ Everything below assumes the POSIX form. This is the only place it is explained.
 `npm run migrate -- --hosted --baseline-only` records `supabase/schema.sql` as
 applied **without executing it**. That is an assertion: *this database already
 equals `schema.sql`*. Nothing has ever verified it, and the drift this runner
-exists to prevent — an edit inside a `CREATE TABLE IF NOT EXISTS` body never
-reaching a table that already exists — is exactly what would have made it false.
+exists to prevent (an edit inside a `CREATE TABLE IF NOT EXISTS` body never
+reaching a table that already exists) is exactly what would have made it false.
 
 **Verify before you record, because nothing asks you again.** Once the baseline row
 is written, the history table says this database was checked against `schema.sql`,
-and no command will ever contradict it. The audit below still works afterwards —
-it compares live catalogs and never reads the history table — but it stops being
+and no command will ever contradict it. The audit below still works afterwards (it
+compares live catalogs and never reads the history table), but it stops being
 conclusive: once migrations have run on top, a diff shows pre-existing drift and
 intended change mixed together, and you are left telling them apart by hand.
 
@@ -49,7 +49,7 @@ DATABASE_TEST_URL=postgresql://postgres:postgres@127.0.0.1:5432/uptimekit_parity
 
 `npm test` is the apply step, not a detour: its harness strips the `pg_cron`
 fence from `schema.sql` (a plain local Postgres has no `pg_cron`, so a hand-run
-`psql -f supabase/schema.sql` dies part-way — see [setup.md](setup.md#database-backed-tests)),
+`psql -f supabase/schema.sql` dies part-way; see [setup.md](setup.md#database-backed-tests)),
 applies it, records the baseline and applies every migration. A green run is also
 your proof the schema applied cleanly. The fixture rows it writes do not matter:
 the audit reads catalogs only, never data.
@@ -70,7 +70,7 @@ or session-pooler URL, port **5432**, not the transaction pooler (6543): the
 read-only guard is per connection and the transaction pooler can hand each
 statement to a different one. It exits 1 if anything differs. The header comment
 of [`scripts/audit-schema-parity.ts`](../scripts/audit-schema-parity.ts) lists
-what it does **not** compare — `cron.job` is the biggest gap; check that one by
+what it does **not** compare. `cron.job` is the biggest gap, so check that one by
 hand (see below).
 
 **3. Reconcile any drift as the first migration, reviewed by hand.**
@@ -88,7 +88,7 @@ a reviewed migration.
 MIGRATE_CONFIRM=<supabase-project-ref> npm run migrate -- --hosted --baseline-only
 ```
 
-**5. Drop the reference database** — `PGPASSWORD=postgres dropdb -h 127.0.0.1 -U
+**5. Drop the reference database** with `PGPASSWORD=postgres dropdb -h 127.0.0.1 -U
 postgres uptimekit_parity_ref`. Rebuild it the same way whenever you want to
 re-audit.
 
@@ -97,8 +97,8 @@ re-audit.
 > **Apply the schema change first, then deploy code.**
 
 `supabase/schema.sql` is the **baseline**: apply it once, in the Supabase SQL
-Editor, then verify and record it — see [Baselining an existing
-project](#baselining-an-existing-project) above, which must happen before the
+Editor, then verify and record it as described in [Baselining an existing
+project](#baselining-an-existing-project) above. That must happen before the
 first migration. Every schema change after that is a file in
 [`supabase/migrations/`](../supabase/migrations/README.md), and you apply it
 with:
@@ -115,16 +115,16 @@ itself after a hosted run, so do not add that as a manual step. Without it
 Supabase's API keeps serving the old function signatures.
 
 Not sure a database matches `schema.sql`? That is the parity audit, and it needs a
-reference database to compare against — the full procedure is [Baselining an
+reference database to compare against. The full procedure is [Baselining an
 existing project](#baselining-an-existing-project) above.
 
-Old code against a new schema is harmless — unknown columns and tables are
+Old code against a new schema is harmless: unknown columns and tables are
 ignored. It is **new code against an old schema** that breaks, usually without
 an error anyone sees:
 
 | Missing from the schema | Symptom |
 | --- | --- |
-| `monitors.timeout_ms` | `syncMonitors()` throws and **zero monitors get scheduled** — a silent monitoring outage |
+| `monitors.timeout_ms` | `syncMonitors()` throws and **zero monitors get scheduled** (a silent monitoring outage) |
 | `saved_views`, `get_shared_view` | Creating or opening a shared graph link fails |
 | `team_webhooks` | The Alerts settings page won't load or save |
 | `percentile_source` | Every `hourly_to_daily` rollup throws; daily buckets go missing for the gap. Recover with `scripts/backfill-daily-rollups.ts` |
@@ -139,6 +139,6 @@ register, so a clean apply proves it worked. To re-check later:
 SELECT jobname, schedule, active FROM cron.job WHERE jobname = 'uptimekit-partitions';
 ```
 
-No rows means it is not scheduled — `ping_logs_raw` will start rejecting every
+No rows means it is not scheduled. `ping_logs_raw` will start rejecting every
 insert once the pre-created partitions run out, and monitoring stops silently.
 Re-apply `supabase/schema.sql`.

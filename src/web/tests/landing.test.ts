@@ -3,6 +3,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import * as landing from '../app/page';
 import LandingPage, { metadata } from '../app/page';
 
 const root = resolve(__dirname, '..');
@@ -17,6 +18,16 @@ describe('landing page', () => {
     const html = render();
     expect(html.length).toBeGreaterThan(300);
     expect(html).toContain('Know the moment it breaks');
+  });
+
+  it('exports no route segment config, so it prerenders', () => {
+    // A nonce CSP would force this page dynamic, because Next reads the nonce
+    // off the request during server rendering. The nonce is withheld from '/'
+    // in middleware for exactly this reason; this guards the other direction.
+    expect('dynamic' in landing).toBe(false);
+    expect(readFileSync(resolve(root, 'app/page.tsx'), 'utf8')).not.toMatch(
+      /export\s+const\s+(dynamic|revalidate|fetchCache)\b/
+    );
   });
 
   it('renders nothing that needs a session', () => {

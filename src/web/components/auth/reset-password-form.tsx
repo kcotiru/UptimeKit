@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Activity, Lock, AlertCircle, ArrowRight } from 'lucide-react';
 import { supabaseBrowser } from '@/lib/client/supabase';
+import { passwordError } from '@/lib/shared/password';
 
 export function ResetPasswordForm() {
   const router = useRouter();
@@ -20,8 +21,9 @@ export function ResetPasswordForm() {
 
     // Supabase enforces its own minimum server-side; this is just the instant
     // feedback, and the mismatch check it cannot do for us.
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    const tooShort = passwordError(password);
+    if (tooShort) {
+      setError(tooShort);
       return;
     }
     if (password !== confirm) {
@@ -31,12 +33,13 @@ export function ResetPasswordForm() {
 
     setLoading(true);
 
-    // Authorized by the recovery session the callback route just established —
-    // no current password needed, and no token handled here.
+    // Authorized by the recovery session the callback route just established:
+    // no current password is needed and no token is handled here.
     const { error: updateError } = await supabaseBrowser().auth.updateUser({ password });
 
     if (updateError) {
-      setError(updateError.message || 'Could not update the password. Request a fresh link.');
+      // Provider text is dropped: this runs in the browser, so there is nowhere to log it.
+      setError('Could not update the password. Request a fresh link.');
       setLoading(false);
       return;
     }

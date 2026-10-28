@@ -22,7 +22,7 @@ describe('Partitioning Integration / Validation Tests', () => {
 
     expect(sql).toContain("CREATE EXTENSION IF NOT EXISTS pg_cron");
     expect(sql).toContain("uptimekit-partitions");
-    // The job must both create ahead and drop behind — creating alone leaks disk.
+    // The job must both create ahead and drop behind; creating alone leaks disk.
     expect(sql).toContain('drop_expired_partitions(7)');
     // Unscheduling first is what makes re-running schema.sql idempotent.
     expect(sql).toContain("cron.unschedule('uptimekit-partitions')");
@@ -48,7 +48,7 @@ describe('Partitioning Integration / Validation Tests', () => {
     const sql = fs.readFileSync(path.join(__dirname, '../../supabase/schema.sql'), 'utf8');
 
     // cron.job existing in THIS database's row does not mean pg_cron's
-    // background worker will ever read it — that worker only polls the
+    // background worker will ever read it: that worker only polls the
     // database named by cron.database_name. Without this check, applying the
     // schema to the wrong database passes the cron.job existence check and
     // the job silently never runs.
