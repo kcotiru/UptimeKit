@@ -5,6 +5,8 @@ export interface PingResponse {
   responseTimeMs: number;
   statusCode: number | null;
   errorMessage: string | null;
+  /** True only when at least one redirect hop was followed. */
+  redirected: boolean;
 }
 
 export class PingClient {
@@ -50,6 +52,7 @@ export class PingClient {
         responseTimeMs,
         statusCode: response.status,
         errorMessage: null,
+        redirected: response.redirected,
       };
     } catch (err: unknown) {
       const error = err as Error;
@@ -65,6 +68,7 @@ export class PingClient {
         responseTimeMs,
         statusCode: null,
         errorMessage,
+        redirected: false,
       };
     } finally {
       clearTimeout(timeoutId);

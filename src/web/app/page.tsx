@@ -27,7 +27,7 @@ const REPO = 'https://github.com/kcotiru/UptimeKit';
 // README.md "What it does", verbatim.
 const CAPABILITIES = [
   ['Watches endpoints', 'Any public URL, checked as often as every 30 seconds'],
-  ['Tracks speed, not just up/down', 'Median, 95th and 99th percentile response times, charted over time'],
+  ['Tracks speed, not just up/down', 'Median and 95th percentile response times, with the 95th charted over time, and a 99th only where enough checks support one'],
   ['Records outages', 'Start, end, duration, and the HTTP error behind it'],
   ['Alerts your team', 'Slack, Discord, or a plain JSON webhook, fired the moment status flips'],
   ['Shares a read-only link', 'Send a graph to someone without giving them an account'],

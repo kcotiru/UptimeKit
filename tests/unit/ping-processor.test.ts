@@ -19,6 +19,7 @@ describe('PingProcessor (Unit)', () => {
         responseTimeMs: 50,
         statusCode: 200,
         errorMessage: null,
+        redirected: false,
       }),
     };
 
@@ -50,7 +51,8 @@ describe('PingProcessor (Unit)', () => {
     pingClientMock.executePing.mockResolvedValueOnce({
       responseTimeMs: 0,
       statusCode: 500,
-      errorMessage: 'Internal Server Error',
+      errorMessage: null,
+      redirected: false,
     });
 
     const processor = new PingProcessor(
@@ -115,6 +117,48 @@ describe('PingProcessor (Unit)', () => {
     }));
   });
 
+  it('resolves an open incident and notifies when a down monitor recovers into degraded', async () => {
+    clientMock.query
+      .mockResolvedValueOnce({}) // BEGIN
+      .mockResolvedValueOnce({}) // INSERT ping_logs_raw
+      .mockResolvedValueOnce({ rows: [{ consecutive_failures: 0 }] }) // UPDATE monitors
+      .mockResolvedValueOnce({ rows: [{ id: 'inc-123' }] }) // SELECT open incidents FOR UPDATE
+      .mockResolvedValueOnce({}) // UPDATE incidents
+      .mockResolvedValueOnce({}); // COMMIT
+
+    pingClientMock.executePing.mockResolvedValueOnce({
+      responseTimeMs: 120,
+      statusCode: 301,
+      errorMessage: null,
+      redirected: false,
+    });
+
+    const processor = new PingProcessor(
+      ssrfValidatorMock,
+      pingClientMock,
+      dbPoolMock,
+      notificationQueueMock
+    );
+
+    const result = await processor.processPing({
+      monitorId: 'm1',
+      teamId: 't-1',
+      url: 'http://example.com',
+      expectedStatus: 200,
+      checkInterval: 60,
+    });
+
+    expect(result.status).toBe('degraded');
+    expect(clientMock.query).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE incidents SET resolved_at'),
+      expect.anything()
+    );
+    expect(notificationQueueMock.add).toHaveBeenCalledWith('notify-up', expect.objectContaining({
+      monitorId: 'm1',
+      incidentId: 'inc-123',
+    }));
+  });
+
   it('should not fail the ping transaction if Redis queue add throws an error', async () => {
     clientMock.query
       .mockResolvedValueOnce({}) // BEGIN
@@ -126,7 +170,8 @@ describe('PingProcessor (Unit)', () => {
     pingClientMock.executePing.mockResolvedValueOnce({
       responseTimeMs: 0,
       statusCode: 500,
-      errorMessage: 'Internal Server Error',
+      errorMessage: null,
+      redirected: false,
     });
 
     notificationQueueMock.add.mockRejectedValueOnce(new Error('Redis connection lost'));

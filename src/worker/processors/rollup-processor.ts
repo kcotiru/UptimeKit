@@ -102,6 +102,8 @@ export class RollupProcessor implements IRollupProcessor {
             monitor_id,
             date_trunc('hour', timestamp) AS bucket_start,
             COUNT(*)::int AS total_pings,
+            -- Equivalent to the raw-tier select_ping_tier_for_team predicate (status_code < 400) for any
+            -- status undici returns as a final status, so the wording differs but not the result.
             COUNT(*) FILTER (WHERE status_code IS NOT NULL AND status_code >= 200 AND status_code < 400)::int AS successful_pings,
             ROUND(AVG(response_time_ms))::int AS avg_response_time_ms,
             MIN(response_time_ms)::int AS min_response_time_ms,

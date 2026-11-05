@@ -145,8 +145,8 @@ export async function listRecentMetrics(
       sampleCount: 1,
       sourceTier: 'raw',
       successCount: isUp ? 1 : 0,
-      p50Ms: Math.round(Number(row.response_time_ms)),
-      p99Ms: Math.round(Number(row.response_time_ms)),
+      p50Ms: null,
+      p99Ms: null,
       percentileSource: 'raw',
     });
     byMonitor.set(row.monitor_id, list);

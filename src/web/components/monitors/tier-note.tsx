@@ -2,7 +2,7 @@ import type { Tier } from '@/lib/shared/types';
 
 const NOTES: Partial<Record<Tier, string>> = {
   hourly:
-    'This window is rolled up to hourly averages. Each hour’s p95 is exact; a single figure for the whole window is not.',
+    'This window is rolled up to hourly averages. An hour’s p95 is shown only when that hour had enough pings to support one, and a single figure for the whole window is not available.',
   daily:
     'This window is rolled up to daily averages. The percentiles shown are the worst day’s, not the window’s, and any marked approximate were derived from hourly percentiles rather than raw samples.',
 };

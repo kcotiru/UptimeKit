@@ -3,11 +3,11 @@
     "defaultMode": "auto",
     "allow": [
       "Bash(*)",
-      "Read(*)",
-      "Grep(*)",
-      "Glob(*)",
-      "Edit(*)",
-      "Write(*)"
+      "Read",
+      "Grep",
+      "Glob",
+      "Edit",
+      "Write"
     ],
     "deny": [
       "Bash(git push*)",

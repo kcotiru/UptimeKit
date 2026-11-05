@@ -5,10 +5,10 @@ the code as it ships, not as it was intended. Where a claim is backed by a test,
 the test is named, so you can check it rather than take it on trust.
 
 The integration tests run against a real Postgres via `DATABASE_TEST_URL`. The
-worker suite went from 168 to 201 tests across 34 files and the web suite from
-157 to 332 across 31 files; `tests/integration/rls-roles.test.ts` alone
-contributes 33. The worker count drops to 119 when the database-backed tests
-skip, so 201 is itself the evidence they ran.
+worker suite runs 222 tests across 34 files and the web suite 370 across 35
+files; `tests/integration/rls-roles.test.ts` alone contributes 43. The worker
+count drops to 130 passing, with 92 skipped, when the database-backed tests
+skip, so 222 is itself the evidence they ran.
 
 UptimeKit is a Next.js 14 app on Supabase (Postgres, Auth, RLS) with a separate
 worker that performs the checks. The web app is a deployed portfolio with open

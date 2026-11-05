@@ -38,6 +38,7 @@ describe('E2E Worker Execution Flow', () => {
         responseTimeMs: 85,
         statusCode: 200,
         errorMessage: null,
+        redirected: false,
       }),
     };
 

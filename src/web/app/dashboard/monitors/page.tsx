@@ -55,9 +55,12 @@ export default async function MonitorsPage() {
   // pass produce byte-identical strings instead of a mismatch.
   const renderedAt = Date.now();
 
-  // A row alarms on anything other than 'up' (degraded counts too), so the
-  // header count must match that, not just 'down'.
-  const alarming = monitors.filter((m) => m.status !== 'up').length;
+  // Degraded is a warning, not an outage: its row keeps the alarm border, but
+  // the header says "down" only for monitors that are down. It is counted
+  // separately when any exist, because a redirecting monitor is degraded on
+  // every check, so a header that named only outages would under-report.
+  const downCount = monitors.filter((m) => m.status === 'down').length;
+  const degradedCount = monitors.filter((m) => m.status === 'degraded').length;
 
   // The Header's right slot exists for exactly this: one true, current fact.
   const lastChecked = monitors
@@ -75,7 +78,7 @@ export default async function MonitorsPage() {
             ? 'Could not load your monitors'
             : monitors.length === 0
               ? 'Nothing being checked yet'
-              : `${monitors.length} endpoint${monitors.length === 1 ? '' : 's'}, ${alarming} down`
+              : `${monitors.length} endpoint${monitors.length === 1 ? '' : 's'}, ${downCount} down${degradedCount > 0 ? `, ${degradedCount} degraded` : ''}`
         }
         meta={lastChecked ? `checked ${formatRelative(lastChecked, renderedAt)}` : undefined}
       />

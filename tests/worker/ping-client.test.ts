@@ -47,4 +47,80 @@ describe('PingClient', () => {
       await new Promise<void>(resolve => server.close(() => resolve()));
     }
   });
+
+  describe('redirected flag', () => {
+    async function withServer(
+      handler: http.RequestListener,
+      run: (port: number) => Promise<void>
+    ): Promise<void> {
+      const server = http.createServer(handler);
+      await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+      try {
+        await run((server.address() as any).port);
+      } finally {
+        await new Promise<void>(resolve => server.close(() => resolve()));
+      }
+    }
+
+    it('reports redirected when a hop was followed, with the final status', async () => {
+      await withServer(
+        (req, res) => {
+          if (req.url === '/start') {
+            res.writeHead(302, { Location: '/end' });
+            res.end();
+          } else {
+            res.writeHead(200);
+            res.end('OK');
+          }
+        },
+        async port => {
+          const result = await client.executePing(`http://127.0.0.1:${port}/start`, '127.0.0.1');
+          expect(result.statusCode).toBe(200);
+          expect(result.redirected).toBe(true);
+          expect(result.errorMessage).toBeNull();
+        }
+      );
+    });
+
+    it('reports not redirected for a direct answer', async () => {
+      await withServer(
+        (_req, res) => {
+          res.writeHead(200);
+          res.end('OK');
+        },
+        async port => {
+          const result = await client.executePing(`http://127.0.0.1:${port}/`, '127.0.0.1');
+          expect(result.statusCode).toBe(200);
+          expect(result.redirected).toBe(false);
+        }
+      );
+    });
+
+    it('reports not redirected when a 3xx carries no Location', async () => {
+      await withServer(
+        (_req, res) => {
+          res.writeHead(301);
+          res.end();
+        },
+        async port => {
+          const result = await client.executePing(`http://127.0.0.1:${port}/`, '127.0.0.1');
+          expect(result.statusCode).toBe(301);
+          expect(result.redirected).toBe(false);
+        }
+      );
+    });
+
+    it('reports not redirected on a timeout', async () => {
+      await withServer(
+        () => {
+          // Hang server request
+        },
+        async port => {
+          const result = await client.executePing(`http://127.0.0.1:${port}/`, '127.0.0.1', 100);
+          expect(result.statusCode).toBeNull();
+          expect(result.redirected).toBe(false);
+        }
+      );
+    });
+  });
 });

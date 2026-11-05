@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { listMonitors, deleteMonitor } from '../lib/server/data/monitors';
+import { listMonitors, deleteMonitor, listRecentMetrics } from '../lib/server/data/monitors';
 import { createWebhook } from '../lib/server/data/webhooks';
 
 /**
@@ -19,6 +19,7 @@ function stubDb(result: { data?: unknown; error?: { message: string } | null }) 
   Object.assign(builder, {
     select: () => builder,
     order: () => builder,
+    gte: () => builder,
     eq: (k: string, v: unknown) => {
       calls.filters.push([k, v]);
       return builder;
@@ -132,5 +133,25 @@ describe('createWebhook', () => {
       createWebhook(db, { provider: 'generic', url: 'http://169.254.169.254/' }, 't-9')
     ).rejects.toThrow(/public URL/);
     expect(calls.table).toBeUndefined();
+  });
+});
+
+describe('listRecentMetrics', () => {
+  it('returns no per-point percentiles, because a raw sample is not a percentile', async () => {
+    const { db } = stubDb({
+      data: [
+        { monitor_id: 'm1', timestamp: '2026-01-01T00:00:00.000Z', response_time_ms: 420, status_code: 200 },
+      ],
+      error: null,
+    });
+
+    const result = await listRecentMetrics(db, '2026-01-01T00:00:00.000Z');
+
+    const point = result.get('m1')![0];
+    expect(point.responseTimeMs).toBe(420);
+    expect(point.p50Ms).toBeNull();
+    expect(point.p95Ms).toBeNull();
+    expect(point.p99Ms).toBeNull();
+    expect(point.sampleCount).toBe(1);
   });
 });

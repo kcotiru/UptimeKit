@@ -40,24 +40,26 @@ All have working defaults, so `.env` needs none of them.
 | Variable | Default | Effect |
 | --- | --- | --- |
 | `WORKER_CONCURRENCY` | `50` | Simultaneous in-flight pings |
-| `DEGRADED_THRESHOLD_MS` | `5000` | Slower than this and a monitor reads `degraded`, not `up` |
+| `DEGRADED_THRESHOLD_MS` | `5000` | Slower than this, or answering with a same-host redirect, and a monitor reads `degraded`, not `up` |
 | `SSRF_ALLOWLIST` | empty | Comma-separated hosts exempt from the private-IP block |
 | `DATABASE_TEST_URL` | empty | A throwaway Postgres for the database-backed tests |
 
 Note that `DEGRADED_THRESHOLD_MS` defaults to the same 5000ms as a monitor's
 `timeout_ms`, so at defaults a slow endpoint times out as `down` before it can
-ever read `degraded`. Raise the monitor's timeout (max 30000) to see that state.
+ever read `degraded` by being slow. A same-host redirect is the one cause
+reachable at defaults; to see a slow one, raise the monitor's timeout (max
+30000).
 
 ## Database-backed tests
 
-49 of the worker's 168 tests skip themselves unless a test database is
+92 of the worker's 222 tests skip themselves unless a test database is
 configured:
 
 ```bash
 createdb uptimekit_sdd_test
 PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -d uptimekit_sdd_test -f tests/integration/helpers/bootstrap-local.sql
 echo 'DATABASE_TEST_URL=postgresql://postgres:postgres@127.0.0.1:5432/uptimekit_sdd_test' >> .env
-npm test                 # 168 tests instead of 119
+npm test                 # 222 tests instead of 130
 ```
 
 The `psql` line comes first on purpose. `supabase/schema.sql` assumes it runs on
@@ -136,7 +138,17 @@ Useful endpoints for forcing a monitor into each state:
 | `down` (4xx) | `https://httpbingo.org/status/403` |
 | `down` (5xx) | `https://httpbingo.org/status/500` |
 | `down` (timeout) | `https://httpbingo.org/delay/10` with a monitor timeout under 10s |
-| `degraded` | `https://httpbingo.org/delay/6` with the monitor's timeout raised above 6s |
+| `degraded` (same-host redirect) | `https://httpbingo.org/redirect-to?url=https://httpbingo.org/status/200` at default settings |
+| `degraded` (slow) | `https://httpbingo.org/delay/6` with the monitor's timeout raised above 6s |
 
 `postman-echo.com` and `httpbin.dev` work as substitutes. Plain `httpbin.org`
 and `httpstat.us` are unreachable from some networks.
+
+The redirect recipe makes redirect-following load-bearing for a user-visible
+state, and the worker's ping follows redirects without re-pinning each hop.
+Every hop is therefore sent to the first host's IP, so a redirect to a
+different host usually fails TLS or SNI and reads `down` rather than
+`degraded`. The recipe above works only because `httpbingo.org` redirects to
+itself. See
+[Known issues: the worker's ping may follow a redirect to a bare IP literal](known-issues.md#the-workers-ping-may-follow-a-redirect-to-a-bare-ip-literal)
+before pointing a monitor at a redirector you do not control.
