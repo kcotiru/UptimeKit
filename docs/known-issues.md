@@ -40,18 +40,20 @@ because jobs already enqueued in Redis carry it and nothing validates it.
 
 The worker classifies `degraded` for a 3xx, a followed redirect or a response
 slower than `DEGRADED_THRESHOLD_MS`, but writes `error_message` only for
-`down`. A monitor whose URL redirects therefore reads `degraded` on every check
-with the row stored as a 200 and a null message, so the dashboard shows the
-alarm border and the word `degraded` with no stated reason, and nothing in the
-stored data recovers which of the three causes it was.
+`down`. A monitor whose URL redirects to the same host therefore reads
+`degraded` on every check with the row stored as a 200 and a null message, so
+the dashboard shows the alarm border and the word `degraded` with no stated
+reason. A stored row recovers the 3xx and the slow cause from `status_code`
+and `response_time_ms`, but a followed redirect that ended fast and 2xx is
+stored exactly like an `up` row.
 
 **A deliberate deferral, not an oversight.** Storing the reason means either a
 new column on the hottest-written table or deriving it on read. Marked with a
 `ponytail:` comment beside the classifier in
 `src/worker/processors/ping-processor.ts`.
 
-**Fix:** carry the reason on the ping row, or derive it from `redirected` plus
-the status code.
+**Fix:** carry the reason on the ping row. `redirected` is not persisted, so
+the redirect cause cannot be derived on read.
 
 ## Recovery into degraded notifies as "recovered"
 
@@ -60,8 +62,8 @@ resolve path enqueues `notify-up` with `status: 'up'` and
 `cause: 'Monitor recovered'`, which renders as "Monitor Recovered" for Slack
 and Discord and as `monitor.up` for a generic webhook, while the dashboard
 badge for that same monitor reads `degraded`. A monitor that goes down and then
-starts redirecting is announced as recovered and displayed as degraded at the
-same time.
+starts redirecting to the same host is announced as recovered and displayed as
+degraded at the same time.
 
 **Deliberate, and already commented in the code** (the resolve branch in
 `src/worker/processors/ping-processor.ts`): widening the resolve condition was
@@ -79,6 +81,15 @@ address after validation. A redirect whose `Location` is a bare IP literal
 (for example `http://10.0.0.5/`) never calls `lookup` at all, because Node does
 not resolve an address that is already an address. If redirects are followed,
 that hop skips the pin and the SSRF check.
+
+The same missing re-pin has a second consequence that is not about SSRF, and
+is the more likely one. Because `lookup` returns the first host's IP for every
+hop, a redirect to a different host is sent to the original server. Where the
+two sit on different infrastructure, say `example.com` redirecting to
+`www.example.com` behind a CDN, the connection usually fails TLS or SNI and
+the monitor reads `down`, or it reaches the wrong backend and stores that
+response instead. The `degraded` verdict a redirect is meant to produce
+therefore holds only for a redirect to the same host.
 
 This is **inferred from reading the code and has not been executed.**
 
