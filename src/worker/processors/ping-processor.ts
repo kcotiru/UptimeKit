@@ -25,7 +25,7 @@ export class PingProcessor {
    */
   async processPing(jobData: PingJobPayload): Promise<PingExecutionResult> {
     const timestamp = new Date();
-    const { monitorId, teamId, url, expectedStatus } = jobData;
+    const { monitorId, teamId, url } = jobData;
 
     // 1. SSRF Pre-flight check
     const ssrfResult = await this.ssrfValidator.validateUrl(url, workerConfig.ssrfAllowlist);
@@ -50,21 +50,27 @@ export class PingProcessor {
         jobData.timeoutMs ?? workerConfig.defaultHttpTimeoutMs
       );
 
-      let status: 'up' | 'down' | 'degraded' = 'up';
-
-      if (response.errorMessage !== null) {
+      const { statusCode } = response;
+      // ponytail: a stored row recovers a 3xx or slow verdict from status_code
+      // and response_time_ms, but a followed redirect that ended fast and 2xx
+      // is stored exactly like an up row. Upgrade path: carry the reason on
+      // the ping row.
+      let status: 'up' | 'down' | 'degraded';
+      if (response.errorMessage !== null || statusCode === null || statusCode >= 400) {
         status = 'down';
-      } else if (response.statusCode !== expectedStatus) {
-        status = 'down';
-      } else if (response.responseTimeMs > workerConfig.degradedThresholdMs) {
+      } else if (statusCode >= 300 || response.redirected || response.responseTimeMs > workerConfig.degradedThresholdMs) {
         status = 'degraded';
+      } else {
+        status = 'up';
       }
 
+      // Only a down verdict carries an error message, so error_message IS NOT NULL
+      // recovers the down versus not-down bit from a row, and nothing finer: a 200
+      // with a null message could have been up or degraded.
       const errorMessage =
-        response.errorMessage ||
-        (response.statusCode !== expectedStatus
-          ? `Unexpected status code: ${response.statusCode} (expected ${expectedStatus})`
-          : null);
+        status !== 'down'
+          ? null
+          : response.errorMessage ?? (statusCode === null ? 'No response received' : `HTTP ${statusCode} is a failure status`);
 
       executionResult = {
         monitorId,
@@ -134,7 +140,10 @@ export class PingProcessor {
           } catch (queueErr) {
             console.error('[PingProcessor] Failed to enqueue notify-down job to Redis queue:', queueErr);
           }
-        } else if (consecutiveFailures === 0 && executionResult.status === 'up') {
+        } else if (consecutiveFailures === 0 && executionResult.status !== 'down') {
+          // Any non-down verdict resolves: the UPDATE above already reset the failure count for it.
+          // Accepted gap: the notification reads as recovered while the badge reads degraded.
+          // Wording the alert from the status is notification-payload scope, not this work.
           // Check for open incidents to resolve
           const openIncidents = await client.query(
             'SELECT id FROM incidents WHERE monitor_id = $1 AND resolved_at IS NULL AND is_deleted = false FOR UPDATE',

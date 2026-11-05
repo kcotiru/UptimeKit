@@ -56,18 +56,89 @@ describe('summarize', () => {
   });
 
   // ping_logs_raw.response_time_ms is NOT NULL, so a failed ping still
-  // contributes its elapsed time to the raw percentile pool — these figures
-  // describe every attempt, not only successful ones. This test uses
-  // distinct values per field so a transposed field would fail.
+  // contributes its elapsed time to the raw percentile pool: these figures
+  // describe every attempt, not only successful ones. One hundred samples
+  // (2..200 ms) is the smallest window that supports all three quantiles, and
+  // every tenth one is a failure. The values differ per field so a transposed
+  // field would fail.
   it('computes exact window percentiles on the raw tier, over every attempt including failures', () => {
-    const metrics = [100, 200, 300, 400].map((ms) => point({ responseTimeMs: ms }));
+    const metrics = Array.from({ length: 100 }, (_, i) =>
+      point({ responseTimeMs: (i + 1) * 2, isUp: i % 10 !== 9, successCount: i % 10 !== 9 ? 1 : 0 })
+    );
     const stats = summarize(metrics, 'raw')!;
 
-    expect(stats.meanMs).toBe(250);
-    expect(stats.p50Ms).toBe(250);
-    expect(stats.p95Ms).toBe(385);
-    expect(stats.p99Ms).toBe(397);
+    expect(stats.p50Ms).toBe(101);
+    expect(stats.p95Ms).toBe(190);
+    expect(stats.p99Ms).toBe(198);
+    expect(stats.uptime).toBe(0.9);
     expect(stats.tier).toBe('raw');
+  });
+
+  // Review Focus 2: boundaries from both sides.
+  it('reports p50 at exactly two samples and not at one', () => {
+    expect(summarize([point({ responseTimeMs: 100 })], 'raw')!.p50Ms).toBeNull();
+    const two = [100, 200].map((ms) => point({ responseTimeMs: ms }));
+    expect(summarize(two, 'raw')!.p50Ms).toBe(150);
+  });
+
+  it('reports p95 at exactly twenty samples and not at nineteen', () => {
+    const at = Array.from({ length: 20 }, (_, i) => point({ responseTimeMs: (i + 1) * 10 }));
+    expect(summarize(at.slice(0, 19), 'raw')!.p95Ms).toBeNull();
+    expect(summarize(at, 'raw')!.p95Ms).toBe(191);
+  });
+
+  it('reports p99 at exactly one hundred samples and not at ninety-nine', () => {
+    const at = Array.from({ length: 100 }, (_, i) => point({ responseTimeMs: (i + 1) * 10 }));
+    expect(summarize(at.slice(0, 99), 'raw')!.p99Ms).toBeNull();
+    expect(summarize(at, 'raw')!.p99Ms).toBe(990);
+  });
+
+  // The gate counts values actually interpolated, not the samples they stand
+  // for: three buckets of 120 pings sum to 360 but give percentile() 3 values.
+  it('does not report p99 over three rolled-up buckets passed with a raw tier', () => {
+    const buckets = [100, 200, 300].map((ms) => point({ responseTimeMs: ms, sourceTier: 'hourly', sampleCount: 120 }));
+    expect(summarize(buckets, 'raw')!.p99Ms).toBeNull();
+  });
+
+  it('keeps the mean and the uptime whatever the sample count', () => {
+    const stats = summarize([point({ responseTimeMs: 420 })], 'raw')!;
+    expect(stats.p50Ms).toBeNull();
+    expect(stats.meanMs).toBe(420);
+    expect(stats.uptime).toBe(1);
+    expect(stats.sampleCount).toBe(1);
+  });
+
+  it('skips a thin bucket when taking the peak per-bucket percentile', () => {
+    const thin = point({ sourceTier: 'hourly', sampleCount: 1, p50Ms: 9000, p95Ms: 9000, p99Ms: 9000 });
+    const full = point({ sourceTier: 'hourly', sampleCount: 120, p50Ms: 100, p95Ms: 300, p99Ms: 400 });
+    const stats = summarize([thin, full], 'hourly')!;
+    expect(stats.peakP50Ms).toBe(100);
+    expect(stats.peakP95Ms).toBe(300);
+    expect(stats.peakP99Ms).toBe(400);
+  });
+
+  // The thin bucket carries the larger value, so the peak shows which side of the edge each bucket fell on.
+  it('counts an hourly bucket of exactly 20 toward peak p95 and skips one of 19', () => {
+    const atEdge = point({ sourceTier: 'hourly', sampleCount: 20, p50Ms: null, p95Ms: 500, p99Ms: null });
+    const below = point({ sourceTier: 'hourly', sampleCount: 19, p50Ms: null, p95Ms: 900, p99Ms: null });
+    expect(summarize([atEdge, below], 'hourly')!.peakP95Ms).toBe(500);
+  });
+
+  it('counts an hourly bucket of exactly 100 toward peak p99 and skips one of 99', () => {
+    const atEdge = point({ sourceTier: 'hourly', sampleCount: 100, p50Ms: null, p95Ms: null, p99Ms: 600 });
+    const below = point({ sourceTier: 'hourly', sampleCount: 99, p50Ms: null, p95Ms: null, p99Ms: 950 });
+    expect(summarize([atEdge, below], 'hourly')!.peakP99Ms).toBe(600);
+  });
+
+  it('drops peak p99 on a daily bucket whose percentiles came from hourly ones', () => {
+    const approx = point({
+      sourceTier: 'daily', sampleCount: 5000, percentileSource: 'hourly_approx',
+      p50Ms: 100, p95Ms: 300, p99Ms: 400,
+    });
+    const stats = summarize([approx], 'daily')!;
+    expect(stats.peakP50Ms).toBe(100);
+    expect(stats.peakP95Ms).toBe(300);
+    expect(stats.peakP99Ms).toBeNull();
   });
 
   // A window p95 cannot be recovered from per-bucket summaries, so the rolled
@@ -83,9 +154,9 @@ describe('summarize', () => {
 
   it('reports the peak per-bucket p50/p95/p99 on the hourly tier, ignoring nulls', () => {
     const metrics = [
-      point({ sourceTier: 'hourly', p50Ms: 110, p95Ms: 300, p99Ms: 500 }),
-      point({ sourceTier: 'hourly', p50Ms: 210, p95Ms: 900, p99Ms: 950 }),
-      point({ sourceTier: 'hourly', p50Ms: null, p95Ms: null, p99Ms: null }),
+      point({ sourceTier: 'hourly', sampleCount: 120, p50Ms: 110, p95Ms: 300, p99Ms: 500 }),
+      point({ sourceTier: 'hourly', sampleCount: 120, p50Ms: 210, p95Ms: 900, p99Ms: 950 }),
+      point({ sourceTier: 'hourly', sampleCount: 120, p50Ms: null, p95Ms: null, p99Ms: null }),
     ];
     const stats = summarize(metrics, 'hourly')!;
 
@@ -95,18 +166,19 @@ describe('summarize', () => {
   });
 
   // Daily buckets carry the same per-bucket p50/p95/p99 columns as hourly, so
-  // the same "worst bucket" figure holds — it never becomes null just
-  // because the tier is coarser.
+  // the same "worst bucket" figure holds: it never becomes null just because
+  // the tier is coarser. The hourly_approx bucket still counts for p50 and p95
+  // (capped at 24 samples) but not p99, so p99 comes from the raw bucket.
   it('reports the peak per-bucket percentiles on the daily tier too', () => {
     const metrics = [
-      point({ sourceTier: 'daily', p50Ms: 140, p95Ms: 380, p99Ms: 600, percentileSource: 'raw' }),
-      point({ sourceTier: 'daily', p50Ms: 260, p95Ms: 920, p99Ms: 970, percentileSource: 'hourly_approx' }),
+      point({ sourceTier: 'daily', sampleCount: 5000, p50Ms: 140, p95Ms: 380, p99Ms: 600, percentileSource: 'raw' }),
+      point({ sourceTier: 'daily', sampleCount: 5000, p50Ms: 260, p95Ms: 920, p99Ms: 970, percentileSource: 'hourly_approx' }),
     ];
     const stats = summarize(metrics, 'daily')!;
 
     expect(stats.peakP50Ms).toBe(260);
     expect(stats.peakP95Ms).toBe(920);
-    expect(stats.peakP99Ms).toBe(970);
+    expect(stats.peakP99Ms).toBe(600);
   });
 
   it('measures uptime on the raw tier from successCount/sampleCount', () => {

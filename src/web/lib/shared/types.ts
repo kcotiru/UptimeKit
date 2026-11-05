@@ -70,9 +70,11 @@ export interface PingMetric {
   minMs: number | null;
   /** Slowest sample in this bucket; null on the raw tier */
   maxMs: number | null;
-  /** This bucket's p95; null on the raw tier. Exact for hourly buckets;
-   *  on daily it may be a percentile of percentiles, and nothing in the
-   *  payload says which, so the UI never labels it a percentile. */
+  /** This bucket's p95; null on the raw tier. Exact for hourly buckets
+   *  with at least MIN_SAMPLES.p95 pings, otherwise withheld by the chart;
+   *  on daily it may be a percentile of percentiles. `percentileSource`
+   *  below says which, and a daily approximate p95 rests on at most 24
+   *  hourly values. */
   p95Ms: number | null;
   /** How many raw samples this point stands for */
   sampleCount: number;

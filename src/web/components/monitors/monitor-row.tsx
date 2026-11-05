@@ -30,7 +30,8 @@ export function MonitorRow({ monitor, metrics, renderedAt, onDeleteRequest, canM
   const latest = metrics.length > 0 ? metrics[metrics.length - 1] : null;
   // metrics are ascending by timestamp; walk back from the end for the most
   // recent point that was actually up.
-  const lastUp = needsAttention ? [...metrics].reverse().find((m) => m.isUp) ?? null : null;
+  const isDown = monitor.status === 'down';
+  const lastUp = isDown ? [...metrics].reverse().find((m) => m.isUp) ?? null : null;
 
   const downLabel = downSinceLabel(monitor.createdAt, lastUp?.timestamp ?? null, RECENT_WINDOW_HOURS, renderedAt);
 
@@ -75,17 +76,25 @@ export function MonitorRow({ monitor, metrics, renderedAt, onDeleteRequest, canM
             {stats && (
               <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-slate-400">
                 <span>{`uptime ${(stats.uptime * 100).toFixed(1)}%`}</span>
+                {stats.p50Ms === null && <span>{`mean ${stats.meanMs}ms`}</span>}
                 {stats.p50Ms !== null && <span>{`p50 ${stats.p50Ms}ms`}</span>}
                 {stats.p95Ms !== null && <span>{`p95 ${stats.p95Ms}ms`}</span>}
+                {/* What the uptime above rests on. A slow check interval leaves one
+                    ping in the window, and 100.0% from a single observation should
+                    not read the same as 100.0% from two hundred. */}
+                <span>{`samples ${stats.sampleCount}`}</span>
                 <span>{`${RECENT_WINDOW_HOURS}h`}</span>
               </span>
             )}
 
-            {needsAttention && latest?.statusCode !== null && latest?.statusCode !== undefined && (
-              <span className="text-xs text-status-down">{`HTTP ${latest.statusCode}`}</span>
-            )}
+            {/* A 2xx is not a reason to alarm, so the code shows only when it is non-2xx. */}
+            {needsAttention &&
+              latest?.statusCode != null &&
+              (latest.statusCode < 200 || latest.statusCode >= 300) && (
+                <span className="text-xs text-status-down">{`HTTP ${latest.statusCode}`}</span>
+              )}
 
-            {needsAttention && <span className="text-xs text-status-down">{downLabel}</span>}
+            {isDown && <span className="text-xs text-status-down">{downLabel}</span>}
           </div>
         </div>
 

@@ -2,36 +2,6 @@
 
 The short list lives in the [README](../README.md). This is the detail.
 
-## Three components disagree on what "success" means
-
-Three different definitions of a successful check are in the codebase at once:
-
-| Component | Counts as success |
-| --- | --- |
-| Worker | Status code equals the monitor's expected one (default `200`) |
-| Hourly rollup | `200–399` |
-| Dashboard | Anything `< 400` |
-
-A monitor returning a permanent redirect would therefore show a red `down`
-badge next to `uptime 100%`: the worker calls it a failure, the rollup counts
-it as a success, and both figures render on the same card.
-
-Latent today because everything being monitored returns `200`.
-
-**Fix:** have the worker record its own verdict as a boolean column at write
-time, and have the rollup and the dashboard read that column instead of
-re-deriving a verdict from the status code. One definition, written once.
-
-## Recent-metrics reporting on the live tier
-
-For monitors young enough that their window is served from raw pings rather
-than hourly buckets, the list view reports the single most recent sample in the
-slots labelled p50 and p99. The number is correct (it is a real response time),
-but a single sample is not a percentile, so the label overstates it.
-
-The detail page is unaffected; it computes window percentiles properly via
-`summarize()` in `src/web/lib/shared/stats.ts`.
-
 ## Share page reports live status on a pinned window
 
 A shared view pins a time window, but the page returns the monitor's *current*
@@ -46,25 +16,60 @@ Seven server actions call `revalidatePath` while every dashboard route is
 invalidate. Harmless, but misleading to read: they imply a caching strategy
 that is not in place.
 
-## A degraded monitor renders as if it were down
+## Windows longer than 7 days mix tiers
 
-`MonitorRow` (`src/web/components/monitors/monitor-row.tsx`) shows the HTTP
-status code and the "down for X" label whenever `monitor.status !== 'up'`. A
-degraded endpoint that answers every check with `200` therefore prints
-`HTTP 200` and `down for 0s` in the error tone.
+A detail window longer than 7 days takes its peaks only from buckets older than
+7 days, while mean, uptime and sample count include the newer raw points. The
+UI does not say so. A non-goal of the metrics work, not an oversight.
 
-**Fix:** gate both spans on `status === 'down'`. The alarm styling on the row
-itself is deliberate and should stay, since a degraded endpoint does need
-attention.
+## Webhook delivery accepts any HTTP response
 
-## The list header counts degraded endpoints as down
+`notification-processor.ts` treats any HTTP response as delivered, while the
+Test button (`actions/webhooks.ts`) requires a 2xx. A non-goal of the metrics
+work, not an oversight.
 
-`src/web/app/dashboard/monitors/page.tsx` builds "N endpoints, M down" by
-counting every monitor whose status is not `up`, so one down plus one degraded
-prints `2 down`. A comment there says this is deliberate ("A row alarms on
-anything other than 'up' (degraded counts too), so the header count must match
-that, not just 'down'"), so treat it as a wording decision to revisit rather
-than an oversight.
+## Dead monitor settings
+
+`monitors.expected_status`, `monitors.http_method` and the `expectedStatus`
+field on `PingJobPayload` are stored or passed but read by nobody.
+`expected_status` was left in place rather than dropped, because dropping a
+column is a destructive migration with no benefit. The payload field stays
+because jobs already enqueued in Redis carry it and nothing validates it.
+
+## A degraded row does not name its cause
+
+The worker classifies `degraded` for a 3xx, a followed redirect or a response
+slower than `DEGRADED_THRESHOLD_MS`, but writes `error_message` only for
+`down`. A monitor whose URL redirects therefore reads `degraded` on every check
+with the row stored as a 200 and a null message, so the dashboard shows the
+alarm border and the word `degraded` with no stated reason, and nothing in the
+stored data recovers which of the three causes it was.
+
+**A deliberate deferral, not an oversight.** Storing the reason means either a
+new column on the hottest-written table or deriving it on read. Marked with a
+`ponytail:` comment beside the classifier in
+`src/worker/processors/ping-processor.ts`.
+
+**Fix:** carry the reason on the ping row, or derive it from `redirected` plus
+the status code.
+
+## Recovery into degraded notifies as "recovered"
+
+Any non-down verdict now resolves an open incident, `degraded` included. The
+resolve path enqueues `notify-up` with `status: 'up'` and
+`cause: 'Monitor recovered'`, which renders as "Monitor Recovered" for Slack
+and Discord and as `monitor.up` for a generic webhook, while the dashboard
+badge for that same monitor reads `degraded`. A monitor that goes down and then
+starts redirecting is announced as recovered and displayed as degraded at the
+same time.
+
+**Deliberate, and already commented in the code** (the resolve branch in
+`src/worker/processors/ping-processor.ts`): widening the resolve condition was
+the point, and wording the alert from the verdict is notification-payload
+scope. The gap is only that this list did not say so.
+
+**Fix:** derive the notification's status and cause from
+`executionResult.status` instead of hardcoding `up`.
 
 ## The worker's ping may follow a redirect to a bare IP literal
 
@@ -84,6 +89,11 @@ and treating a 3xx as a failure.
 
 **Fix:** do not follow redirects in the ping, or re-run `SSRFValidator` on each
 `Location` and pin each hop.
+
+Note that redirect-following is now load-bearing for a user-visible state: a
+redirect is what [docs/setup.md](setup.md#simulating-monitor-states)
+recommends for reproducing `degraded` at default settings, so the hop described
+here is on the path the setup recipe asks you to exercise.
 
 ## The Test webhook button is open to DNS rebinding
 
@@ -116,6 +126,57 @@ the worker's. Do not "fix" it without that trade-off in mind.
 newly blocked range with a legitimate use: an IPv6-only host using DNS64 to
 reach an IPv4-only monitoring target would stop being pingable. Not relevant to
 this deployment today.
+
+# Resolved on the metrics-correctness branch
+
+These are fixed. They are kept because they record analysis that corrects what
+the original entries claimed, not as a changelog.
+
+## What "success" means
+
+Every layer now counts a 2xx as success, and a stored row alone is enough to
+recover the down versus not-down bit, though no finer: a 200 with a null
+`error_message` could have been `up` or `degraded`. There were five independent definitions of success: the
+worker classifier, the hourly rollup SQL, the raw-tier SQL in
+`select_ping_tier_for_team`, and two in `monitors.ts`. The worker was the only
+outlier: it compared the status code to the monitor's `expected_status`, while
+the other four counted a non-null status below 400 (the hourly rollup also
+requires `>= 200`). The dashboard badge is not a sixth: it renders
+`monitors.status`, which is the worker's verdict, so it has no predicate of its
+own.
+
+The old failure mode was not a permanent redirect. The worker uses undici's
+`fetch` with no `redirect` option, which defaults to `follow`, so a redirect
+carrying a `Location` is followed and only the final status is stored. The
+realistic trigger was a `204`: `expected_status` defaulted to 200 and could not
+be changed from the UI, so the worker called a 204 `down` while every other
+layer counted it a success. It is now a 2xx, so `up`.
+
+The worker now classifies by band (`down` for an error, a null status or
+`>= 400`; `degraded` for a 3xx, a redirected response or a slow one; `up`
+otherwise) and writes `error_message` only for `down`.
+
+An earlier plan was to add a boolean verdict column for everyone to read.
+Dropped: the four non-worker predicates already agreed, so the column would have been a third
+representation of a settled verdict, plus a migration and a backfill.
+
+The hourly predicate (`>= 200 AND < 400`, `rollup-processor.ts`) and the
+raw-tier function `select_ping_tier_for_team` (`< 400`, `schema.sql`) read differently but are equivalent
+for any status undici can return as a final status, so the wording difference
+is not a bug.
+
+## Recent-metrics reporting on thin windows
+
+The list view used to report the single most recent sample in the slots
+labelled p50 and p95. A single sample is not a percentile. The detail page had
+the same defect, softened only by printing `samples N`. A check interval of 3
+hours or more triggered it permanently, not only while a monitor was young.
+
+Window percentiles are now withheld unless enough samples back them (2, 20 and
+100 for p50, p95 and p99; `MIN_SAMPLES` in `src/web/lib/shared/stats.ts`), and a
+peak skips buckets that fall short individually. A daily bucket built from
+hourly approximations never yields a peak p99. The list shows `mean <n>ms` when
+a p50 is withheld, and the chart withholds a bucket's p95 below 20 samples.
 
 # To-do
 

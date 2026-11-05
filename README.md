@@ -38,7 +38,7 @@ It is the same idea as Pingdom or UptimeRobot, built from scratch.
 | <br />                             | <br />                                                                 |
 | ---------------------------------- | ---------------------------------------------------------------------- |
 | **Watches endpoints**              | Any public URL, checked as often as every 30 seconds                   |
-| **Tracks speed, not just up/down** | Median, 95th and 99th percentile response times, charted over time     |
+| **Tracks speed, not just up/down** | Median and 95th percentile response times, with the 95th charted over time, and a 99th only where enough checks support one |
 | **Records outages**                | Start, end, duration, and the HTTP error behind it                     |
 | **Alerts your team**               | Slack, Discord, or a plain JSON webhook, fired the moment status flips |
 | **Shares a read-only link**        | Send a graph to someone without giving them an account                 |
@@ -151,11 +151,11 @@ Why each step, the pooler choice, schema changes and optional settings:
 ## Tests
 
 ```bash
-npm test                 # worker: 119 tests
-cd src/web && npm test   # web: 157 tests
+npm test                 # worker: 130 tests
+cd src/web && npm test   # web: 370 tests
 ```
 
-Both pass from a clean clone with no database configured. 49 further worker
+Both pass from a clean clone with no database configured. 92 further worker
 tests are database-backed and skip themselves unless you point
 `DATABASE_TEST_URL` at a throwaway Postgres. See
 [docs/setup.md](docs/setup.md#database-backed-tests).
@@ -163,17 +163,6 @@ tests are database-backed and skip themselves unless you point
 ***
 
 ## Known issues & to-do
-
-**Bugs**
-
-* **Three components disagree on what "success" means.** The worker, the hourly
-  rollup and the dashboard each decide differently, so a permanent redirect
-  would show a red `down` badge next to `uptime 100%`. Latent today:
-  everything monitored returns `200`.
-
-* **Recent-metrics labelling on the live tier.** For young monitors the list
-  view shows the most recent sample where it labels p50 and p99. Correct
-  number, overstated label.
 
 **Unfinished**
 

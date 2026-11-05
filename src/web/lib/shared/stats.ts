@@ -5,16 +5,18 @@ export interface WindowStats {
   /** Mean response time, weighted by each point's sampleCount so a 120-ping
    *  hour counts 120x as much as a 3-ping one. Always available. */
   meanMs: number;
-  /** Exact *window* percentiles. Raw tier only — a single window percentile
-   *  cannot be recovered from pre-aggregated buckets, so these stay null on
-   *  hourly and daily. */
+  /** Exact *window* percentiles. Raw tier only, since a single window
+   *  percentile cannot be recovered from pre-aggregated buckets, so these stay
+   *  null on hourly and daily. Each is also null until the window holds
+   *  {@link MIN_SAMPLES} samples for that quantile. */
   p50Ms: number | null;
   p95Ms: number | null;
   p99Ms: number | null;
-  /** Highest per-bucket p50/p95/p99 across the window — "the worst bucket's
+  /** Highest per-bucket p50/p95/p99 across the window: "the worst bucket's
    *  percentile", not a window percentile. Available on hourly and daily,
-   *  where each point already carries its own bucket's percentiles. Null on
-   *  raw, where p50Ms/p95Ms/p99Ms above are already exact and stronger. */
+   *  where each point already carries its own bucket's percentiles. Only
+   *  buckets that individually reach {@link MIN_SAMPLES} count. Null on raw,
+   *  where p50Ms/p95Ms/p99Ms above are already exact and stronger. */
   peakP50Ms: number | null;
   peakP95Ms: number | null;
   peakP99Ms: number | null;
@@ -49,10 +51,36 @@ export function percentile(sorted: number[], p: number): number {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (rank - lo);
 }
 
-/** Max of the non-null values, or null if none. */
-function peakOf(values: (number | null)[]): number | null {
-  const present = values.filter((v): v is number => v !== null);
-  return present.length > 0 ? Math.max(...present) : null;
+/**
+ * Fewest samples at which each quantile means something: 1/(1-q), where at
+ * least one observation is expected in the tail the quantile describes. The
+ * expected tail count is n(1-q): for p95 it is 0.95 at 19 samples and reaches
+ * 1 at 20.
+ */
+export const MIN_SAMPLES = { p50: 2, p95: 20, p99: 100 } as const;
+
+/** A daily bucket with percentileSource 'hourly_approx' interpolated over that
+ *  day's hourly percentiles (rollup-processor.ts), of which there are at most 24. */
+const MAX_HOURLY_APPROX_SAMPLES = 24;
+
+/** Max of the non-null picks over buckets that individually reach minSamples, or null if none. */
+function peakOf(
+  metrics: PingMetric[],
+  pick: (m: PingMetric) => number | null,
+  minSamples: number
+): number | null {
+  let peak: number | null = null;
+  for (const m of metrics) {
+    const v = pick(m);
+    // ponytail: caps at 24 for any approx bucket; a day built from 3 hourly buckets still
+    // shows a peak p95 resting on 3 values. Carry the contributing hour count through the tier function to fix.
+    const effective =
+      m.percentileSource === 'hourly_approx'
+        ? Math.min(m.sampleCount, MAX_HOURLY_APPROX_SAMPLES)
+        : m.sampleCount;
+    if (v !== null && effective >= minSamples && (peak === null || v > peak)) peak = v;
+  }
+  return peak;
 }
 
 const TIER_RANK: Record<string, number> = { raw: 0, hourly: 1, daily: 2 };
@@ -102,14 +130,14 @@ export function summarize(metrics: PingMetric[], tier: Tier): WindowStats | null
     // ping_logs_raw.response_time_ms is NOT NULL, so a failed ping still
     // contributes its elapsed time to this pool: raw percentiles describe
     // every attempt, not just successful responses. Failures are not
-    // filtered out here — that would change what the number means without
-    // saying so.
-    p50Ms: exact ? Math.round(percentile(latencies, 0.5)) : null,
-    p95Ms: exact ? Math.round(percentile(latencies, 0.95)) : null,
-    p99Ms: exact ? Math.round(percentile(latencies, 0.99)) : null,
-    peakP50Ms: exact ? null : peakOf(metrics.map((m) => m.p50Ms)),
-    peakP95Ms: exact ? null : peakOf(metrics.map((m) => m.p95Ms)),
-    peakP99Ms: exact ? null : peakOf(metrics.map((m) => m.p99Ms)),
+    // filtered out here, since that would change what the number means
+    // without saying so.
+    p50Ms: exact && latencies.length >= MIN_SAMPLES.p50 ? Math.round(percentile(latencies, 0.5)) : null,
+    p95Ms: exact && latencies.length >= MIN_SAMPLES.p95 ? Math.round(percentile(latencies, 0.95)) : null,
+    p99Ms: exact && latencies.length >= MIN_SAMPLES.p99 ? Math.round(percentile(latencies, 0.99)) : null,
+    peakP50Ms: exact ? null : peakOf(metrics, (m) => m.p50Ms, MIN_SAMPLES.p50),
+    peakP95Ms: exact ? null : peakOf(metrics, (m) => m.p95Ms, MIN_SAMPLES.p95),
+    peakP99Ms: exact ? null : peakOf(metrics, (m) => m.p99Ms, MIN_SAMPLES.p99),
     uptime: successCount / sampleCount,
     sampleCount,
     approxBuckets,

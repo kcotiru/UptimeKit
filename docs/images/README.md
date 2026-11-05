@@ -16,5 +16,6 @@ components with demo props, since a live instance had no failing endpoint to
 photograph. The hostnames are the example.com family so they cannot be mistaken
 for real traffic.
 
-A degraded row is deliberately absent from monitors.png: see the two entries in
-known-issues.md about how a degraded monitor currently renders.
+A degraded row is absent from monitors.png. One is now reproducible at default
+settings by monitoring a URL that redirects (see the state table in
+docs/setup.md); the screenshot has not been recaptured.

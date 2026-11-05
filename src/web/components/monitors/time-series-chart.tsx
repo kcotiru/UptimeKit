@@ -12,7 +12,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { PingMetric } from '@/lib/shared/types';
-import { CHART_X_MIN_TICK_GAP, CHART_X_TICK_MARGIN, CHART_Y_AXIS_WIDTH, chartLabel, outageRanges, spansMoreThanADay } from '@/lib/shared/stats';
+import { CHART_X_MIN_TICK_GAP, CHART_X_TICK_MARGIN, CHART_Y_AXIS_WIDTH, MIN_SAMPLES, chartLabel, outageRanges, spansMoreThanADay } from '@/lib/shared/stats';
 import { Activity } from 'lucide-react';
 
 /**
@@ -46,6 +46,63 @@ function statusLabel(data: {
 }
 
 /**
+ * A bucket's p95 for the tooltip row and the dashed line. An hourly bucket
+ * holding one ping carries a p95 equal to that ping, so it is withheld until
+ * the bucket's own sample count can support one, the same bar `summarize`
+ * applies. Declines to dress up a handful of pings as a percentile, as
+ * `statusLabel` declines to dress up one as a status code.
+ */
+function gatedP95(m: PingMetric): number | null {
+  return m.sampleCount >= MIN_SAMPLES.p95 ? m.p95Ms : null;
+}
+
+/**
+ * The tooltip's name for a point's p95. A daily 'hourly_approx' p95 is
+ * interpolated over that day's hourly p95s, not taken over its pings, so it is
+ * labelled approximate.
+ */
+export function p95Label(data: { percentileSource: PingMetric['percentileSource'] }): string {
+  return data.percentileSource === 'hourly_approx' ? 'approx. p95' : 'p95';
+}
+
+/**
+ * One metric turned into the row Recharts plots. Exported so the gate above
+ * is tested through the mapping the chart actually renders, not through a
+ * copy of it that could stay green while the component drops the gate.
+ * @param spansDays whether the window is longer than a day, which decides
+ *   whether the x-axis label carries a date (see `chartLabel`).
+ */
+export function chartPoint(
+  m: PingMetric,
+  spansDays: boolean
+): {
+  time: string;
+  fullTime: string;
+  latency: number;
+  band: number[] | null;
+  p95: number | null;
+  percentileSource: PingMetric['percentileSource'];
+  isUp: boolean;
+  statusCode: number | null;
+  successCount: number;
+  sampleCount: number;
+} {
+  return {
+    time: chartLabel(m.timestamp, spansDays),
+    fullTime: new Date(m.timestamp).toLocaleString(),
+    latency: m.responseTimeMs,
+    // Recharts draws a band from a [low, high] tuple on one dataKey.
+    band: m.minMs !== null && m.maxMs !== null ? [m.minMs, m.maxMs] : null,
+    p95: gatedP95(m),
+    percentileSource: m.percentileSource,
+    isUp: m.isUp,
+    statusCode: m.statusCode,
+    successCount: m.successCount,
+    sampleCount: m.sampleCount,
+  };
+}
+
+/**
  * Recharts time-series performance graph visualizing response latency (ms) over time.
  */
 export function TimeSeriesChart({ metrics, height = 320 }: TimeSeriesChartProps) {
@@ -74,18 +131,7 @@ export function TimeSeriesChart({ metrics, height = 320 }: TimeSeriesChartProps)
   // drift apart.
   const spansDays = spansMoreThanADay(metrics);
 
-  const formattedData = metrics.map((m) => ({
-    time: chartLabel(m.timestamp, spansDays),
-    fullTime: new Date(m.timestamp).toLocaleString(),
-    latency: m.responseTimeMs,
-    // Recharts draws a band from a [low, high] tuple on one dataKey.
-    band: m.minMs !== null && m.maxMs !== null ? [m.minMs, m.maxMs] : null,
-    p95: m.p95Ms,
-    isUp: m.isUp,
-    statusCode: m.statusCode,
-    successCount: m.successCount,
-    sampleCount: m.sampleCount,
-  }));
+  const formattedData = metrics.map((m) => chartPoint(m, spansDays));
 
   // Contiguous runs of down samples, so an outage is visible on the time axis
   // instead of the area silently continuing through it.
@@ -139,7 +185,7 @@ export function TimeSeriesChart({ metrics, height = 320 }: TimeSeriesChartProps)
                       </div>
                       {data.p95 !== null && (
                         <div className="flex items-center gap-2">
-                          <span className="text-slate-300">p95</span>
+                          <span className="text-slate-300">{p95Label(data)}</span>
                           <span className="text-brand-400 font-medium">{data.p95} ms</span>
                         </div>
                       )}
