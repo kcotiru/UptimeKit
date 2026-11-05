@@ -134,9 +134,10 @@ the original entries claimed, not as a changelog.
 
 ## What "success" means
 
-Every layer now counts a 2xx as success, and a stored row alone is enough to
-recover the down versus not-down bit, though no finer: a 200 with a null
-`error_message` could have been `up` or `degraded`. There were five independent definitions of success: the
+Every layer now agrees on down versus not-down, drawing the line at a status
+of `>= 400` or no response at all. A stored row alone is enough to recover
+that bit, though no finer: a 200 with a null `error_message` could have been
+`up` or `degraded`. There were five independent definitions of success: the
 worker classifier, the hourly rollup SQL, the raw-tier SQL in
 `select_ping_tier_for_team`, and two in `monitors.ts`. The worker was the only
 outlier: it compared the status code to the monitor's `expected_status`, while
